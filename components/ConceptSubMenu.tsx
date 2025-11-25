@@ -1,8 +1,9 @@
 'use client';
 
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
 
-const SUB_MENU_ITEMS = [
+export const SUB_MENU_ITEMS = [
   { id: 'overview', label: '概要・コンセプト', path: 'overview' },
   { id: 'features', label: '提供機能', path: 'features' },
   { id: 'business-model', label: 'ビジネスモデル', path: 'business-model' },
@@ -24,9 +25,12 @@ interface ConceptSubMenuProps {
 
 export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId }: ConceptSubMenuProps) {
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
 
   const handleSubMenuClick = (item: typeof SUB_MENU_ITEMS[0]) => {
-    router.push(`/business-plan/services/${serviceId}/${conceptId}/${item.path}`);
+    startTransition(() => {
+      router.push(`/business-plan/services/${serviceId}/${conceptId}/${item.path}`);
+    });
   };
 
   return (
@@ -54,11 +58,13 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
                   color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
                   textDecoration: 'none',
                   transition: 'all 0.2s ease',
+                  borderTop: 'none',
+                  borderRight: 'none',
+                  borderBottom: 'none',
                   borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
                   backgroundColor: isActive ? 'rgba(31, 41, 51, 0.05)' : 'transparent',
                   fontSize: '14px',
                   fontWeight: isActive ? 500 : 400,
-                  border: 'none',
                   cursor: 'pointer',
                   textAlign: 'left',
                 }}
@@ -87,6 +93,4 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
     </div>
   );
 }
-
-export { SUB_MENU_ITEMS };
 
