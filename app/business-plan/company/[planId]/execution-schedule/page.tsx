@@ -10,10 +10,10 @@ declare global {
 }
 
 const SERVICE_NAMES: { [key: string]: string } = {
-  'own-service': '1. 自社サービス事業',
-  'education-training': '2. 人材育成・教育・AI導入ルール設計事業',
-  'consulting': '3. 業務コンサル・プロセス可視化・改善事業',
-  'ai-dx': '4. AI駆動開発・DX支援事業',
+  'own-service': '1. 自社開発・自社サービス事業',
+  'education-training': '2. AI導入ルール設計・人材育成・教育事業',
+  'consulting': '3. プロセス可視化・業務コンサル事業',
+  'ai-dx': '4. AI駆動開発・DX支援SI事業',
 };
 
 interface ScheduleItem {
@@ -38,7 +38,7 @@ const SCHEDULE_DATA: ScheduleItem[] = [
     achievements: ['設立準備完了', '事業計画確定']
   },
   
-  // 1年目：自社サービス事業
+  // 1年目：自社開発・自社サービス事業
   {
     serviceId: 'own-service',
     year: 1,
@@ -62,7 +62,7 @@ const SCHEDULE_DATA: ScheduleItem[] = [
     netIncome: '-14'
   },
   
-  // 2年目：自社サービス事業継続 + 人材育成事業開始
+  // 2年目：自社開発・自社サービス事業継続 + 人材育成事業開始
   {
     serviceId: 'own-service',
     year: 2,
@@ -318,13 +318,13 @@ export default function ExecutionSchedulePage() {
     diagram += '    Y0["0年目：準備期間<br/>会社設立準備<br/>事業計画策定<br/>初期チーム構築"]\n';
     diagram += '    class Y0 year0Class\n\n';
 
-    // 1年目：自社サービス事業開始
-    diagram += '    Y1["1年目：自社サービス事業<br/>立ち上げ事業<br/>パーソナルアプリ開発開始<br/>ユーザー獲得施策<br/>B2B契約獲得"]\n';
+    // 1年目：自社開発・自社サービス事業開始
+    diagram += '    Y1["1年目：自社開発・自社サービス事業<br/>立ち上げ事業<br/>パーソナルアプリ開発開始<br/>ユーザー獲得施策<br/>B2B契約獲得"]\n';
     diagram += '    A1["獲得：収益基盤の確立<br/>自社の開発経験の蓄積<br/>AI活用ノウハウの獲得"]\n';
     diagram += '    class Y1,A1 year1Class\n\n';
 
     // 2年目：複数事業開始
-    diagram += '    Y2A["2年目：自社サービス事業<br/>注力事業<br/>サービス拡充<br/>パートナー連携強化"]\n';
+    diagram += '    Y2A["2年目：自社開発・自社サービス事業<br/>注力事業<br/>サービス拡充<br/>パートナー連携強化"]\n';
     diagram += '    Y2B["2年目：人材育成・教育事業<br/>立ち上げ事業<br/>教育プログラム開発<br/>AI導入ルール設計サービス開始"]\n';
     diagram += '    Y2C["2年目：業務コンサル事業<br/>準備<br/>業務コンサル体制構築"]\n';
     diagram += '    Y2D["2年目：AI駆動開発事業<br/>準備<br/>AI駆動開発体制構築"]\n';
@@ -332,7 +332,7 @@ export default function ExecutionSchedulePage() {
     diagram += '    class Y2A,Y2B,Y2C,Y2D,A2 year2Class\n\n';
 
     // 3年目：事業本格化
-    diagram += '    Y3A["3年目：自社サービス事業<br/>スケール事業<br/>事業の本格展開<br/>市場拡大"]\n';
+    diagram += '    Y3A["3年目：自社開発・自社サービス事業<br/>スケール事業<br/>事業の本格展開<br/>市場拡大"]\n';
     diagram += '    Y3B["3年目：人材育成・教育事業<br/>スケール事業<br/>教育事業の本格展開<br/>企業契約の拡大"]\n';
     diagram += '    Y3C["3年目：業務コンサル事業<br/>立ち上げ事業<br/>業務コンサルサービス開始<br/>プロセス可視化・改善支援"]\n';
     diagram += '    Y3D["3年目：AI駆動開発事業<br/>立ち上げ事業<br/>AI駆動開発サービス開始<br/>DX支援プロジェクト実施"]\n';
@@ -393,8 +393,8 @@ export default function ExecutionSchedulePage() {
     diagram += '    Y0["0年目：準備期間<br/>会社設立準備<br/>事業計画策定<br/>初期チーム構築"]\n';
     diagram += '    class Y0 year0Class\n\n';
 
-    // 1年目：自社サービス事業開始
-    diagram += '    Y1["1年目：自社サービス事業<br/>立ち上げ事業<br/>パーソナルアプリ開発開始<br/>ユーザー獲得施策<br/>B2B契約獲得"]\n';
+    // 1年目：自社開発・自社サービス事業開始
+    diagram += '    Y1["1年目：自社開発・自社サービス事業<br/>立ち上げ事業<br/>パーソナルアプリ開発開始<br/>ユーザー獲得施策<br/>B2B契約獲得"]\n';
     diagram += '    A1["獲得：収益基盤の確立<br/>自社の開発経験の蓄積<br/>AI活用ノウハウの獲得"]\n';
     diagram += '    R1A["なぜ必要？<br/>収益基盤の確立<br/>→ 次の事業への投資資金が必要<br/>→ 事業拡大のための資金調達"]\n';
     diagram += '    R1B["なぜ必要？<br/>自社の開発経験の蓄積<br/>→ 人材育成事業で教育コンテンツを作るため<br/>→ 実践的なノウハウの提供が可能に"]\n';
@@ -403,7 +403,7 @@ export default function ExecutionSchedulePage() {
     diagram += '    class R1A,R1B,R1C reasonClass\n\n';
 
     // 2年目：複数事業開始
-    diagram += '    Y2A["2年目：自社サービス事業<br/>注力事業<br/>サービス拡充<br/>パートナー連携強化"]\n';
+    diagram += '    Y2A["2年目：自社開発・自社サービス事業<br/>注力事業<br/>サービス拡充<br/>パートナー連携強化"]\n';
     diagram += '    Y2B["2年目：人材育成・教育事業<br/>立ち上げ事業<br/>教育プログラム開発<br/>AI導入ルール設計サービス開始"]\n';
     diagram += '    Y2C["2年目：業務コンサル事業<br/>準備<br/>業務コンサル体制構築"]\n';
     diagram += '    Y2D["2年目：AI駆動開発事業<br/>準備<br/>AI駆動開発体制構築"]\n';
@@ -415,7 +415,7 @@ export default function ExecutionSchedulePage() {
     diagram += '    class R2A,R2B,R2C reasonClass\n\n';
 
     // 3年目：事業本格化
-    diagram += '    Y3A["3年目：自社サービス事業<br/>スケール事業<br/>事業の本格展開<br/>市場拡大"]\n';
+    diagram += '    Y3A["3年目：自社開発・自社サービス事業<br/>スケール事業<br/>事業の本格展開<br/>市場拡大"]\n';
     diagram += '    Y3B["3年目：人材育成・教育事業<br/>スケール事業<br/>教育事業の本格展開<br/>企業契約の拡大"]\n';
     diagram += '    Y3C["3年目：業務コンサル事業<br/>立ち上げ事業<br/>業務コンサルサービス開始<br/>プロセス可視化・改善支援"]\n';
     diagram += '    Y3D["3年目：AI駆動開発事業<br/>立ち上げ事業<br/>AI駆動開発サービス開始<br/>DX支援プロジェクト実施"]\n';

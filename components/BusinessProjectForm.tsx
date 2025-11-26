@@ -103,7 +103,7 @@ export default function BusinessProjectForm({ project, onSave, onCancel }: Busin
             value={formData.name}
             onChange={(e) => handleNameChange(e.target.value)}
             required
-            placeholder="例: AI駆動開発・DX支援事業"
+            placeholder="例: AI駆動開発・DX支援SI事業"
           />
         </div>
 

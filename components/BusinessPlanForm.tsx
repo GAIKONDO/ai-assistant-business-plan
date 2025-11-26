@@ -13,6 +13,7 @@ export interface BusinessPlanData {
   financialPlan: string;
   timeline: string;
   keyVisualUrl?: string; // キービジュアル画像のURL
+  keyVisualHeight?: number; // キービジュアルの高さ（%）
 }
 
 interface BusinessPlanFormProps {

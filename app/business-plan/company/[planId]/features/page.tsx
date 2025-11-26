@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
+import { FaMobileAlt, FaGraduationCap, FaChartBar, FaLaptopCode } from 'react-icons/fa';
 
 declare global {
   interface Window {
@@ -10,10 +11,10 @@ declare global {
 }
 
 const SERVICE_NAMES: { [key: string]: string } = {
-  'own-service': '自社サービス事業',
-  'education-training': '人材育成・教育・AI導入ルール設計事業',
-  'consulting': '業務コンサル・プロセス可視化・改善事業',
-  'ai-dx': 'AI駆動開発・DX支援事業',
+  'own-service': '自社開発・自社サービス事業',
+  'education-training': 'AI導入ルール設計・人材育成・教育事業',
+  'consulting': 'プロセス可視化・業務コンサル事業',
+  'ai-dx': 'AI駆動開発・DX支援SI事業',
 };
 
 // 各事業企画のターゲット範囲
@@ -28,8 +29,16 @@ const SERVICE_SCOPE: { [key: string]: string } = {
 const SERVICE_TARGET: { [key: string]: string } = {
   'own-service': 'エンドユーザー',
   'ai-dx': 'システム部門',
-  'consulting': '業務部門',
+  'consulting': '経営層・人事、営業部門、職能部門',
   'education-training': '経営層・人事部門・全社',
+};
+
+// 各事業企画のサービス提供の流れ
+const SERVICE_FLOW: { [key: string]: string } = {
+  'own-service': '自社から直接エンドユーザーへサービス提供',
+  'education-training': '自社 → 経営層 → システム部門・営業部門・職能部門 → エンドユーザー',
+  'consulting': '自社 → 営業部門・職能部門 → エンドユーザー',
+  'ai-dx': '自社 → システム部門 → エンドユーザー',
 };
 
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string; target: string }> } = {
@@ -80,7 +89,7 @@ export default function FeaturesPage() {
     let diagram = 'sequenceDiagram\n';
     diagram += '    participant 自社 as 株式会社AIアシスタント\n';
     diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
-    diagram += '    participant 業務部門 as 顧客企業・業務部門\n';
+    diagram += '    participant 業務部門 as 顧客企業・営業部門・職能部門\n';
     diagram += '    participant システム部門 as 顧客企業・システム部門\n';
     diagram += '    participant エンドユーザー as エンドユーザー<br/>(従業員・利用者)\n\n';
     
@@ -90,33 +99,42 @@ export default function FeaturesPage() {
       const scope = SERVICE_SCOPE[serviceId];
       const target = SERVICE_TARGET[serviceId];
       
-      // 自社サービス事業の場合は直接エンドユーザーへ
+      // 自社開発・自社サービス事業の場合は直接エンドユーザーへ
       if (serviceId === 'own-service') {
         diagram += `    Note over 自社,エンドユーザー: ${serviceName}<br/>【${scope}】\n`;
         diagram += `    自社->>エンドユーザー: ${serviceName}\n`;
       } else if (serviceId === 'ai-dx') {
-        // AI駆動開発・DX支援事業はシステム部門が主な顧客
+        // AI駆動開発・DX支援SI事業はシステム部門が主な顧客
         diagram += `    Note over 自社,システム部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
         diagram += `    自社->>システム部門: ${serviceName}\n`;
         diagram += `    activate システム部門\n`;
+        diagram += `    システム部門->>エンドユーザー: AI活用支援\n`;
+        diagram += `    システム部門->>エンドユーザー: 業務改善・効率化\n`;
         diagram += `    システム部門->>エンドユーザー: システム導入・運用\n`;
         diagram += `    deactivate システム部門\n`;
       } else if (serviceId === 'consulting') {
-        // 業務コンサル・プロセス可視化・改善事業は業務部門が主な顧客
-        diagram += `    Note over 自社,業務部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
-        diagram += `    自社->>業務部門: ${serviceName}\n`;
-        diagram += `    activate 業務部門\n`;
-        diagram += `    業務部門->>エンドユーザー: 業務改善・効率化\n`;
-        diagram += `    deactivate 業務部門\n`;
-      } else if (serviceId === 'education-training') {
-        // 人材育成・教育・AI導入ルール設計事業は経営層・全社が主な顧客
+        // プロセス可視化・業務コンサル事業は経営層・人事、営業部門、職能部門が主な顧客
         diagram += `    Note over 自社,経営層: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
         diagram += `    自社->>経営層: ${serviceName}\n`;
         diagram += `    activate 経営層\n`;
-        diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
+        diagram += `    経営層->>業務部門: プロセス可視化・業務コンサル展開\n`;
+        diagram += `    activate 業務部門\n`;
+        diagram += `    業務部門->>エンドユーザー: 業務改善・効率化\n`;
+        diagram += `    deactivate 業務部門\n`;
+        diagram += `    deactivate 経営層\n`;
+      } else if (serviceId === 'education-training') {
+        // AI導入ルール設計・人材育成・教育事業は経営層・全社が主な顧客
+        diagram += `    Note over 自社,経営層: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
+        diagram += `    自社->>経営層: ${serviceName}\n`;
+        diagram += `    activate 経営層\n`;
         diagram += `    経営層->>業務部門: 教育・研修\n`;
-        diagram += `    システム部門->>エンドユーザー: AI活用支援\n`;
+        diagram += `    activate 業務部門\n`;
         diagram += `    業務部門->>エンドユーザー: 業務改善\n`;
+        diagram += `    deactivate 業務部門\n`;
+        diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
+        diagram += `    activate システム部門\n`;
+        diagram += `    システム部門->>エンドユーザー: AI活用支援\n`;
+        diagram += `    deactivate システム部門\n`;
         diagram += `    deactivate 経営層\n`;
       }
       
@@ -264,7 +282,7 @@ export default function FeaturesPage() {
       <div className="card">
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
-            4つの事業企画のサービス提供フロー
+            4つの事業企画
           </h3>
           <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
             当社の4つの事業企画が、自社から顧客、そしてエンドユーザーへとどのようにサービスを提供するかを示しています。
@@ -272,6 +290,92 @@ export default function FeaturesPage() {
         </div>
 
         <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
+          <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-around', flexWrap: 'wrap', marginBottom: '24px' }}>
+            {/* 1. 自社開発・自社サービス事業 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                color: '#fff'
+              }}>
+                <FaMobileAlt size={40} />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
+                自社開発<br />自社サービス事業
+              </div>
+            </div>
+
+            {/* 2. AI導入ルール設計・人材育成・教育事業 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                color: '#fff'
+              }}>
+                <FaGraduationCap size={40} />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
+                AI導入ルール設計<br />人材育成・教育事業
+              </div>
+            </div>
+
+            {/* 3. プロセス可視化・業務コンサル事業 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                color: '#fff'
+              }}>
+                <FaChartBar size={40} />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
+                プロセス可視化<br />業務コンサル事業
+              </div>
+            </div>
+
+            {/* 4. AI駆動開発・DX支援SI事業 */}
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+              <div style={{
+                width: '100px',
+                height: '100px',
+                borderRadius: '50%',
+                backgroundColor: 'var(--color-primary)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                marginBottom: '12px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
+                color: '#fff'
+              }}>
+                <FaLaptopCode size={40} />
+              </div>
+              <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
+                AI駆動開発<br />DX支援SI事業
+              </div>
+            </div>
+          </div>
+
           <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
             各事業企画のターゲット範囲と顧客層
           </h4>
@@ -289,50 +393,78 @@ export default function FeaturesPage() {
                     textAlign: 'left', 
                     border: '1px solid var(--color-border-color)', 
                     fontWeight: 600,
-                    minWidth: '200px'
+                    width: '120px'
                   }}>
-                    事業企画名
+                    
                   </th>
-                  <th style={{ 
-                    padding: '12px', 
-                    textAlign: 'left', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    minWidth: '150px'
-                  }}>
-                    提供範囲
-                  </th>
-                  <th style={{ 
-                    padding: '12px', 
-                    textAlign: 'left', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    minWidth: '250px'
-                  }}>
-                    構想
-                  </th>
+                  {Object.entries(SERVICE_NAMES).map(([id, name], index) => (
+                    <th key={id} style={{ 
+                      padding: '12px', 
+                      textAlign: 'left', 
+                      border: '1px solid var(--color-border-color)', 
+                      fontWeight: 600,
+                      minWidth: '200px'
+                    }}>
+                      {index + 1}. {name}
+                    </th>
+                  ))}
                 </tr>
               </thead>
               <tbody>
-                {Object.entries(SERVICE_NAMES).map(([id, name], index) => {
-                  const concepts = FIXED_CONCEPTS[id] || [];
-                  return (
-                    <tr key={id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#fafafa' }}>
-                      <td style={{ 
-                        padding: '12px', 
-                        border: '1px solid var(--color-border-color)', 
-                        verticalAlign: 'top'
-                      }}>
-                        {index + 1}. {name}
-                      </td>
-                      <td style={{ 
-                        padding: '12px', 
-                        border: '1px solid var(--color-border-color)', 
-                        verticalAlign: 'top'
-                      }}>
-                        {SERVICE_SCOPE[id]}
-                      </td>
-                      <td style={{ 
+                <tr style={{ backgroundColor: '#fff' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
+                    提供範囲
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id]) => (
+                    <td key={id} style={{ 
+                      padding: '12px', 
+                      border: '1px solid var(--color-border-color)', 
+                      verticalAlign: 'top'
+                    }}>
+                      {SERVICE_SCOPE[id]}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ backgroundColor: '#fff' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
+                    サービス提供の流れ
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id]) => (
+                    <td key={id} style={{ 
+                      padding: '12px', 
+                      border: '1px solid var(--color-border-color)', 
+                      verticalAlign: 'top'
+                    }}>
+                      {SERVICE_FLOW[id]}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ backgroundColor: '#fafafa' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
+                    構想
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id], index) => {
+                    const concepts = FIXED_CONCEPTS[id] || [];
+                    return (
+                      <td key={id} style={{ 
                         padding: '12px', 
                         border: '1px solid var(--color-border-color)', 
                         verticalAlign: 'top'
@@ -349,30 +481,12 @@ export default function FeaturesPage() {
                           <span style={{ color: 'var(--color-text-light)' }}>-</span>
                         )}
                       </td>
-                    </tr>
-                  );
-                })}
+                    );
+                  })}
+                </tr>
               </tbody>
             </table>
           </div>
-          
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            サービス提供の流れ（一例）
-          </h4>
-          <ol style={{ paddingLeft: '20px', listStyleType: 'decimal' }}>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>自社サービス事業:</strong> 自社から直接エンドユーザーへサービス提供
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>AI駆動開発・DX支援事業:</strong> 自社 → システム部門 → エンドユーザー
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>業務コンサル・プロセス可視化・改善事業:</strong> 自社 → 業務部門 → エンドユーザー
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>人材育成・教育・AI導入ルール設計事業:</strong> 自社 → 経営層 → システム部門・業務部門 → エンドユーザー
-            </li>
-          </ol>
         </div>
         
         {error && (

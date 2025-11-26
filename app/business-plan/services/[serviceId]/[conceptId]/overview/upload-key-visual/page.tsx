@@ -3,7 +3,7 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
-import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { doc, updateDoc, addDoc, serverTimestamp, query, collection, where, getDocs } from 'firebase/firestore';
 import { auth, storage, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 
@@ -19,7 +19,8 @@ type AspectRatio = '16:9' | '4:3' | '1:1' | '3:4' | '1:2' | 'free' | null;
 export default function UploadKeyVisualPage() {
   const params = useParams();
   const router = useRouter();
-  const planId = params.planId as string;
+  const serviceId = params.serviceId as string;
+  const conceptId = params.conceptId as string;
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -361,22 +362,67 @@ export default function UploadKeyVisualPage() {
       
       setUploadProgress('画像をアップロード中...');
       
-      const storageRef = ref(storage, `business-plans/${planId}/key-visual.png`);
+      const storageRef = ref(storage, `concepts/${serviceId}/${conceptId}/key-visual.png`);
       await uploadBytes(storageRef, blobToUpload);
       
       setUploadProgress('画像のURLを取得中...');
       const downloadURL = await getDownloadURL(storageRef);
 
       setUploadProgress('データベースに保存中...');
-      await updateDoc(doc(db, 'companyBusinessPlan', planId), {
-        keyVisualUrl: downloadURL,
-        updatedAt: serverTimestamp(),
-      });
+      
+      const conceptsQuery = query(
+        collection(db, 'concepts'),
+        where('userId', '==', auth.currentUser.uid),
+        where('serviceId', '==', serviceId),
+        where('conceptId', '==', conceptId)
+      );
+      
+      const conceptsSnapshot = await getDocs(conceptsQuery);
+      
+      if (!conceptsSnapshot.empty) {
+        const conceptDoc = conceptsSnapshot.docs[0];
+        await updateDoc(doc(db, 'concepts', conceptDoc.id), {
+          keyVisualUrl: downloadURL,
+          updatedAt: serverTimestamp(),
+        });
+      } else {
+        const fixedConcepts: { [key: string]: { [key: string]: string } } = {
+          'own-service': {
+            'maternity-support': '出産支援パーソナルアプリケーション',
+            'care-support': '介護支援パーソナルアプリケーション',
+          },
+          'ai-dx': {
+            'medical-dx': '医療法人向けDX',
+            'sme-dx': '中小企業向けDX',
+          },
+          'consulting': {
+            'sme-process': '中小企業向け業務プロセス可視化・改善',
+            'medical-care-process': '医療・介護施設向け業務プロセス可視化・改善',
+          },
+          'education-training': {
+            'corporate-ai-training': '大企業向けAI人材育成・教育',
+            'ai-governance': 'AI導入ルール設計・ガバナンス支援',
+            'sme-ai-education': '中小企業向けAI導入支援・教育',
+          },
+        };
+        const conceptName = fixedConcepts[serviceId]?.[conceptId] || conceptId;
+        
+        await addDoc(collection(db, 'concepts'), {
+          name: conceptName,
+          description: '',
+          conceptId: conceptId,
+          serviceId: serviceId,
+          userId: auth.currentUser.uid,
+          keyVisualUrl: downloadURL,
+          createdAt: serverTimestamp(),
+          updatedAt: serverTimestamp(),
+        });
+      }
 
       setUploadProgress('アップロード完了！');
       
       setTimeout(() => {
-        router.push(`/business-plan/company/${planId}/overview`);
+        router.push(`/business-plan/services/${serviceId}/${conceptId}/overview`);
       }, 2000);
     } catch (err: any) {
       console.error('アップロードエラー詳細:', err);
@@ -423,7 +469,7 @@ export default function UploadKeyVisualPage() {
         {!imageSrc ? (
           <div style={{ marginBottom: '24px' }}>
             <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-              事業計画のキービジュアル画像を選択してください。
+              構想のキービジュアル画像を選択してください。
             </p>
             <input
               ref={fileInputRef}
@@ -761,7 +807,7 @@ export default function UploadKeyVisualPage() {
 
         <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
           <button
-            onClick={() => router.push(`/business-plan/company/${planId}/overview`)}
+            onClick={() => router.push(`/business-plan/services/${serviceId}/${conceptId}/overview`)}
             disabled={uploading}
             style={{
               padding: '8px 16px',

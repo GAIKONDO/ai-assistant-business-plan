@@ -10,10 +10,10 @@ declare global {
 }
 
 const SERVICE_NAMES: { [key: string]: string } = {
-  'own-service': '自社サービス事業',
-  'education-training': '人材育成・教育・AI導入ルール設計事業',
-  'consulting': '業務コンサル・プロセス可視化・改善事業',
-  'ai-dx': 'AI駆動開発・DX支援事業',
+  'own-service': '自社開発・自社サービス事業',
+  'education-training': 'AI導入ルール設計・人材育成・教育事業',
+  'consulting': 'プロセス可視化・業務コンサル事業',
+  'ai-dx': 'AI駆動開発・DX支援SI事業',
 };
 
 type ServiceId = 'own-service' | 'education-training' | 'consulting' | 'ai-dx';
@@ -54,7 +54,7 @@ export default function BusinessModelPage() {
     }
   }, [selectedService, isDetailed, mermaidLoaded]);
 
-  // 自社サービス事業のMermaid図を生成（簡素版）
+  // 自社開発・自社サービス事業のMermaid図を生成（簡素版）
   const generateOwnServiceDiagramSimple = () => {
     let diagram = 'graph LR\n';
     diagram += '    direction LR\n';
@@ -94,7 +94,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // 自社サービス事業のMermaid図を生成（詳細版）
+  // 自社開発・自社サービス事業のMermaid図を生成（詳細版）
   const generateOwnServiceDiagram = () => {
     let diagram = 'graph LR\n';
     diagram += '    direction LR\n';
@@ -177,7 +177,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // 人材育成・教育・AI導入ルール設計事業のMermaid図を生成（簡素版）
+  // AI導入ルール設計・人材育成・教育事業のMermaid図を生成（簡素版）
   const generateEducationTrainingDiagramSimple = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
@@ -185,7 +185,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>人材育成・教育・AI導入ルール設計事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>AI導入ルール設計・人材育成・教育事業"]\n';
     diagram += '    Clients["顧客企業<br/>経営層・人事部門"]\n';
     diagram += '    Services["提供サービス<br/>教育・研修・コンサルティング"]\n';
     diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
@@ -204,7 +204,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // 人材育成・教育・AI導入ルール設計事業のMermaid図を生成（詳細版）
+  // AI導入ルール設計・人材育成・教育事業のMermaid図を生成（詳細版）
   const generateEducationTrainingDiagram = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
@@ -212,7 +212,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>人材育成・教育・AI導入ルール設計事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>AI導入ルール設計・人材育成・教育事業"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Clients["顧客企業"]\n';
@@ -250,7 +250,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // 業務コンサル・プロセス可視化・改善事業のMermaid図を生成（簡素版）
+  // プロセス可視化・業務コンサル事業のMermaid図を生成（簡素版）
   const generateConsultingDiagramSimple = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
@@ -258,7 +258,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>業務コンサル・プロセス可視化・改善事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>プロセス可視化・業務コンサル事業"]\n';
     diagram += '    Clients["顧客企業<br/>業務部門"]\n';
     diagram += '    Services["提供サービス<br/>プロセス可視化・改善提案"]\n';
     diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
@@ -277,7 +277,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // 業務コンサル・プロセス可視化・改善事業のMermaid図を生成（詳細版）
+  // プロセス可視化・業務コンサル事業のMermaid図を生成（詳細版）
   const generateConsultingDiagram = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
@@ -285,7 +285,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>業務コンサル・プロセス可視化・改善事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>プロセス可視化・業務コンサル事業"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Clients["顧客企業"]\n';
@@ -330,7 +330,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // AI駆動開発・DX支援事業のMermaid図を生成（簡素版）
+  // AI駆動開発・DX支援SI事業のMermaid図を生成（簡素版）
   const generateAiDxDiagramSimple = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
@@ -338,7 +338,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援SI事業"]\n';
     diagram += '    Clients["顧客企業<br/>システム部門"]\n';
     diagram += '    Services["提供サービス<br/>AIシステム開発・導入"]\n';
     diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
@@ -357,7 +357,7 @@ export default function BusinessModelPage() {
     return diagram;
   };
 
-  // AI駆動開発・DX支援事業のMermaid図を生成（詳細版）
+  // AI駆動開発・DX支援SI事業のMermaid図を生成（詳細版）
   const generateAiDxDiagram = () => {
     let diagram = 'graph TD\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
@@ -365,7 +365,7 @@ export default function BusinessModelPage() {
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援事業"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援SI事業"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Clients["顧客企業"]\n';
@@ -432,9 +432,9 @@ export default function BusinessModelPage() {
     switch (serviceId) {
       case 'own-service':
         return {
-          title: '自社サービス事業のビジネスモデル',
+          title: '自社開発・自社サービス事業のビジネスモデル',
           description: [
-            '自社サービス事業は、パーソナルアプリケーションを直接エンドユーザーに提供する事業です。主なサービスとして「出産支援パーソナルアプリケーション」と「介護支援パーソナルアプリケーション」を展開しています。',
+            '自社開発・自社サービス事業は、パーソナルアプリケーションを直接エンドユーザーに提供する事業です。主なサービスとして「出産支援パーソナルアプリケーション」と「介護支援パーソナルアプリケーション」を展開しています。',
             'ビジネスモデルは、多様なパートナー企業との連携による紹介手数料・広告費収入と、個人ユーザー・企業・自治体からの直接収益を組み合わせたマルチチャネルモデルです。無料で利用できる基本機能によりユーザーを獲得し、プレミアムプランやB2B契約、パートナー紹介による収益化を実現します。',
           ],
           revenueModel: [
@@ -451,9 +451,9 @@ export default function BusinessModelPage() {
         };
       case 'education-training':
         return {
-          title: '人材育成・教育・AI導入ルール設計事業のビジネスモデル',
+          title: 'AI導入ルール設計・人材育成・教育事業のビジネスモデル',
           description: [
-            '人材育成・教育・AI導入ルール設計事業は、経営層・人事部門を主な顧客として、組織全体のAI活用能力向上を支援する事業です。',
+            'AI導入ルール設計・人材育成・教育事業は、経営層・人事部門を主な顧客として、組織全体のAI活用能力向上を支援する事業です。',
             'ビジネスモデルは、企業との契約料金を主な収益源とし、AI活用教育・研修、AI導入ルール設計・ガバナンス構築、組織全体のAI活用能力向上コンサルティングを提供します。標準化とカスタマイズの両立を実現するための教育・研修・ルール設計を提供することで、企業のAIファーストカンパニーへの変革を支援します。',
           ],
           revenueModel: [
@@ -469,9 +469,9 @@ export default function BusinessModelPage() {
         };
       case 'consulting':
         return {
-          title: '業務コンサル・プロセス可視化・改善事業のビジネスモデル',
+          title: 'プロセス可視化・業務コンサル事業のビジネスモデル',
           description: [
-            '業務コンサル・プロセス可視化・改善事業は、業務部門を主な顧客として、分散データの可視化とプロセス改善を支援する事業です。',
+            'プロセス可視化・業務コンサル事業は、業務部門を主な顧客として、分散データの可視化とプロセス改善を支援する事業です。',
             'ビジネスモデルは、コンサルティング料金を主な収益源とし、業務プロセス可視化、データドリブンな業務改善提案、助成金活用支援を提供します。メール、チャット、ストレージなどの分散データをAI Agentが分析し、業務フローの最適化を提案することで、従来可視化困難だった個人・組織の分散データを活用した改善を実現します。',
           ],
           revenueModel: [
@@ -487,9 +487,9 @@ export default function BusinessModelPage() {
         };
       case 'ai-dx':
         return {
-          title: 'AI駆動開発・DX支援事業のビジネスモデル',
+          title: 'AI駆動開発・DX支援SI事業のビジネスモデル',
           description: [
-            'AI駆動開発・DX支援事業は、システム部門を主な顧客として、AI活用アーキテクチャの導入支援とカスタムAIシステム開発を提供する事業です。',
+            'AI駆動開発・DX支援SI事業は、システム部門を主な顧客として、AI活用アーキテクチャの導入支援とカスタムAIシステム開発を提供する事業です。',
             'ビジネスモデルは、開発・導入費用を主な収益源とし、AI活用アーキテクチャ導入、カスタムAIシステム開発、データ統合・分析システム構築、API統合支援を提供します。全社統合データと分散データの両方を活用するAIシステムの構築を支援し、企業のDX推進を加速させます。',
           ],
           revenueModel: [

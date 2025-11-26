@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext, useCallback, useRef } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback, useRef, startTransition } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -65,6 +65,7 @@ export default function CompanyPlanDetailLayout({
           financialPlan: data.financialPlan || '',
           timeline: data.timeline || '',
           keyVisualUrl: data.keyVisualUrl || '', // キービジュアル画像のURL
+          keyVisualHeight: data.keyVisualHeight || 56.25, // キービジュアルの高さ（%）
         };
         setPlan(planData);
         setPlanTitle(data.title || '事業計画');
@@ -196,6 +197,22 @@ function CompanyPlanLayoutContent({
     setCurrentPage(0);
     setTotalPages(1);
   }, [currentSubMenu]);
+
+  // 次のスライドと前のスライドを事前にプリフェッチ
+  useEffect(() => {
+    if (currentSlideIndex >= 0 && currentSlideIndex < totalSlides) {
+      // 次のスライドをプリフェッチ
+      if (currentSlideIndex < totalSlides - 1) {
+        const nextItem = SUB_MENU_ITEMS[currentSlideIndex + 1];
+        router.prefetch(`/business-plan/company/${planId}/${nextItem.path}`);
+      }
+      // 前のスライドをプリフェッチ
+      if (currentSlideIndex > 0) {
+        const previousItem = SUB_MENU_ITEMS[currentSlideIndex - 1];
+        router.prefetch(`/business-plan/company/${planId}/${previousItem.path}`);
+      }
+    }
+  }, [currentSlideIndex, totalSlides, planId, router]);
   
   // 要素IDベースでページ数を計算（スクロール方式）
   useEffect(() => {
@@ -404,18 +421,25 @@ function CompanyPlanLayoutContent({
     if (currentSlideIndex > 0) {
       setSlideDirection('right');
       const previousItem = SUB_MENU_ITEMS[currentSlideIndex - 1];
-      router.push(`/business-plan/company/${planId}/${previousItem.path}`);
-      setTimeout(() => setSlideDirection(null), 500);
+      startTransition(() => {
+        router.push(`/business-plan/company/${planId}/${previousItem.path}`, { scroll: false });
+      });
+      setTimeout(() => setSlideDirection(null), 350);
     }
   }, [currentSlideIndex, planId, router]);
   
   // 次のスライドに移動
   const goToNextSlide = useCallback(() => {
     if (currentSlideIndex < totalSlides - 1) {
-      setSlideDirection('left');
       const nextItem = SUB_MENU_ITEMS[currentSlideIndex + 1];
-      router.push(`/business-plan/company/${planId}/${nextItem.path}`);
-      setTimeout(() => setSlideDirection(null), 500);
+      // アニメーションを開始
+      setSlideDirection('left');
+      // startTransitionで遷移を最適化（React 18の並行レンダリング機能を活用）
+      startTransition(() => {
+        router.push(`/business-plan/company/${planId}/${nextItem.path}`, { scroll: false });
+      });
+      // アニメーション時間に合わせてリセット
+      setTimeout(() => setSlideDirection(null), 350);
     }
   }, [currentSlideIndex, totalSlides, planId, router]);
   
@@ -423,7 +447,7 @@ function CompanyPlanLayoutContent({
   const goToSlide = useCallback((index: number) => {
     if (index >= 0 && index < totalSlides) {
       const item = SUB_MENU_ITEMS[index];
-      router.push(`/business-plan/company/${planId}/${item.path}`);
+      router.push(`/business-plan/company/${planId}/${item.path}`, { scroll: false });
       setShowSlideThumbnails(false);
     }
   }, [totalSlides, planId, router]);
@@ -435,7 +459,7 @@ function CompanyPlanLayoutContent({
     } else if (currentSlideIndex > 0) {
       // 最初のページで、前のスライドがある場合は前のスライドの最後のページに移動
       const previousItem = SUB_MENU_ITEMS[currentSlideIndex - 1];
-      router.push(`/business-plan/company/${planId}/${previousItem.path}`);
+      router.push(`/business-plan/company/${planId}/${previousItem.path}`, { scroll: false });
       // 前のスライドの最後のページに移動するため、一時的に大きな値を設定
       // 実際のページ数は次のuseEffectで調整される
     }
@@ -449,7 +473,7 @@ function CompanyPlanLayoutContent({
       // 最後のページで、次のスライドがある場合は次のスライドの最初のページに移動
       setCurrentPage(0);
       const nextItem = SUB_MENU_ITEMS[currentSlideIndex + 1];
-      router.push(`/business-plan/company/${planId}/${nextItem.path}`);
+      router.push(`/business-plan/company/${planId}/${nextItem.path}`, { scroll: false });
     }
   }, [currentPage, totalPages, currentSlideIndex, totalSlides, planId, router]);
   
@@ -595,23 +619,46 @@ function CompanyPlanLayoutContent({
         </div>
       )}
       {isPresentationMode && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            backgroundColor: '#000',
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            padding: '40px',
-            overflow: 'auto',
-          }}
-        >
+        <>
+          <style jsx global>{`
+            @keyframes slideInFromRight {
+              from {
+                opacity: 0;
+                transform: translateX(30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
+            }
+            @keyframes slideInFromLeft {
+              from {
+                opacity: 0;
+                transform: translateX(-30px);
+              }
+              to {
+                opacity: 1;
+                transform: translateX(0);
+              }
+            }
+          `}</style>
+          <div
+            style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: '#000',
+              zIndex: 9999,
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              justifyContent: 'center',
+              padding: '40px',
+              overflow: 'auto',
+            }}
+          >
           {/* 開始ガイド */}
           {showStartGuide && (
             <div
@@ -989,39 +1036,78 @@ function CompanyPlanLayoutContent({
             </button>
           )}
           
-          {/* 右矢印：次のページまたは次のスライド */}
-          {(currentPage < totalPages - 1 || currentSlideIndex < totalSlides - 1) && (
-            <button
-              onClick={goToNextPage}
-              style={{
-                position: 'absolute',
-                right: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 10000,
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-              }}
-            >
-              →
-            </button>
-          )}
+          {/* 右側のナビゲーションボタン */}
+          <div style={{
+            position: 'absolute',
+            right: '20px',
+            top: '50%',
+            transform: 'translateY(-50%)',
+            zIndex: 10000,
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '12px',
+          }}>
+            {/* 右矢印：次のページまたは次のスライド */}
+            {(currentPage < totalPages - 1 || currentSlideIndex < totalSlides - 1) && (
+              <button
+                onClick={goToNextPage}
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                }}
+                title="次のページ"
+              >
+                →
+              </button>
+            )}
+            
+            {/* 次のスライドボタン */}
+            {currentSlideIndex < totalSlides - 1 && (
+              <button
+                onClick={goToNextSlide}
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: '2px solid rgba(255, 255, 255, 0.5)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                }}
+                title="次のスライド"
+              >
+                ≫
+              </button>
+            )}
+          </div>
           
           {/* メインコンテンツ */}
           <div
@@ -1041,9 +1127,9 @@ function CompanyPlanLayoutContent({
               marginRight: showTableOfContents ? '100px' : '100px', // 右矢印ボタン用に100pxのマージン
               marginBottom: '80px', // 下部の余白を少し減らして表示幅を広げる
               animation: slideDirection === 'left' 
-                ? 'slideInFromRight 0.5s ease-out'
+                ? 'slideInFromRight 0.3s ease-out'
                 : slideDirection === 'right'
-                ? 'slideInFromLeft 0.5s ease-out'
+                ? 'slideInFromLeft 0.3s ease-out'
                 : 'none',
               position: 'relative',
               overflow: 'visible', // スクロール方式なのでvisibleに変更
@@ -1137,6 +1223,7 @@ function CompanyPlanLayoutContent({
             )}
           </div>
         </div>
+        </>
       )}
       </PlanContext.Provider>
     </Layout>

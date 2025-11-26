@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { collection, query, where, getDocs, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
@@ -19,14 +20,9 @@ export default function OwnServicePage() {
   const [showConceptForm, setShowConceptForm] = useState(false);
   const [editingConcept, setEditingConcept] = useState<(ConceptData & { id?: string }) | null>(null);
   const [conceptCounts, setConceptCounts] = useState<{ [key: string]: number }>({});
+  const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => {
-    if (auth?.currentUser) {
-      loadConcepts();
-    }
-  }, [auth?.currentUser]);
-
-  const loadConcepts = async () => {
+  const loadConcepts = useCallback(async () => {
     if (!auth?.currentUser || !db) return;
 
     try {
@@ -73,14 +69,42 @@ export default function OwnServicePage() {
         return bTime - aTime; // 降順
       });
       
-      setConcepts(conceptsData);
-      loadConceptCounts(conceptsData);
+      // 固定構想と同じconceptIdを持つ構想を除外
+      const fixedConceptIds = new Set(FIXED_CONCEPTS.map(c => c.id));
+      const filteredConcepts = conceptsData.filter(concept => !fixedConceptIds.has(concept.conceptId));
+      
+      setConcepts(filteredConcepts);
+      loadConceptCounts(filteredConcepts);
     } catch (error) {
       console.error('読み込みエラー:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
+
+  // 認証状態を監視
+  useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthReady(true);
+      if (!user) {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 認証が完了したときにデータを読み込む
+  useEffect(() => {
+    if (authReady && auth?.currentUser) {
+      loadConcepts();
+    }
+  }, [authReady, loadConcepts]);
 
   const loadConceptCounts = async (conceptsList: (ConceptData & { id: string })[]) => {
     if (!auth?.currentUser || !db) return;
@@ -168,7 +192,7 @@ export default function OwnServicePage() {
           >
             ← 事業企画一覧に戻る
           </button>
-          <h2 style={{ marginBottom: '4px' }}>自社サービス事業</h2>
+          <h2 style={{ marginBottom: '4px' }}>自社開発・自社サービス事業</h2>
           <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-light)' }}>
             自社開発のサービス事業に関する構想を管理します
           </p>

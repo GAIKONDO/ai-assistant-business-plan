@@ -31,7 +31,7 @@ interface BusinessSynergy {
 const BUSINESS_SYNERGIES: BusinessSynergy[] = [
   {
     serviceId: 'own-service',
-    serviceName: '自社サービス事業',
+    serviceName: '自社開発・自社サービス事業',
     companies: [
       {
         companyName: 'ベルシステム24',
@@ -107,7 +107,7 @@ const BUSINESS_SYNERGIES: BusinessSynergy[] = [
   },
   {
     serviceId: 'education-training',
-    serviceName: '人材育成・教育・AI導入ルール設計事業',
+    serviceName: 'AI導入ルール設計・人材育成・教育事業',
     companies: [
       {
         companyName: '伊藤忠テクノソリューションズ',
@@ -155,7 +155,7 @@ const BUSINESS_SYNERGIES: BusinessSynergy[] = [
   },
   {
     serviceId: 'consulting',
-    serviceName: '業務コンサル・プロセス可視化・改善事業',
+    serviceName: 'プロセス可視化・業務コンサル事業',
     companies: [
       {
         companyName: 'シグマクシス',
@@ -203,7 +203,7 @@ const BUSINESS_SYNERGIES: BusinessSynergy[] = [
   },
   {
     serviceId: 'ai-dx',
-    serviceName: 'AI駆動開発・DX支援事業',
+    serviceName: 'AI駆動開発・DX支援SI事業',
     companies: [
       {
         companyName: '伊藤忠テクノソリューションズ',

@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import { usePlan } from '../layout';
 import { useParams, useRouter } from 'next/navigation';
+import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 import VegaChart from '@/components/VegaChart';
 
 declare global {
@@ -17,6 +19,28 @@ export default function OverviewPage() {
   const params = useParams();
   const router = useRouter();
   const planId = params.planId as string;
+  
+  // キービジュアルの高さを読み込む
+  useEffect(() => {
+    if (plan?.keyVisualHeight !== undefined) {
+      setKeyVisualHeight(plan.keyVisualHeight);
+    }
+  }, [plan?.keyVisualHeight]);
+  
+  // キービジュアルの高さを保存
+  const handleSaveKeyVisualHeight = async (height: number) => {
+    if (!auth?.currentUser || !db || !planId) return;
+    
+    try {
+      await updateDoc(doc(db, 'companyBusinessPlan', planId), {
+        keyVisualHeight: height,
+        updatedAt: serverTimestamp(),
+      });
+      setKeyVisualHeight(height);
+    } catch (error) {
+      console.error('キービジュアルサイズの保存エラー:', error);
+    }
+  };
   const aiFactoryCanvasRef = useRef<HTMLDivElement>(null);
   const cycleDiagramRef = useRef<HTMLDivElement>(null);
   const p5Loaded = useRef(false);
@@ -27,6 +51,8 @@ export default function OverviewPage() {
   const aiFactoryTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [showArchitectureDetails, setShowArchitectureDetails] = useState(false);
   const [showArchitecturePossibilities, setShowArchitecturePossibilities] = useState(false);
+  const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25); // デフォルトは16:9のアスペクト比
+  const [showSizeControl, setShowSizeControl] = useState(false);
 
   // すべてのフィールドが空かどうかをチェック
   const isEmpty = !plan || (
@@ -565,7 +591,7 @@ export default function OverviewPage() {
       {/* キービジュアル画像 */}
       <div className="card" style={{ marginBottom: '24px', padding: 0, overflow: 'hidden', position: 'relative' }}>
         {plan?.keyVisualUrl ? (
-          <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', backgroundColor: '#f8f9fa' }}> {/* 16:9のアスペクト比 */}
+          <div style={{ position: 'relative', width: '100%', paddingTop: `${keyVisualHeight}%`, backgroundColor: '#f8f9fa' }}>
             <img
               src={plan.keyVisualUrl}
               alt="キービジュアル"
@@ -578,42 +604,125 @@ export default function OverviewPage() {
                 objectFit: 'contain',
               }}
             />
+            {/* サイズ調整コントロール */}
+            {showSizeControl && (
+              <div
+                style={{
+                  position: 'absolute',
+                  top: '8px',
+                  left: '8px',
+                  backgroundColor: 'rgba(0, 0, 0, 0.8)',
+                  padding: '12px',
+                  borderRadius: '8px',
+                  zIndex: 10,
+                  minWidth: '200px',
+                }}
+                onClick={(e) => e.stopPropagation()}
+              >
+                <div style={{ marginBottom: '8px', color: '#fff', fontSize: '12px', fontWeight: 600 }}>
+                  高さ調整（%）
+                </div>
+                <input
+                  type="range"
+                  min="20"
+                  max="150"
+                  step="5"
+                  value={keyVisualHeight}
+                  onChange={(e) => {
+                    const newHeight = parseFloat(e.target.value);
+                    setKeyVisualHeight(newHeight);
+                    handleSaveKeyVisualHeight(newHeight);
+                  }}
+                  style={{
+                    width: '100%',
+                    marginBottom: '8px',
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#fff', fontSize: '12px' }}>{keyVisualHeight}%</span>
+                  <button
+                    onClick={() => setShowSizeControl(false)}
+                    style={{
+                      padding: '4px 8px',
+                      backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '11px',
+                    }}
+                  >
+                    閉じる
+                  </button>
+                </div>
+              </div>
+            )}
             {/* キービジュアル変更ボタン（右下に配置） */}
-            <button
-              onClick={() => router.push(`/business-plan/company/${planId}/overview/upload-key-visual`)}
-              style={{
-                position: 'absolute',
-                bottom: '8px',
-                right: '8px',
-                width: '32px',
-                height: '32px',
-                padding: 0,
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '50%',
-                color: 'var(--color-text-light)',
-                cursor: 'pointer',
-                fontSize: '20px',
-                fontWeight: 300,
-                lineHeight: '1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.6,
-                transition: 'opacity 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '0.6';
-              }}
-            >
-              +
-            </button>
+            <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', gap: '8px' }}>
+              <button
+                onClick={() => setShowSizeControl(!showSizeControl)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '16px',
+                  fontWeight: 300,
+                  lineHeight: '1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.8,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '0.8';
+                }}
+                title="サイズ調整"
+              >
+                ⚙
+              </button>
+              <button
+                onClick={() => router.push(`/business-plan/company/${planId}/overview/upload-key-visual`)}
+                style={{
+                  width: '32px',
+                  height: '32px',
+                  padding: 0,
+                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                  border: 'none',
+                  borderRadius: '50%',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  fontSize: '20px',
+                  fontWeight: 300,
+                  lineHeight: '1',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0.8,
+                  transition: 'opacity 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.opacity = '1';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.opacity = '0.8';
+                }}
+                title="画像変更"
+              >
+                +
+              </button>
+            </div>
           </div>
         ) : (
-          <div style={{ position: 'relative', width: '100%', paddingTop: '56.25%', backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+          <div style={{ position: 'relative', width: '100%', paddingTop: `${keyVisualHeight}%`, backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             {/* キービジュアルアップロードボタン（中央に配置） */}
             <button
               onClick={() => router.push(`/business-plan/company/${planId}/overview/upload-key-visual`)}
@@ -1539,7 +1648,7 @@ export default function OverviewPage() {
                       </h4>
                       
                       <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        1. 自社サービス事業
+                        1. 自社開発・自社サービス事業
                       </h5>
                       <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
                         本アーキテクチャを基盤として、<strong>パーソナルデータレイク</strong>を活用した個人向けサービスを構築可能。ユーザー個人のデータ（メール、チャット履歴、ストレージ等）をAI Agentが適切に参照し、パーソナライズされたサービスを提供。
@@ -1557,7 +1666,7 @@ export default function OverviewPage() {
                       </ul>
                       
                       <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        2. AI駆動開発・DX支援事業
+                        2. AI駆動開発・DX支援SI事業
                       </h5>
                       <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
                         企業のシステム部門向けに、<strong>本アーキテクチャの導入支援</strong>と<strong>カスタマイズ開発</strong>を提供。全社統合データと分散データの両方を活用するAIシステムの構築を支援。
@@ -1575,7 +1684,7 @@ export default function OverviewPage() {
                       </ul>
                       
                       <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        3. 業務コンサル・プロセス可視化・改善事業
+                        3. プロセス可視化・業務コンサル事業
                       </h5>
                       <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
                         業務部門向けに、<strong>分散データの可視化</strong>と<strong>プロセス改善</strong>を支援。メール、チャット、ストレージなどの分散データをAI Agentが分析し、業務フローの最適化を提案。
@@ -1593,7 +1702,7 @@ export default function OverviewPage() {
                       </ul>
                       
                       <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        4. 人材育成・教育・AI導入ルール設計事業
+                        4. AI導入ルール設計・人材育成・教育事業
                       </h5>
                       <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
                         経営層・人事部門向けに、<strong>本アーキテクチャの導入</strong>と<strong>組織全体のAI活用能力向上</strong>を支援。標準化とカスタマイズの両立を実現するための教育・研修・ルール設計を提供。
@@ -1662,9 +1771,60 @@ export default function OverviewPage() {
               <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
                 6. 株式会社AIアシスタントの使命
               </h4>
-              <p style={{ marginBottom: '12px', paddingLeft: '11px' }}>
-                株式会社AIアシスタントは、自社がAIファーストカンパニーとして、ユーザーフレンドリーなUI設計を通じて、パーソナルDXとパーソナルデータレイクの実現を目指す。そして、その実践経験とノウハウを活かして、他社のAIファーストカンパニーへの変革も支援する。
-              </p>
+              <div style={{ marginBottom: '12px', paddingLeft: '11px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
+                <img 
+                  src="/ChatGPT Image 2025年11月26日 12_15_46.png" 
+                  alt="株式会社AIアシスタントの使命" 
+                  style={{ 
+                    maxWidth: '400px', 
+                    width: '100%',
+                    height: 'auto', 
+                    borderRadius: '8px',
+                    flexShrink: 0
+                  }} 
+                />
+                <div style={{ flex: 1 }}>
+                  {/* 1. Mission */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <h5 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text)' }}>
+                      1. Mission
+                    </h5>
+                    <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
+                      株式会社AIアシスタントは、自社がAIファーストカンパニーとして、ユーザーフレンドリーなUI設計を通じて、パーソナルDXの実現を目指す。そして、その実践経験とノウハウを活かして、他社のAIファーストカンパニーへの変革も支援する。
+                    </p>
+                  </div>
+
+                  {/* 2. Vision */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <h5 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text)' }}>
+                      2. Vision
+                    </h5>
+                    <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
+                      すべての個人と組織が、AIを自然に活用できる社会の実現を目指す。パーソナルデータレイクを基盤とした、真にユーザー中心のAIエコシステムを構築し、データ主権を個人に取り戻すことで、より豊かで創造的な未来を創造する。
+                    </p>
+                  </div>
+
+                  {/* 3. Value */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <h5 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text)' }}>
+                      3. Value
+                    </h5>
+                    <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
+                      ユーザーフレンドリーな設計を最優先とし、技術の複雑さを隠し、直感的な体験を提供する。実践を通じて得た知見を積極的に共有し、オープンな協業により、AIファーストカンパニーへの変革を加速させる。常にユーザーの視点に立ち、データの透明性とプライバシーを尊重する。
+                    </p>
+                  </div>
+
+                  {/* 4. Business / Service */}
+                  <div style={{ marginBottom: '20px' }}>
+                    <h5 style={{ fontSize: '18px', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text)' }}>
+                      4. Business / Service
+                    </h5>
+                    <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
+                      自社開発・自社サービス事業としてパーソナルアプリケーションを提供し、AIファーストカンパニーとしての実績とナレッジを獲得。獲得した経験を元にAI導入ルール設計・人材育成・教育事業を展開し、伊藤忠グループのエコシステムによる顧客伴奏支援型の業務コンサル事業を拡大。顧客課題を具体化しAI駆動開発・DX支援SI事業で企業のシステム開発を支援する。
+                    </p>
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         </div>

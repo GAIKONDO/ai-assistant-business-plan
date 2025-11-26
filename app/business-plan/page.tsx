@@ -11,10 +11,10 @@ import BusinessPlanCard from '@/components/BusinessPlanCard';
 import BusinessProjectForm, { BusinessProjectData } from '@/components/BusinessProjectForm';
 
 const SPECIAL_SERVICES = [
-  { id: 'own-service', name: '自社サービス事業', description: '自社開発のサービス事業に関する計画', hasConcepts: true },
-  { id: 'education-training', name: '人材育成・教育・AI導入ルール設計事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
-  { id: 'consulting', name: '業務コンサル・プロセス可視化・改善事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
-  { id: 'ai-dx', name: 'AI駆動開発・DX支援事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
+  { id: 'own-service', name: '自社開発・自社サービス事業', description: '自社開発のサービス事業に関する計画', hasConcepts: true },
+  { id: 'education-training', name: 'AI導入ルール設計・人材育成・教育事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
+  { id: 'consulting', name: 'プロセス可視化・業務コンサル事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
+  { id: 'ai-dx', name: 'AI駆動開発・DX支援SI事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
 ];
 
 export default function BusinessPlanPage() {
@@ -421,7 +421,7 @@ export default function BusinessPlanPage() {
           )}
 
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px', marginTop: showProjectForm ? '24px' : '0' }}>
-              {/* 特別なサービス（自社サービス事業など） */}
+              {/* 特別なサービス（自社開発・自社サービス事業など） */}
               {SPECIAL_SERVICES.map((service, index) => (
               <div
                 key={service.id}

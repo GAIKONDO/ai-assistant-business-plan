@@ -47,7 +47,7 @@ export default function DashboardPage() {
       }
       
       // 固定サービス（SPECIAL_SERVICES）もカウントに含める
-      // 自社サービス事業、AI駆動開発・DX支援事業、業務コンサル・プロセス可視化・改善事業、人材育成・教育・AI導入ルール設計事業
+      // 自社開発・自社サービス事業、AI駆動開発・DX支援SI事業、プロセス可視化・業務コンサル事業、AI導入ルール設計・人材育成・教育事業
       const fixedServicesCount = 4;
       const totalBusinessProjects = businessProjectsCount + fixedServicesCount;
       console.log('Dashboard: 事業企画総数（動的 + 固定）', totalBusinessProjects);
@@ -68,10 +68,10 @@ export default function DashboardPage() {
       }
       
       // 固定構想もカウントに含める
-      // 自社サービス事業: 2つ（出産支援、介護支援）
-      // AI駆動開発・DX支援事業: 2つ（医療法人向けDX、中小企業向けDX）
-      // 業務コンサル・プロセス可視化・改善事業: 2つ（中小企業向け、医療・介護施設向け）
-      // 人材育成・教育・AI導入ルール設計事業: 3つ（大企業向けAI人材育成、AI導入ルール設計、中小企業向けAI導入支援）
+      // 自社開発・自社サービス事業: 2つ（出産支援、介護支援）
+      // AI駆動開発・DX支援SI事業: 2つ（医療法人向けDX、中小企業向けDX）
+      // プロセス可視化・業務コンサル事業: 2つ（中小企業向け、医療・介護施設向け）
+      // AI導入ルール設計・人材育成・教育事業: 3つ（大企業向けAI人材育成、AI導入ルール設計、中小企業向けAI導入支援）
       const fixedConceptsCount = 2 + 2 + 2 + 3; // 9つ
       const totalConcepts = conceptsCount + fixedConceptsCount;
       console.log('Dashboard: 構想総数（動的 + 固定）', totalConcepts);

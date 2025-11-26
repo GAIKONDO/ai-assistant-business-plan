@@ -1,18 +1,19 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { collection, query, where, getDocs, deleteDoc, doc, orderBy } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
 
 
 const SERVICE_NAMES: { [key: string]: string } = {
-  'own-service': '自社サービス事業',
-  'education-training': '人材育成・教育・AI導入ルール設計事業',
-  'consulting': '業務コンサル・プロセス可視化・改善事業',
-  'ai-dx': 'AI駆動開発・DX支援事業',
+  'own-service': '自社開発・自社サービス事業',
+  'education-training': 'AI導入ルール設計・人材育成・教育事業',
+  'consulting': 'プロセス可視化・業務コンサル事業',
+  'ai-dx': 'AI駆動開発・DX支援SI事業',
 };
 
 // 固定構想の定義
@@ -48,14 +49,9 @@ export default function ServiceDetailPage() {
   const [showConceptForm, setShowConceptForm] = useState(false);
   const [editingConcept, setEditingConcept] = useState<(ConceptData & { id?: string }) | null>(null);
   const [conceptCounts, setConceptCounts] = useState<{ [key: string]: number }>({});
+  const [authReady, setAuthReady] = useState(false);
 
-  useEffect(() => {
-    if (auth?.currentUser && serviceId) {
-      loadConcepts();
-    }
-  }, [auth?.currentUser, serviceId]);
-
-  const loadConcepts = async () => {
+  const loadConcepts = useCallback(async () => {
     if (!auth?.currentUser || !db || !serviceId) return;
 
     try {
@@ -102,14 +98,42 @@ export default function ServiceDetailPage() {
         return bTime - aTime; // 降順
       });
       
-      setConcepts(conceptsData);
-      loadConceptCounts(conceptsData);
+      // 固定構想と同じconceptIdを持つ構想を除外
+      const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
+      const filteredConcepts = conceptsData.filter(concept => !fixedConceptIds.has(concept.conceptId));
+      
+      setConcepts(filteredConcepts);
+      loadConceptCounts(filteredConcepts);
     } catch (error) {
       console.error('読み込みエラー:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, [serviceId, fixedConcepts]);
+
+  // 認証状態を監視
+  useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthReady(true);
+      if (!user) {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, []);
+
+  // 認証が完了し、serviceIdが変更されたときにデータを読み込む
+  useEffect(() => {
+    if (authReady && auth?.currentUser && serviceId) {
+      loadConcepts();
+    }
+  }, [authReady, serviceId, loadConcepts]);
 
   const loadConceptCounts = async (conceptsList: (ConceptData & { id: string })[]) => {
     if (!auth?.currentUser || !db) return;
