@@ -145,7 +145,7 @@ export default function CompanyPlanDetailLayout({
       />
       <div style={{ display: 'flex', gap: '32px' }}>
         <CompanyPlanSubMenu planId={planId} currentSubMenuId={currentSubMenu} />
-        <div style={{ flex: 1 }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ marginBottom: '24px' }}>
             <button
               onClick={() => router.push('/business-plan')}

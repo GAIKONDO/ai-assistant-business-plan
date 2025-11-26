@@ -10,11 +10,11 @@ export const SUB_MENU_ITEMS = [
   { id: 'market-size', label: '市場規模', path: 'market-size' },
   { id: 'plan', label: '事業計画', path: 'plan' },
   { id: 'simulation', label: 'シミュレーション', path: 'simulation' },
+  { id: 'execution-schedule', label: '実行スケジュール', path: 'execution-schedule' },
+  { id: 'itochu-synergy', label: '伊藤忠シナジー', path: 'itochu-synergy' },
   { id: 'subsidies', label: '補助金・助成金', path: 'subsidies' },
   { id: 'case-study', label: 'ケーススタディ', path: 'case-study' },
   { id: 'risk-assessment', label: 'リスク評価', path: 'risk-assessment' },
-  { id: 'itochu-synergy', label: '伊藤忠シナジー', path: 'itochu-synergy' },
-  { id: 'execution-schedule', label: '実行スケジュール', path: 'execution-schedule' },
   { id: 'snapshot-comparison', label: 'スナップショット比較', path: 'snapshot-comparison' },
 ];
 

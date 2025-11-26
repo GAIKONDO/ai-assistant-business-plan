@@ -58,21 +58,38 @@ export default function BusinessModelPage() {
   const generateOwnServiceDiagramSimple = () => {
     let diagram = 'graph LR\n';
     diagram += '    direction LR\n';
-    diagram += '    classDef partnerClass fill:#FFB6C1,stroke:#FF69B4,stroke-width:1px,color:#000\n';
-    diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
-    diagram += '    classDef userClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n\n';
+    diagram += '    classDef partnerClass fill:#FFB6C1,stroke:#FF69B4,stroke-width:2px,color:#000\n';
+    diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
+    diagram += '    classDef userClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
+    diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n\n';
     
-    diagram += '    Partners["パートナー企業<br/>広告費・紹介手数料等"]\n';
-    diagram += '    Company["株式会社AIアシスタント<br/>出産支援パーソナルアプリ提供"]\n';
-    diagram += '    Users["ユーザー・クライアント<br/>個人・企業・自治体"]\n\n';
+    diagram += '    P["パートナー企業<br/>広告費・紹介手数料等"]\n';
+    diagram += '    C["株式会社AIアシスタント<br/>出産支援パーソナルアプリ提供"]\n';
+    diagram += '    U1["個人ユーザー<br/>プレミアムプラン<br/>月額/年額"]\n';
+    diagram += '    U2["エンドユーザー<br/>無料で利用"]\n';
+    diagram += '    E["企業<br/>従業員向け福利厚生<br/>企業契約"]\n';
+    diagram += '    E2["企業の従業員<br/>エンドユーザー"]\n';
+    diagram += '    G["自治体<br/>住民向けサービス<br/>自治体契約"]\n';
+    diagram += '    G2["自治体の住民<br/>エンドユーザー"]\n';
+    diagram += '    A["認定取得支援<br/>くるみん認定取得支援<br/>健康経営優良法人認定取得<br/>企業向け"]\n\n';
     
-    diagram += '    Partners -->|収益| Company\n';
-    diagram += '    Company -->|サービス提供| Users\n';
-    diagram += '    Users -->|料金| Company\n\n';
+    diagram += '    P -->|広告費・紹介手数料<br/>代行手数料・リファラル手数料<br/>マッチング手数料| C\n';
+    diagram += '    C -->|直接提供| U1\n';
+    diagram += '    C -->|直接提供| U2\n';
+    diagram += '    C -->|B2B提供| E\n';
+    diagram += '    C -->|B2B提供| G\n';
+    diagram += '    C -->|認定取得支援サービス提供| A\n\n';
     
-    diagram += '    class Partners partnerClass\n';
-    diagram += '    class Company companyClass\n';
-    diagram += '    class Users userClass\n';
+    diagram += '    U1 -->|月額/年額| C\n';
+    diagram += '    E -->|企業契約| C\n';
+    diagram += '    E -->|提供| E2\n';
+    diagram += '    G -->|自治体契約| C\n';
+    diagram += '    G -->|提供| G2\n';
+    diagram += '    A -->|認定取得支援手数料| C\n\n';
+    
+    diagram += '    class P partnerClass\n';
+    diagram += '    class C companyClass\n';
+    diagram += '    class U1,U2,E,E2,G,G2,A userClass\n';
     
     return diagram;
   };
@@ -84,7 +101,8 @@ export default function BusinessModelPage() {
     diagram += '    classDef partnerClass fill:#FFB6C1,stroke:#FF69B4,stroke-width:2px,color:#000\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
     diagram += '    classDef userClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
-    diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n\n';
+    diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
+    diagram += '    classDef serviceClass fill:#E6F2FF,stroke:#6495ED,stroke-width:2px,color:#000\n\n';
     
     diagram += '    subgraph Partners["パートナー企業"]\n';
     diagram += '        A1["広告主企業<br/>広告費"]\n';
@@ -97,17 +115,23 @@ export default function BusinessModelPage() {
     diagram += '        A8["アルバム制作パートナー<br/>アルバム制作サービス<br/>紹介手数料"]\n';
     diagram += '    end\n\n';
     
-    diagram += '    Company["株式会社AIアシスタント<br/>出産支援パーソナルアプリ提供"]\n';
+    diagram += '    Company["株式会社AIアシスタント<br/>運営会社<br/>━━━━━━━━━━━━━━━━<br/>出産支援パーソナルアプリ提供<br/>プラットフォーム運営<br/>AIアシスタントによる伴走型育児支援・アドバイス"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Users["ユーザー・クライアント"]\n';
     diagram += '        U1["個人ユーザー<br/>プレミアムプラン<br/>月額/年額"]\n';
     diagram += '        U2["エンドユーザー<br/>無料で利用"]\n';
-    diagram += '        U3["企業<br/>従業員向け福利厚生<br/>企業契約"]\n';
+    diagram += '        U3["企業<br/>従業員向け福利厚生<br/>カスタマイズ対応<br/>━━━━━━━━━━━━━━━━<br/>企業契約<br/>月額従業員1人あたり500円<br/>従業員数ベース"]\n';
     diagram += '        U4["企業の従業員<br/>エンドユーザー"]\n';
-    diagram += '        U5["自治体<br/>住民向けサービス<br/>自治体契約"]\n';
+    diagram += '        U5["自治体<br/>住民向けサービス<br/>自治体ロゴ・カスタマイズ<br/>━━━━━━━━━━━━━━━━<br/>自治体契約<br/>月額利用者1人あたり300円<br/>利用者数ベース"]\n';
     diagram += '        U6["自治体の住民<br/>エンドユーザー"]\n';
-    diagram += '        U7["認定取得支援<br/>くるみん認定取得支援<br/>健康経営優良法人認定取得<br/>企業向け<br/>認定取得支援手数料"]\n';
+    diagram += '    end\n\n';
+    
+    diagram += '    subgraph Services["代行サービス"]\n';
+    diagram += '        S1["申請代行サービス<br/>自治体・企業向け<br/>━━━━━━━━━━━━━━━━<br/>書類作成・提出代行<br/>1件あたり3,000円~<br/>代行手数料 成功報酬型"]\n';
+    diagram += '        S2["保険代行サービス<br/>━━━━━━━━━━━━━━━━<br/>保険加入手続き代行<br/>保険申請・手続き代行<br/>1件あたり5,000円~<br/>代行手数料 成功報酬型"]\n';
+    diagram += '        S3["医療サービス代行<br/>━━━━━━━━━━━━━━━━<br/>薬・検査の紹介・手続き代行<br/>医療機関連携・手続き代行<br/>1件あたり4,000円~<br/>代行手数料 成功報酬型"]\n';
+    diagram += '        S4["認定取得支援<br/>企業向け<br/>━━━━━━━━━━━━━━━━<br/>くるみん認定取得支援<br/>次世代育成支援対策推進法に基づく認定マーク<br/>健康経営優良法人認定取得支援<br/>認定取得支援手数料<br/>1件あたり100,000円"]\n';
     diagram += '    end\n\n';
     
     diagram += '    A1 -->|広告費| Company\n';
@@ -121,20 +145,34 @@ export default function BusinessModelPage() {
     
     diagram += '    Company -->|直接提供| U1\n';
     diagram += '    Company -->|直接提供| U2\n';
-    diagram += '    Company -->|B2B提供| U3\n';
-    diagram += '    Company -->|B2B提供| U5\n';
-    diagram += '    Company -->|認定取得支援サービス提供| U7\n\n';
+    diagram += '    Company -->|B2B提供<br/>福利厚生として提供| U3\n';
+    diagram += '    Company -->|B2B提供<br/>住民サービスとして提供| U5\n';
+    diagram += '    Company -->|申請代行サービス提供| S1\n';
+    diagram += '    Company -->|保険代行サービス提供| S2\n';
+    diagram += '    Company -->|医療サービス代行提供| S3\n';
+    diagram += '    Company -->|認定取得支援サービス提供| S4\n\n';
     
     diagram += '    U1 -->|月額/年額| Company\n';
-    diagram += '    U3 -->|企業契約| Company\n';
-    diagram += '    U5 -->|自治体契約| Company\n';
-    diagram += '    U7 -->|認定取得支援手数料| Company\n\n';
+    diagram += '    U3 -->|企業契約<br/>月額従業員1人あたり500円<br/>従業員数ベース| Company\n';
+    diagram += '    U5 -->|自治体契約<br/>月額利用者1人あたり300円<br/>利用者数ベース| Company\n';
+    diagram += '    S1 -->|代行手数料<br/>成功報酬型<br/>1件あたり3,000円~| Company\n';
+    diagram += '    S2 -->|代行手数料<br/>成功報酬型<br/>1件あたり5,000円~| Company\n';
+    diagram += '    S3 -->|代行手数料<br/>成功報酬型<br/>1件あたり4,000円~| Company\n';
+    diagram += '    S4 -->|認定取得支援手数料<br/>1件あたり100,000円| Company\n\n';
     
     diagram += '    U3 -->|提供| U4\n';
-    diagram += '    U5 -->|提供| U6\n\n';
+    diagram += '    U5 -->|提供| U6\n';
+    diagram += '    U3 -->|申請代行サービス利用| S1\n';
+    diagram += '    U5 -->|申請代行サービス利用| S1\n';
+    diagram += '    U3 -->|保険代行サービス利用| S2\n';
+    diagram += '    U5 -->|保険代行サービス利用| S2\n';
+    diagram += '    U3 -->|医療サービス代行利用| S3\n';
+    diagram += '    U5 -->|医療サービス代行利用| S3\n';
+    diagram += '    U3 -->|認定取得支援利用| S4\n\n';
     
     diagram += '    class A1,A2,A3,A4,A5,A6,A7,A8 partnerClass\n';
-    diagram += '    class U1,U2,U3,U4,U5,U6,U7 userClass\n';
+    diagram += '    class U1,U2,U3,U4,U5,U6 userClass\n';
+    diagram += '    class S1,S2,S3,S4 serviceClass\n';
     
     return diagram;
   };
