@@ -270,6 +270,110 @@ export default function FeaturesPage() {
             当社の4つの事業企画が、自社から顧客、そしてエンドユーザーへとどのようにサービスを提供するかを示しています。
           </p>
         </div>
+
+        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+            各事業企画のターゲット範囲と顧客層
+          </h4>
+          <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
+            <table style={{ 
+              width: '100%', 
+              borderCollapse: 'collapse', 
+              fontSize: '14px',
+              backgroundColor: '#fff'
+            }}>
+              <thead>
+                <tr style={{ backgroundColor: '#f5f5f5' }}>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'left', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    minWidth: '200px'
+                  }}>
+                    事業企画名
+                  </th>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'left', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    minWidth: '150px'
+                  }}>
+                    提供範囲
+                  </th>
+                  <th style={{ 
+                    padding: '12px', 
+                    textAlign: 'left', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    minWidth: '250px'
+                  }}>
+                    構想
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {Object.entries(SERVICE_NAMES).map(([id, name], index) => {
+                  const concepts = FIXED_CONCEPTS[id] || [];
+                  return (
+                    <tr key={id} style={{ backgroundColor: index % 2 === 0 ? '#fff' : '#fafafa' }}>
+                      <td style={{ 
+                        padding: '12px', 
+                        border: '1px solid var(--color-border-color)', 
+                        verticalAlign: 'top'
+                      }}>
+                        {index + 1}. {name}
+                      </td>
+                      <td style={{ 
+                        padding: '12px', 
+                        border: '1px solid var(--color-border-color)', 
+                        verticalAlign: 'top'
+                      }}>
+                        {SERVICE_SCOPE[id]}
+                      </td>
+                      <td style={{ 
+                        padding: '12px', 
+                        border: '1px solid var(--color-border-color)', 
+                        verticalAlign: 'top'
+                      }}>
+                        {concepts.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'disc' }}>
+                            {concepts.map((concept, conceptIndex) => (
+                              <li key={conceptIndex} style={{ marginBottom: '4px', fontSize: '13px' }}>
+                                {concept.name}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-light)' }}>-</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+          
+          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+            サービス提供の流れ（一例）
+          </h4>
+          <ol style={{ paddingLeft: '20px', listStyleType: 'decimal' }}>
+            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
+              <strong>自社サービス事業:</strong> 自社から直接エンドユーザーへサービス提供
+            </li>
+            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
+              <strong>AI駆動開発・DX支援事業:</strong> 自社 → システム部門 → エンドユーザー
+            </li>
+            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
+              <strong>業務コンサル・プロセス可視化・改善事業:</strong> 自社 → 業務部門 → エンドユーザー
+            </li>
+            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
+              <strong>人材育成・教育・AI導入ルール設計事業:</strong> 自社 → 経営層 → システム部門・業務部門 → エンドユーザー
+            </li>
+          </ol>
+        </div>
         
         {error && (
           <div style={{ 
@@ -329,40 +433,6 @@ export default function FeaturesPage() {
               {isRendering ? '図をレンダリング中...' : 'Mermaidライブラリを読み込み中...'}
             </div>
           )}
-        </div>
-
-        <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            各事業企画のターゲット範囲と顧客層
-          </h4>
-          <ul style={{ marginBottom: '16px', paddingLeft: '20px', listStyleType: 'disc' }}>
-            {Object.entries(SERVICE_NAMES).map(([id, name]) => (
-              <li key={id} style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-                <strong>{name}:</strong> {SERVICE_SCOPE[id]}<br/>
-                <span style={{ marginLeft: '20px', fontSize: '13px', color: 'var(--color-text-light)' }}>
-                  ターゲット顧客層: {SERVICE_TARGET[id]}
-                </span>
-              </li>
-            ))}
-          </ul>
-          
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            サービス提供の流れ
-          </h4>
-          <ul style={{ paddingLeft: '20px', listStyleType: 'disc' }}>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>自社サービス事業:</strong> 自社から直接エンドユーザーへサービス提供
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>AI駆動開発・DX支援事業:</strong> 自社 → システム部門 → エンドユーザー
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>業務コンサル・プロセス可視化・改善事業:</strong> 自社 → 業務部門 → エンドユーザー
-            </li>
-            <li style={{ marginBottom: '8px', fontSize: '14px', color: 'var(--color-text)' }}>
-              <strong>人材育成・教育・AI導入ルール設計事業:</strong> 自社 → 経営層 → システム部門・業務部門 → エンドユーザー
-            </li>
-          </ul>
         </div>
       </div>
     </>

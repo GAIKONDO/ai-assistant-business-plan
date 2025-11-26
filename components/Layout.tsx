@@ -23,6 +23,48 @@ export default function Layout({ children }: LayoutProps) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [firebaseError, setFirebaseError] = useState<string | null>(null);
+  const [isPresentationMode, setIsPresentationMode] = useState(false);
+  
+  // body要素のdata属性を監視してプレゼンテーションモードの状態を取得
+  useEffect(() => {
+    const checkPresentationMode = () => {
+      if (typeof document !== 'undefined') {
+        const isPresentation = document.body.hasAttribute('data-presentation-mode') && 
+                               document.body.getAttribute('data-presentation-mode') === 'true';
+        setIsPresentationMode(isPresentation);
+      }
+    };
+    
+    // 初期チェック
+    checkPresentationMode();
+    
+    // MutationObserverでdata属性の変更を監視
+    const observer = new MutationObserver(checkPresentationMode);
+    if (typeof document !== 'undefined') {
+      observer.observe(document.body, {
+        attributes: true,
+        attributeFilter: ['data-presentation-mode'],
+      });
+    }
+    
+    // フルスクリーン状態も監視（念のため）
+    const handleFullscreenChange = () => {
+      if (!document.fullscreenElement) {
+        // フルスクリーンが終了したら、data属性も削除
+        if (typeof document !== 'undefined') {
+          document.body.removeAttribute('data-presentation-mode');
+        }
+        checkPresentationMode();
+      }
+    };
+    
+    document.addEventListener('fullscreenchange', handleFullscreenChange);
+    
+    return () => {
+      observer.disconnect();
+      document.removeEventListener('fullscreenchange', handleFullscreenChange);
+    };
+  }, []);
   
   // localStorageからサイドメニューの開閉状態を読み込む
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -54,7 +96,7 @@ export default function Layout({ children }: LayoutProps) {
     marginLeft: `${sidebarWidth}px`,
     marginRight: 'auto',
     width: `calc(100% - ${sidebarWidth}px)`,
-    maxWidth: '1400px',
+    maxWidth: '1800px', // 1400pxから1800pxに拡大
     transition: 'margin-left 0.3s ease, width 0.3s ease',
   }), [sidebarWidth]);
 
@@ -219,9 +261,9 @@ export default function Layout({ children }: LayoutProps) {
 
   return (
     <main>
-      {user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={currentPage} />}
-      <Header user={user} sidebarOpen={sidebarOpen} />
-      <div className="container" style={containerStyle}>
+      {!isPresentationMode && user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={currentPage} />}
+      {!isPresentationMode && <Header user={user} sidebarOpen={sidebarOpen} />}
+      <div className="container" style={isPresentationMode ? { margin: 0, width: '100%', maxWidth: '100%' } : containerStyle}>
         {user ? children : <Login />}
       </div>
     </main>
