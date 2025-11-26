@@ -16,6 +16,9 @@ export default function MarkdownDemoPage() {
   const canvasRef7 = useRef<HTMLDivElement>(null);
   const canvasRef8 = useRef<HTMLDivElement>(null);
   const p5Loaded = useRef(false);
+  const p5Instance6 = useRef<any>(null);
+  const p5Instance7 = useRef<any>(null);
+  const p5Instance8 = useRef<any>(null);
 
   useEffect(() => {
     const initArt = () => {
@@ -84,7 +87,14 @@ export default function MarkdownDemoPage() {
           // 描画中は何もしない（setupで描画）
         };
       };
-      new window.p5(sketch6, canvasRef6.current);
+      if (p5Instance6.current) {
+        try {
+          p5Instance6.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+      }
+      p5Instance6.current = new window.p5(sketch6, canvasRef6.current);
     }
 
     // アート2: Neural Flow Field - AIっぽいモノトーンアート
@@ -170,7 +180,14 @@ export default function MarkdownDemoPage() {
           // 描画中は何もしない（setupで描画）
         };
       };
-      new window.p5(sketch7, canvasRef7.current);
+      if (p5Instance7.current) {
+        try {
+          p5Instance7.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+      }
+      p5Instance7.current = new window.p5(sketch7, canvasRef7.current);
     }
 
     // アート3: Brain / Human Hybrid Neural Field
@@ -313,7 +330,14 @@ export default function MarkdownDemoPage() {
           // 描画中は何もしない（setupで描画）
         };
       };
-      new window.p5(sketch8, canvasRef8.current);
+      if (p5Instance8.current) {
+        try {
+          p5Instance8.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+      }
+      p5Instance8.current = new window.p5(sketch8, canvasRef8.current);
     }
     };
 
@@ -330,6 +354,43 @@ export default function MarkdownDemoPage() {
     window.addEventListener('p5loaded', handleP5Loaded);
     return () => {
       window.removeEventListener('p5loaded', handleP5Loaded);
+      
+      // p5.jsインスタンスをクリーンアップ
+      if (p5Instance6.current) {
+        try {
+          p5Instance6.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+        p5Instance6.current = null;
+      }
+      if (p5Instance7.current) {
+        try {
+          p5Instance7.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+        p5Instance7.current = null;
+      }
+      if (p5Instance8.current) {
+        try {
+          p5Instance8.current.remove();
+        } catch (e) {
+          // エラーは無視
+        }
+        p5Instance8.current = null;
+      }
+      
+      // DOM要素もクリア
+      if (canvasRef6.current) {
+        canvasRef6.current.innerHTML = '';
+      }
+      if (canvasRef7.current) {
+        canvasRef7.current.innerHTML = '';
+      }
+      if (canvasRef8.current) {
+        canvasRef8.current.innerHTML = '';
+      }
     };
   }, []);
 
@@ -760,135 +821,6 @@ export default function MarkdownDemoPage() {
       {"field": "activity", "title": "アクティビティ", "format": ".0f"}
     ]
   }
-}
-\`\`\`
-
-## Three.js / GLSL の例
-
-### 1. シンプルな3Dキューブ
-
-\`\`\`three:回転するキューブ
-{
-  "camera": {
-    "fov": 75,
-    "position": { "x": 0, "y": 0, "z": 5 }
-  },
-  "renderer": {
-    "clearColor": 16777215,
-    "clearAlpha": 1
-  },
-  "objects": [
-    {
-      "geometry": {
-        "type": "box",
-        "width": 1,
-        "height": 1,
-        "depth": 1
-      },
-      "material": {
-        "color": 2039323,
-        "metalness": 0.7,
-        "roughness": 0.3
-      },
-      "position": { "x": 0, "y": 0, "z": 0 },
-      "rotation": { "x": 0, "y": 0, "z": 0 }
-    }
-  ],
-  "animation": "scene.children.forEach((child) => { if (child instanceof THREE.Mesh) { child.rotation.x += 0.01; child.rotation.y += 0.01; } });"
-}
-\`\`\`
-
-### 2. GLSLシェーダーを使ったカスタムマテリアル
-
-\`\`\`glsl:GLSLシェーダーアート
-{
-  "camera": {
-    "fov": 75,
-    "position": { "x": 0, "y": 0, "z": 3 }
-  },
-  "renderer": {
-    "clearColor": 0,
-    "clearAlpha": 1
-  },
-  "objects": [
-    {
-      "geometry": {
-        "type": "sphere",
-        "radius": 1,
-        "widthSegments": 64,
-        "heightSegments": 64
-      },
-      "position": { "x": 0, "y": 0, "z": 0 }
-    }
-  ],
-  "shaders": {
-    "vertex": "varying vec3 vPosition; varying vec3 vNormal; void main() { vPosition = position; vNormal = normal; gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }",
-    "fragment": "uniform float uTime; varying vec3 vPosition; varying vec3 vNormal; void main() { vec3 color1 = vec3(0.1, 0.1, 0.2); vec3 color2 = vec3(0.2, 0.3, 0.5); float pattern = sin(vPosition.x * 5.0) * sin(vPosition.y * 5.0) * sin(vPosition.z * 5.0); vec3 color = mix(color1, color2, pattern * 0.5 + 0.5); gl_FragColor = vec4(color, 1.0); }"
-  },
-  "animation": "scene.children.forEach((child) => { if (child instanceof THREE.Mesh && child.material instanceof THREE.ShaderMaterial && child.material.uniforms && child.material.uniforms.uTime) { child.material.uniforms.uTime.value = time; } child.rotation.y += 0.005; });"
-}
-\`\`\`
-
-### 3. 複数の3Dオブジェクト
-
-\`\`\`three:3Dシーン
-{
-  "camera": {
-    "fov": 75,
-    "position": { "x": 3, "y": 3, "z": 5 }
-  },
-  "renderer": {
-    "clearColor": 15790320,
-    "clearAlpha": 1
-  },
-  "objects": [
-    {
-      "geometry": {
-        "type": "box",
-        "width": 1,
-        "height": 1,
-        "depth": 1
-      },
-      "material": {
-        "color": 2039323,
-        "metalness": 0.8,
-        "roughness": 0.2
-      },
-      "position": { "x": -1.5, "y": 0, "z": 0 },
-      "rotation": { "x": 0, "y": 0, "z": 0 }
-    },
-    {
-      "geometry": {
-        "type": "sphere",
-        "radius": 0.8,
-        "widthSegments": 32,
-        "heightSegments": 32
-      },
-      "material": {
-        "color": 3407871,
-        "metalness": 0.6,
-        "roughness": 0.4
-      },
-      "position": { "x": 0, "y": 0, "z": 0 },
-      "rotation": { "x": 0, "y": 0, "z": 0 }
-    },
-    {
-      "geometry": {
-        "type": "box",
-        "width": 1,
-        "height": 1,
-        "depth": 1
-      },
-      "material": {
-        "color": 11184810,
-        "metalness": 0.5,
-        "roughness": 0.5
-      },
-      "position": { "x": 1.5, "y": 0, "z": 0 },
-      "rotation": { "x": 0, "y": 0, "z": 0 }
-    }
-  ],
-  "animation": "scene.children.forEach((child, index) => { if (child instanceof THREE.Mesh) { child.rotation.x += 0.01; child.rotation.y += 0.01; child.position.y = Math.sin(Date.now() * 0.001 + index) * 0.3; } });"
 }
 \`\`\`
 `;

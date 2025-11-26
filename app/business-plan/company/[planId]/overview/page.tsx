@@ -22,6 +22,9 @@ export default function OverviewPage() {
   const p5Loaded = useRef(false);
   const aiFactoryP5Instance = useRef<any>(null);
   const cycleP5Instance = useRef<any>(null);
+  const cycleCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cycleTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const aiFactoryTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const [showArchitectureDetails, setShowArchitectureDetails] = useState(false);
   const [showArchitecturePossibilities, setShowArchitecturePossibilities] = useState(false);
 
@@ -140,9 +143,10 @@ export default function OverviewPage() {
     const handleP5Loaded = () => {
       p5Loaded.current = true;
       if (typeof window !== 'undefined' && window.p5) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           initAIFactoryDiagram();
         }, 100);
+        aiFactoryTimeoutRefs.current.push(timeoutId);
       }
     };
 
@@ -151,13 +155,21 @@ export default function OverviewPage() {
     // 既にp5.jsが読み込まれている場合
     if (typeof window !== 'undefined' && window.p5) {
       p5Loaded.current = true;
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         initAIFactoryDiagram();
       }, 100);
+      aiFactoryTimeoutRefs.current.push(timeoutId);
     }
 
     return () => {
       window.removeEventListener('p5loaded', handleP5Loaded);
+      
+      // setTimeoutをクリーンアップ
+      aiFactoryTimeoutRefs.current.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+      aiFactoryTimeoutRefs.current = [];
+      
       // p5.jsインスタンスをクリーンアップ
       if (aiFactoryP5Instance.current) {
         try {
@@ -455,15 +467,17 @@ export default function OverviewPage() {
         return; // 成功した場合は終了
       }
       // 失敗した場合は再試行
-      setTimeout(tryInit, 100);
+      const timeoutId = setTimeout(tryInit, 100);
+      cycleTimeoutRefs.current.push(timeoutId);
     };
 
     const handleP5Loaded = () => {
       p5Loaded.current = true;
       if (typeof window !== 'undefined' && window.p5) {
-        setTimeout(() => {
+        const timeoutId = setTimeout(() => {
           tryInit();
         }, 100);
+        cycleTimeoutRefs.current.push(timeoutId);
       }
     };
 
@@ -473,29 +487,50 @@ export default function OverviewPage() {
     if (typeof window !== 'undefined' && window.p5) {
       p5Loaded.current = true;
       // 少し待ってから初期化（DOMの準備を待つ）
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         tryInit();
       }, 200);
+      cycleTimeoutRefs.current.push(timeoutId);
     } else {
       // p5.jsがまだ読み込まれていない場合、定期的にチェック
       const checkInterval = setInterval(() => {
         if (typeof window !== 'undefined' && window.p5) {
           p5Loaded.current = true;
           clearInterval(checkInterval);
-          setTimeout(() => {
+          cycleCheckIntervalRef.current = null;
+          const timeoutId = setTimeout(() => {
             tryInit();
           }, 200);
+          cycleTimeoutRefs.current.push(timeoutId);
         }
       }, 100);
+      cycleCheckIntervalRef.current = checkInterval;
 
       // 10秒後にタイムアウト
-      setTimeout(() => {
-        clearInterval(checkInterval);
+      const timeoutId = setTimeout(() => {
+        if (cycleCheckIntervalRef.current) {
+          clearInterval(cycleCheckIntervalRef.current);
+          cycleCheckIntervalRef.current = null;
+        }
       }, 10000);
+      cycleTimeoutRefs.current.push(timeoutId);
     }
 
     return () => {
       window.removeEventListener('p5loaded', handleP5Loaded);
+      
+      // setIntervalをクリーンアップ
+      if (cycleCheckIntervalRef.current) {
+        clearInterval(cycleCheckIntervalRef.current);
+        cycleCheckIntervalRef.current = null;
+      }
+      
+      // setTimeoutをクリーンアップ
+      cycleTimeoutRefs.current.forEach(timeoutId => {
+        clearTimeout(timeoutId);
+      });
+      cycleTimeoutRefs.current = [];
+      
       // p5.jsインスタンスをクリーンアップ
       if (cycleP5Instance.current) {
         try {

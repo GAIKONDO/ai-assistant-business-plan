@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo, useCallback } from 'react';
 import { onAuthStateChanged, User, signOut } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
@@ -10,6 +10,10 @@ import Header from './Header';
 import Sidebar from './Sidebar';
 
 const ADMIN_UID = 'PktGlRBWVZc9E0Y3OLSQ4TeRg0P2';
+
+// ユーザー承認状態のキャッシュ（セッション中のみ有効）
+const userApprovalCache = new Map<string, { approved: boolean; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5分間キャッシュ
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -32,7 +36,7 @@ export default function Layout({ children }: LayoutProps) {
   const pathname = usePathname();
 
   // サイドメニューの開閉状態をlocalStorageに保存
-  const handleToggleSidebar = () => {
+  const handleToggleSidebar = useCallback(() => {
     const newState = !sidebarOpen;
     setSidebarOpen(newState);
     if (typeof window !== 'undefined') {
@@ -40,7 +44,25 @@ export default function Layout({ children }: LayoutProps) {
       // カスタムイベントを発火してサブメニューに通知
       window.dispatchEvent(new Event('sidebarToggle'));
     }
-  };
+  }, [sidebarOpen]);
+
+  // サイドバー幅: 70px, サイドメニュー幅: 280px
+  const sidebarWidth = useMemo(() => user ? (sidebarOpen ? 350 : 70) : 0, [user, sidebarOpen]);
+  
+  // コンテナを中央配置するためのスタイル
+  const containerStyle = useMemo(() => ({
+    marginLeft: `${sidebarWidth}px`,
+    marginRight: 'auto',
+    width: `calc(100% - ${sidebarWidth}px)`,
+    maxWidth: '1400px',
+    transition: 'margin-left 0.3s ease, width 0.3s ease',
+  }), [sidebarWidth]);
+
+  // 現在のページを判定
+  const currentPage = useMemo(() => {
+    if (pathname === '/') return 'dashboard';
+    return pathname.replace('/', '') || 'dashboard';
+  }, [pathname]);
 
   useEffect(() => {
     if (!auth) {
@@ -60,43 +82,57 @@ export default function Layout({ children }: LayoutProps) {
             return;
           }
           
-          // ユーザーの承認状態を確認（同期的にチェック）
+          // ユーザーの承認状態を確認（キャッシュを活用）
           let isApproved = false;
           try {
             if (db) {
-              // まずユーザードキュメントを確認
-              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              // キャッシュをチェック
+              const cached = userApprovalCache.get(user.uid);
+              const now = Date.now();
               
-              if (userDoc.exists()) {
-                const userData = userDoc.data();
+              if (cached && (now - cached.timestamp) < CACHE_DURATION) {
+                // キャッシュが有効な場合はそれを使用
+                isApproved = cached.approved;
+                console.log('Layout: キャッシュから承認状態を取得:', { approved: isApproved });
+              } else {
+                // キャッシュが無効または存在しない場合はFirestoreから取得
+                const userDoc = await getDoc(doc(db, 'users', user.uid));
                 
-                // デバッグログ
-                console.log('Layout: ユーザーデータ確認:', {
-                  approved: userData.approved,
-                });
-                
-                // 承認されていない場合はログアウト
-                if (userData.approved === false) {
-                  console.log('Layout: 承認されていないためログアウト');
+                if (userDoc.exists()) {
+                  const userData = userDoc.data();
+                  
+                  // デバッグログ
+                  console.log('Layout: ユーザーデータ確認:', {
+                    approved: userData.approved,
+                  });
+                  
+                  // 承認されていない場合はログアウト
+                  if (userData.approved === false) {
+                    console.log('Layout: 承認されていないためログアウト');
+                    userApprovalCache.set(user.uid, { approved: false, timestamp: now });
+                    await signOut(auth);
+                    setUser(null);
+                    setLoading(false);
+                    return;
+                  }
+                  
+                  // approvedがtrueまたはundefined（既存ユーザー）の場合は承認済み
+                  if (userData.approved === true || userData.approved === undefined) {
+                    isApproved = true;
+                    // キャッシュに保存
+                    userApprovalCache.set(user.uid, { approved: true, timestamp: now });
+                  }
+                } else {
+                  // ユーザードキュメントが存在しない場合
+                  // 新規登録直後の可能性があるため、安全側に倒してログアウト
+                  // （新規登録時は必ずユーザードキュメントが作成される）
+                  console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
+                  userApprovalCache.set(user.uid, { approved: false, timestamp: now });
                   await signOut(auth);
                   setUser(null);
                   setLoading(false);
                   return;
                 }
-                
-                // approvedがtrueまたはundefined（既存ユーザー）の場合は承認済み
-                if (userData.approved === true || userData.approved === undefined) {
-                  isApproved = true;
-                }
-              } else {
-                // ユーザードキュメントが存在しない場合
-                // 新規登録直後の可能性があるため、安全側に倒してログアウト
-                // （新規登録時は必ずユーザードキュメントが作成される）
-                console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
-                await signOut(auth);
-                setUser(null);
-                setLoading(false);
-                return;
               }
             }
           } catch (err: any) {
@@ -121,6 +157,10 @@ export default function Layout({ children }: LayoutProps) {
             setLoading(false);
           }
         } else {
+          // ログアウト時はキャッシュをクリア
+          if (user) {
+            userApprovalCache.delete(user.uid);
+          }
           setUser(null);
           setLoading(false);
         }
@@ -177,27 +217,9 @@ export default function Layout({ children }: LayoutProps) {
     );
   }
 
-  // サイドバー幅: 70px, サイドメニュー幅: 280px
-  const sidebarWidth = user ? (sidebarOpen ? 350 : 70) : 0;
-  
-  // コンテナを中央配置するためのスタイル
-  const containerStyle = {
-    marginLeft: `${sidebarWidth}px`,
-    marginRight: 'auto',
-    width: `calc(100% - ${sidebarWidth}px)`,
-    maxWidth: '1400px',
-    transition: 'margin-left 0.3s ease, width 0.3s ease',
-  };
-
-  // 現在のページを判定
-  const getCurrentPage = () => {
-    if (pathname === '/') return 'dashboard';
-    return pathname.replace('/', '') || 'dashboard';
-  };
-
   return (
     <main>
-      {user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={getCurrentPage()} />}
+      {user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={currentPage} />}
       <Header user={user} sidebarOpen={sidebarOpen} />
       <div className="container" style={containerStyle}>
         {user ? children : <Login />}

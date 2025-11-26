@@ -90,18 +90,21 @@ export default function SettingsPage() {
       
       const usersList: UserData[] = [];
       
-      // 各ユーザーの情報とログイン履歴を取得
-      for (const userDoc of querySnapshot.docs) {
+      // すべてのユーザーのログイン履歴クエリを並列で実行
+      const userHistoryPromises = querySnapshot.docs.map(async (userDoc) => {
         const data = userDoc.data();
+        const userId = userDoc.id;
         
-        // ログイン履歴を取得
-        const loginHistoryRef = collection(db, 'users', userDoc.id, 'loginHistory');
-        const loginHistoryQuery = query(loginHistoryRef, orderBy('loginAt', 'desc'), limit(1));
-        const loginHistorySnapshot = await getDocs(loginHistoryQuery);
+        // ログイン履歴を取得（最新1件と全件を並列で取得）
+        const loginHistoryRef = collection(db, 'users', userId, 'loginHistory');
+        const [lastLoginSnapshot, allLoginSnapshot] = await Promise.all([
+          getDocs(query(loginHistoryRef, orderBy('loginAt', 'desc'), limit(1))),
+          getDocs(query(loginHistoryRef))
+        ]);
         
         let lastLoginAt: string | null = null;
-        if (loginHistorySnapshot.docs.length > 0) {
-          const lastLogin = loginHistorySnapshot.docs[0].data();
+        if (lastLoginSnapshot.docs.length > 0) {
+          const lastLogin = lastLoginSnapshot.docs[0].data();
           if (lastLogin.loginAt) {
             lastLoginAt = lastLogin.loginAt.toDate().toISOString();
           }
@@ -110,21 +113,22 @@ export default function SettingsPage() {
           lastLoginAt = data.lastLoginAt.toDate ? data.lastLoginAt.toDate().toISOString() : data.lastLoginAt;
         }
         
-        // ログイン回数を取得
-        const allLoginHistoryQuery = query(loginHistoryRef);
-        const allLoginHistorySnapshot = await getDocs(allLoginHistoryQuery);
-        const loginCount = allLoginHistorySnapshot.size;
+        const loginCount = allLoginSnapshot.size;
         
-        usersList.push({
-          uid: userDoc.id,
+        return {
+          uid: userId,
           email: data.email || null,
           createdAt: data.createdAt?.toDate ? data.createdAt.toDate().toISOString() : (data.createdAt || ''),
           lastLoginAt: lastLoginAt,
           loginCount: loginCount,
           approved: data.approved !== undefined ? data.approved : true, // 既存ユーザーは自動承認済みとみなす
           requestedAt: data.requestedAt?.toDate ? data.requestedAt.toDate().toISOString() : (data.requestedAt || undefined),
-        });
-      }
+        };
+      });
+      
+      // すべてのユーザーデータを並列で取得
+      const usersData = await Promise.all(userHistoryPromises);
+      usersList.push(...usersData);
 
       // 現在ログインしているユーザーも追加（Firestoreにない場合に備えて）
       if (auth && auth.currentUser) {
@@ -168,13 +172,13 @@ export default function SettingsPage() {
   };
 
   const handleDeleteUser = async (targetUid: string, targetEmail: string | null) => {
-    if (!auth.currentUser) {
+    if (!auth?.currentUser) {
       setError('ログインしていません。');
       return;
     }
 
     // 自分自身を削除する場合
-    if (targetUid === auth.currentUser.uid) {
+    if (targetUid === auth?.currentUser?.uid) {
       setError('自分自身のアカウントは削除できません。ログアウトしてから再度ログインしてください。');
       return;
     }
@@ -188,16 +192,18 @@ export default function SettingsPage() {
 
     try {
       // 再認証
-      if (!auth.currentUser.email) {
+      if (!auth?.currentUser?.email) {
         setError('メールアドレスが設定されていません。');
         return;
       }
 
       const credential = EmailAuthProvider.credential(
-        auth.currentUser.email,
+        auth?.currentUser?.email,
         password
       );
-      await reauthenticateWithCredential(auth.currentUser, credential);
+      if (auth?.currentUser) {
+        await reauthenticateWithCredential(auth.currentUser, credential);
+      }
 
       // Firestoreからユーザーデータを削除
       try {
@@ -234,16 +240,18 @@ export default function SettingsPage() {
 
     try {
       // 再認証
-      if (!auth.currentUser.email) {
+      if (!auth?.currentUser?.email) {
         setError('メールアドレスが設定されていません。');
         return;
       }
 
       const credential = EmailAuthProvider.credential(
-        auth.currentUser.email,
+        auth?.currentUser?.email,
         password
       );
-      await reauthenticateWithCredential(auth.currentUser, credential);
+      if (auth?.currentUser) {
+        await reauthenticateWithCredential(auth.currentUser, credential);
+      }
 
       // Firestoreからユーザーデータを削除
       try {

@@ -151,66 +151,19 @@ export default function BusinessPlanPage() {
       ];
 
       console.log('カウントクエリ開始');
-      // 並列でクエリを実行
-      const [ownServiceConceptsResult, aiDxConceptsResult, consultingConceptsResult, educationTrainingConceptsResult, plansSnapshot] = await Promise.all([
-        // 自社サービス事業の構想数を取得
+      // すべての構想と事業計画を並列で一度に取得
+      const [conceptsSnapshot, plansSnapshot] = await Promise.all([
+        // すべての構想を一度に取得
         (async () => {
           try {
             const conceptsQuery = query(
               collection(db, 'concepts'),
-              where('userId', '==', userId),
-              where('serviceId', '==', 'own-service')
+              where('userId', '==', userId)
             );
-            const conceptsSnapshot = await getDocs(conceptsQuery);
-            return 2 + conceptsSnapshot.size; // 固定構想2つ + 動的構想
+            return await getDocs(conceptsQuery);
           } catch (error) {
-            console.error('構想カウントエラー:', error);
-            return 2;
-          }
-        })(),
-        // AI駆動開発・DX支援事業の構想数を取得
-        (async () => {
-          try {
-            const conceptsQuery = query(
-              collection(db, 'concepts'),
-              where('userId', '==', userId),
-              where('serviceId', '==', 'ai-dx')
-            );
-            const conceptsSnapshot = await getDocs(conceptsQuery);
-            return 2 + conceptsSnapshot.size; // 固定構想2つ + 動的構想
-          } catch (error) {
-            console.error('構想カウントエラー:', error);
-            return 2;
-          }
-        })(),
-        // 業務コンサル・プロセス可視化・改善事業の構想数を取得
-        (async () => {
-          try {
-            const conceptsQuery = query(
-              collection(db, 'concepts'),
-              where('userId', '==', userId),
-              where('serviceId', '==', 'consulting')
-            );
-            const conceptsSnapshot = await getDocs(conceptsQuery);
-            return 2 + conceptsSnapshot.size; // 固定構想2つ + 動的構想
-          } catch (error) {
-            console.error('構想カウントエラー:', error);
-            return 2;
-          }
-        })(),
-        // 人材育成・教育・AI導入ルール設計事業の構想数を取得
-        (async () => {
-          try {
-            const conceptsQuery = query(
-              collection(db, 'concepts'),
-              where('userId', '==', userId),
-              where('serviceId', '==', 'education-training')
-            );
-            const conceptsSnapshot = await getDocs(conceptsQuery);
-            return 3 + conceptsSnapshot.size; // 固定構想3つ + 動的構想
-          } catch (error) {
-            console.error('構想カウントエラー:', error);
-            return 3;
+            console.error('構想取得エラー:', error);
+            return null;
           }
         })(),
         // すべての事業計画を一度に取得
@@ -228,15 +181,33 @@ export default function BusinessPlanPage() {
         })()
       ]);
 
-      // 自社サービス事業、AI駆動開発・DX支援事業、業務コンサル・プロセス可視化・改善事業、人材育成・教育・AI導入ルール設計事業の構想数を設定
-      counts['own-service'] = ownServiceConceptsResult;
-      counts['ai-dx'] = aiDxConceptsResult;
-      counts['consulting'] = consultingConceptsResult;
-      counts['education-training'] = educationTrainingConceptsResult;
+      // 固定構想数の定義
+      const fixedConceptCounts: { [key: string]: number } = {
+        'own-service': 2,
+        'ai-dx': 2,
+        'consulting': 2,
+        'education-training': 3,
+      };
+
+      // 構想をサービスIDごとに集計
+      if (conceptsSnapshot) {
+        conceptsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const serviceId = data.serviceId;
+          if (serviceId) {
+            counts[serviceId] = (counts[serviceId] || 0) + 1;
+          }
+        });
+      }
+
+      // 固定構想数を追加
+      Object.keys(fixedConceptCounts).forEach((serviceId) => {
+        counts[serviceId] = (counts[serviceId] || 0) + fixedConceptCounts[serviceId];
+      });
 
       // 事業計画をサービスIDごとに集計
       if (plansSnapshot) {
-        plansSnapshot.forEach((doc: any) => {
+        plansSnapshot.forEach((doc) => {
           const data = doc.data();
           const serviceId = data.serviceId;
           if (serviceId && serviceId !== 'own-service') {

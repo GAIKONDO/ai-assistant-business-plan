@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, createContext, useContext } from 'react';
+import { useState, useEffect, createContext, useContext, useCallback } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
 import { doc, getDoc } from 'firebase/firestore';
@@ -42,33 +42,7 @@ export default function CompanyPlanDetailLayout({
   const [loading, setLoading] = useState(true);
   const [authReady, setAuthReady] = useState(false);
 
-  // 認証状態を監視
-  useEffect(() => {
-    if (!auth) {
-      setLoading(false);
-      return;
-    }
-
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      setAuthReady(true);
-      if (user && planId) {
-        loadPlan();
-      } else if (!user) {
-        setLoading(false);
-      }
-    });
-
-    return () => unsubscribe();
-  }, []);
-
-  // 認証が完了し、planIdが変更されたときにデータを読み込む
-  useEffect(() => {
-    if (authReady && auth?.currentUser && planId) {
-      loadPlan();
-    }
-  }, [authReady, planId]);
-
-  const loadPlan = async () => {
+  const loadPlan = useCallback(async () => {
     if (!auth?.currentUser || !db || !planId) {
       setLoading(false);
       return;
@@ -101,7 +75,33 @@ export default function CompanyPlanDetailLayout({
     } finally {
       setLoading(false);
     }
-  };
+  }, [planId]);
+
+  // 認証状態を監視
+  useEffect(() => {
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthReady(true);
+      if (user && planId) {
+        loadPlan();
+      } else if (!user) {
+        setLoading(false);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [planId, loadPlan]);
+
+  // 認証が完了し、planIdが変更されたときにデータを読み込む
+  useEffect(() => {
+    if (authReady && auth?.currentUser && planId) {
+      loadPlan();
+    }
+  }, [authReady, planId, loadPlan]);
 
   // 現在のサブメニュー項目を判定
   const getCurrentSubMenu = () => {
