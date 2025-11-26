@@ -1,6 +1,7 @@
 import { initializeApp, getApps, FirebaseApp } from 'firebase/app';
 import { getAuth, Auth } from 'firebase/auth';
 import { getFirestore, Firestore } from 'firebase/firestore';
+import { getStorage, FirebaseStorage } from 'firebase/storage';
 
 const firebaseConfig = {
   apiKey: process.env.NEXT_PUBLIC_FIREBASE_API_KEY || '',
@@ -14,6 +15,7 @@ const firebaseConfig = {
 let app: FirebaseApp | undefined;
 let auth: Auth | undefined;
 let db: Firestore | undefined;
+let storage: FirebaseStorage | undefined;
 
 if (typeof window !== 'undefined') {
   // 環境変数が設定されているか確認
@@ -28,12 +30,13 @@ if (typeof window !== 'undefined') {
       }
       auth = getAuth(app);
       db = getFirestore(app);
+      storage = getStorage(app);
     } catch (error) {
       console.error('Firebase初期化エラー:', error);
     }
   }
 }
 
-export { auth, db };
+export { auth, db, storage };
 export default app;
 

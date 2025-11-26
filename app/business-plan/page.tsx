@@ -12,14 +12,14 @@ import BusinessProjectForm, { BusinessProjectData } from '@/components/BusinessP
 
 const SPECIAL_SERVICES = [
   { id: 'own-service', name: '自社サービス事業', description: '自社開発のサービス事業に関する計画', hasConcepts: true },
-  { id: 'ai-dx', name: 'AI駆動開発・DX支援事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
-  { id: 'consulting', name: '業務コンサル・プロセス可視化・改善事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
   { id: 'education-training', name: '人材育成・教育・AI導入ルール設計事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
+  { id: 'consulting', name: '業務コンサル・プロセス可視化・改善事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
+  { id: 'ai-dx', name: 'AI駆動開発・DX支援事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
 ];
 
 export default function BusinessPlanPage() {
   const router = useRouter();
-  const [companyPlan, setCompanyPlan] = useState<(BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date }) | null>(null);
+  const [companyPlans, setCompanyPlans] = useState<(BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
   const [projects, setProjects] = useState<(BusinessProjectData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showCompanyForm, setShowCompanyForm] = useState(false);
@@ -56,20 +56,27 @@ export default function BusinessPlanPage() {
         }
       }
       
-      if (!companySnapshot.empty) {
-        const doc = companySnapshot.docs[0];
-        setCompanyPlan({
+      const plansData: (BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date })[] = [];
+      companySnapshot.forEach((doc) => {
+        plansData.push({
           id: doc.id,
           ...doc.data(),
           createdAt: doc.data().createdAt?.toDate(),
           updatedAt: doc.data().updatedAt?.toDate(),
         } as BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date });
-      } else {
-        setCompanyPlan(null);
-      }
+      });
+      
+      // クライアント側でソート
+      plansData.sort((a, b) => {
+        const aTime = a.createdAt?.getTime() || 0;
+        const bTime = b.createdAt?.getTime() || 0;
+        return bTime - aTime; // 降順
+      });
+      
+      setCompanyPlans(plansData);
     } catch (error) {
       console.error('読み込みエラー:', error);
-      setCompanyPlan(null);
+      setCompanyPlans([]);
     }
   };
 
@@ -298,12 +305,12 @@ export default function BusinessPlanPage() {
     return () => unsubscribe();
   }, []);
 
-  const handleDeleteCompanyPlan = async () => {
-    if (!companyPlan || !db) return;
+  const handleDeleteCompanyPlan = async (planId: string) => {
+    if (!db) return;
     if (!confirm('会社本体の事業計画を削除しますか？')) return;
 
     try {
-      await deleteDoc(doc(db, 'companyBusinessPlan', companyPlan.id));
+      await deleteDoc(doc(db, 'companyBusinessPlan', planId));
       loadPlans();
     } catch (error) {
       console.error('削除エラー:', error);
@@ -324,8 +331,8 @@ export default function BusinessPlanPage() {
     }
   };
 
-  const handleEditCompanyPlan = () => {
-    setEditingPlan(companyPlan);
+  const handleEditCompanyPlan = (plan: BusinessPlanData & { id: string }) => {
+    setEditingPlan(plan);
     setShowCompanyForm(true);
   };
 
@@ -369,12 +376,12 @@ export default function BusinessPlanPage() {
             {!showCompanyForm && (
               <button
                 onClick={() => {
-                  setEditingPlan(companyPlan);
+                  setEditingPlan(null);
                   setShowCompanyForm(true);
                 }}
                 className="button"
               >
-                {companyPlan ? '編集' : '作成'}
+                新しい事業計画を作成
               </button>
             )}
           </div>
@@ -386,21 +393,28 @@ export default function BusinessPlanPage() {
               onCancel={handleFormClose}
               type="company"
             />
-          ) : companyPlan ? (
-            <BusinessPlanCard
-              plan={companyPlan}
-              onEdit={handleEditCompanyPlan}
-              onDelete={handleDeleteCompanyPlan}
-              type="company"
-            />
           ) : (
-            <div className="card" style={{ textAlign: 'center', padding: '60px' }}>
-              <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-                会社本体の事業計画がまだ作成されていません
-              </p>
-              <button onClick={() => setShowCompanyForm(true)} className="button">
-                作成する
-              </button>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+              {companyPlans.length === 0 ? (
+                <div className="card" style={{ textAlign: 'center', padding: '60px', gridColumn: '1 / -1' }}>
+                  <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
+                    会社本体の事業計画がまだ作成されていません
+                  </p>
+                  <button onClick={() => setShowCompanyForm(true)} className="button">
+                    作成する
+                  </button>
+                </div>
+              ) : (
+                companyPlans.map((plan) => (
+                  <BusinessPlanCard
+                    key={plan.id}
+                    plan={plan}
+                    onEdit={() => handleEditCompanyPlan(plan)}
+                    onDelete={() => handleDeleteCompanyPlan(plan.id)}
+                    type="company"
+                  />
+                ))
+              )}
             </div>
           )}
         </div>
@@ -487,7 +501,7 @@ export default function BusinessPlanPage() {
               <div
                 key={project.id}
                 className="card"
-                onClick={() => router.push(`/business-plan/services/${project.serviceId}`)}
+                onClick={() => router.push(`/business-plan/project/${project.id}`)}
                 style={{
                   cursor: 'pointer',
                   transition: 'all 0.2s ease',
@@ -507,28 +521,41 @@ export default function BusinessPlanPage() {
                   <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>
                     {SPECIAL_SERVICES.length + index + 1}. {project.name}
                   </h3>
+                  <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
                   <button
                     onClick={(e) => {
                       e.stopPropagation();
                       handleEditProject(project);
                     }}
                     style={{
-                      background: 'none',
+                        background: 'transparent',
                       border: 'none',
-                      color: 'var(--color-text-light)',
+                        color: 'rgba(107, 114, 128, 0.4)',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      padding: '4px 8px',
-                      marginLeft: '8px',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                        opacity: 0.6,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.color = 'var(--color-primary)';
+                        e.currentTarget.style.color = 'var(--color-text-light)';
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.background = 'rgba(31, 41, 51, 0.04)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.color = 'var(--color-text-light)';
+                        e.currentTarget.style.color = 'rgba(107, 114, 128, 0.4)';
+                        e.currentTarget.style.opacity = '0.6';
+                        e.currentTarget.style.background = 'transparent';
                     }}
+                      title="編集"
                   >
-                    編集
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                        <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+                      </svg>
                   </button>
                   <button
                     onClick={(e) => {
@@ -536,23 +563,38 @@ export default function BusinessPlanPage() {
                       handleDeleteProject(project.id);
                     }}
                     style={{
-                      background: 'none',
+                        background: 'transparent',
                       border: 'none',
-                      color: '#dc3545',
+                        color: 'rgba(220, 53, 69, 0.4)',
                       cursor: 'pointer',
-                      fontSize: '12px',
-                      padding: '4px 8px',
-                      marginLeft: '4px',
+                        padding: '4px',
+                        borderRadius: '4px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        transition: 'all 0.2s ease',
+                        opacity: 0.6,
                     }}
                     onMouseEnter={(e) => {
-                      e.currentTarget.style.opacity = '0.8';
+                        e.currentTarget.style.color = '#dc3545';
+                        e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.background = 'rgba(220, 53, 69, 0.06)';
                     }}
                     onMouseLeave={(e) => {
-                      e.currentTarget.style.opacity = '1';
+                        e.currentTarget.style.color = 'rgba(220, 53, 69, 0.4)';
+                        e.currentTarget.style.opacity = '0.6';
+                        e.currentTarget.style.background = 'transparent';
                     }}
-                  >
-                    削除
+                      title="削除"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                        <line x1="10" y1="11" x2="10" y2="17"></line>
+                        <line x1="14" y1="11" x2="14" y2="17"></line>
+                      </svg>
                   </button>
+                  </div>
                 </div>
                 <p style={{ marginBottom: '16px', fontSize: '14px', color: 'var(--color-text-light)', lineHeight: '1.6' }}>
                   {project.description}

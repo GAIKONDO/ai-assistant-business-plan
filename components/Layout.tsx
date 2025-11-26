@@ -1,12 +1,15 @@
 'use client';
 
 import { useEffect, useState } from 'react';
-import { onAuthStateChanged, User } from 'firebase/auth';
-import { auth } from '@/lib/firebase';
+import { onAuthStateChanged, User, signOut } from 'firebase/auth';
+import { doc, getDoc } from 'firebase/firestore';
+import { auth, db } from '@/lib/firebase';
 import { usePathname } from 'next/navigation';
 import Login from './Login';
 import Header from './Header';
 import Sidebar from './Sidebar';
+
+const ADMIN_UID = 'PktGlRBWVZc9E0Y3OLSQ4TeRg0P2';
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -34,6 +37,8 @@ export default function Layout({ children }: LayoutProps) {
     setSidebarOpen(newState);
     if (typeof window !== 'undefined') {
       localStorage.setItem('sidebarOpen', String(newState));
+      // カスタムイベントを発火してサブメニューに通知
+      window.dispatchEvent(new Event('sidebarToggle'));
     }
   };
 
@@ -45,9 +50,80 @@ export default function Layout({ children }: LayoutProps) {
     }
 
     try {
-      const unsubscribe = onAuthStateChanged(auth, (user) => {
-        setUser(user);
-        setLoading(false);
+      const unsubscribe = onAuthStateChanged(auth, async (user) => {
+        if (user) {
+          // 管理者の場合は承認チェックをスキップ
+          if (user.uid === ADMIN_UID) {
+            console.log('Layout: 管理者としてログイン');
+            setUser(user);
+            setLoading(false);
+            return;
+          }
+          
+          // ユーザーの承認状態を確認（同期的にチェック）
+          let isApproved = false;
+          try {
+            if (db) {
+              // まずユーザードキュメントを確認
+              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
+                
+                // デバッグログ
+                console.log('Layout: ユーザーデータ確認:', {
+                  approved: userData.approved,
+                });
+                
+                // 承認されていない場合はログアウト
+                if (userData.approved === false) {
+                  console.log('Layout: 承認されていないためログアウト');
+                  await signOut(auth);
+                  setUser(null);
+                  setLoading(false);
+                  return;
+                }
+                
+                // approvedがtrueまたはundefined（既存ユーザー）の場合は承認済み
+                if (userData.approved === true || userData.approved === undefined) {
+                  isApproved = true;
+                }
+              } else {
+                // ユーザードキュメントが存在しない場合
+                // 新規登録直後の可能性があるため、安全側に倒してログアウト
+                // （新規登録時は必ずユーザードキュメントが作成される）
+                console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
+                await signOut(auth);
+                setUser(null);
+                setLoading(false);
+                return;
+              }
+            }
+          } catch (err: any) {
+            console.error('承認状態の確認エラー:', err);
+            // エラーが発生した場合は、安全側に倒してログアウト
+            // 承認状態が確認できない場合はログインを許可しない
+            console.log('Layout: 承認状態が確認できないため、安全のためログアウト');
+            await signOut(auth);
+            setUser(null);
+            setLoading(false);
+            return;
+          }
+          
+          // 承認チェックが成功した場合のみユーザーを設定
+          if (isApproved) {
+            setUser(user);
+            setLoading(false);
+          } else {
+            // 承認されていない場合はログアウト
+            await signOut(auth);
+            setUser(null);
+            setLoading(false);
+          }
+        } else {
+          setUser(null);
+          setLoading(false);
+        }
       }, (error) => {
         console.error('認証エラー:', error);
         setFirebaseError('Firebase認証の設定に問題があります。.env.localファイルを確認してください。');
@@ -102,13 +178,16 @@ export default function Layout({ children }: LayoutProps) {
   }
 
   // サイドバー幅: 70px, サイドメニュー幅: 280px
-  const mainContentMarginLeft = user 
-    ? (sidebarOpen ? '350px' : '70px')
-    : '0';
+  const sidebarWidth = user ? (sidebarOpen ? 350 : 70) : 0;
   
-  const mainContentWidth = user 
-    ? (sidebarOpen ? 'calc(100% - 350px)' : 'calc(100% - 70px)')
-    : '100%';
+  // コンテナを中央配置するためのスタイル
+  const containerStyle = {
+    marginLeft: `${sidebarWidth}px`,
+    marginRight: 'auto',
+    width: `calc(100% - ${sidebarWidth}px)`,
+    maxWidth: '1400px',
+    transition: 'margin-left 0.3s ease, width 0.3s ease',
+  };
 
   // 現在のページを判定
   const getCurrentPage = () => {
@@ -120,7 +199,7 @@ export default function Layout({ children }: LayoutProps) {
     <main>
       {user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={getCurrentPage()} />}
       <Header user={user} sidebarOpen={sidebarOpen} />
-      <div className="container" style={{ marginLeft: mainContentMarginLeft, width: mainContentWidth, transition: 'margin-left 0.3s ease, width 0.3s ease' }}>
+      <div className="container" style={containerStyle}>
         {user ? children : <Login />}
       </div>
     </main>

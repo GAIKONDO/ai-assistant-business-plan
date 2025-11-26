@@ -12,6 +12,7 @@ export interface BusinessPlanData {
   competitiveAdvantage: string;
   financialPlan: string;
   timeline: string;
+  keyVisualUrl?: string; // キービジュアル画像のURL
 }
 
 interface BusinessPlanFormProps {
@@ -55,20 +56,24 @@ export default function BusinessPlanForm({ plan, onSave, onCancel, type, service
 
     setLoading(true);
     try {
+      // タイトルと概要のみを保存（他のフィールドは既存データがあれば保持、なければ空文字列）
       const data = {
-        ...formData,
+        title: formData.title,
+        description: formData.description,
+        objectives: plan?.objectives || '',
+        targetMarket: plan?.targetMarket || '',
+        competitiveAdvantage: plan?.competitiveAdvantage || '',
+        financialPlan: plan?.financialPlan || '',
+        timeline: plan?.timeline || '',
         userId: auth.currentUser.uid,
         updatedAt: serverTimestamp(),
       };
 
       if (type === 'company') {
-        // 会社本体の事業計画は1つだけ
+        // 会社本体の事業計画（複数作成可能）
         if (plan?.id) {
           await updateDoc(doc(db, 'companyBusinessPlan', plan.id), data);
         } else {
-          // 既存の会社本体事業計画を確認
-          const existingPlans = await collection(db, 'companyBusinessPlan');
-          // ここでは簡易的に、既存があれば更新、なければ作成
           await addDoc(collection(db, 'companyBusinessPlan'), {
             ...data,
             createdAt: serverTimestamp(),
@@ -128,68 +133,13 @@ export default function BusinessPlanForm({ plan, onSave, onCancel, type, service
         </div>
 
         <div className="form-group">
-          <label className="label">事業概要 *</label>
+          <label className="label">概要</label>
           <textarea
             className="textarea"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            required
             placeholder="事業の概要を説明してください"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="label">事業目標 *</label>
-          <textarea
-            className="textarea"
-            value={formData.objectives}
-            onChange={(e) => setFormData({ ...formData, objectives: e.target.value })}
-            required
-            placeholder="達成したい事業目標を記述してください"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="label">ターゲット市場 *</label>
-          <textarea
-            className="textarea"
-            value={formData.targetMarket}
-            onChange={(e) => setFormData({ ...formData, targetMarket: e.target.value })}
-            required
-            placeholder="ターゲットとする市場・顧客層を説明してください"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="label">競争優位性 *</label>
-          <textarea
-            className="textarea"
-            value={formData.competitiveAdvantage}
-            onChange={(e) => setFormData({ ...formData, competitiveAdvantage: e.target.value })}
-            required
-            placeholder="競合他社との差別化要因や強みを説明してください"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="label">財務計画 *</label>
-          <textarea
-            className="textarea"
-            value={formData.financialPlan}
-            onChange={(e) => setFormData({ ...formData, financialPlan: e.target.value })}
-            required
-            placeholder="売上目標、コスト構造、資金調達計画などを記述してください"
-          />
-        </div>
-
-        <div className="form-group">
-          <label className="label">スケジュール・タイムライン *</label>
-          <textarea
-            className="textarea"
-            value={formData.timeline}
-            onChange={(e) => setFormData({ ...formData, timeline: e.target.value })}
-            required
-            placeholder="事業のマイルストーンやスケジュールを記述してください"
+            rows={4}
           />
         </div>
 

@@ -2,7 +2,8 @@
 
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
-import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon } from './Icons';
+import { useTransition } from 'react';
+import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon } from './Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -13,12 +14,15 @@ interface SidebarProps {
 export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   
   const menuItems = [
     { icon: DashboardIcon, label: 'ダッシュボード', id: 'dashboard', path: '/' },
     { icon: LineChartIcon, label: '事業計画', id: 'business-plan', path: '/business-plan' },
     { icon: BarChartIcon, label: '分析', id: 'analytics', path: '/analytics' },
     { icon: DocumentIcon, label: 'レポート', id: 'reports', path: '/reports' },
+    { icon: SpecificationIcon, label: '仕様書', id: 'specification', path: '/specification' },
+    { icon: DocumentIcon, label: 'Markdownデモ', id: 'markdown-demo', path: '/markdown-demo' },
     { icon: SettingsIcon, label: '設定', id: 'settings', path: '/settings' },
   ];
 
@@ -26,13 +30,18 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
   const getCurrentPage = () => {
     if (currentPage) return currentPage;
     if (pathname === '/') return 'dashboard';
-    return pathname.replace('/', '') || 'dashboard';
+    // /markdown-demo のようなパスを正しく処理
+    const pathWithoutSlash = pathname.replace('/', '');
+    if (pathWithoutSlash === 'markdown-demo') return 'markdown-demo';
+    return pathWithoutSlash || 'dashboard';
   };
 
   const activePage = getCurrentPage();
 
   const handleNavigation = (path: string) => {
-    router.push(path);
+    startTransition(() => {
+      router.push(path);
+    });
     // サイドメニューの開閉状態は維持する
   };
 

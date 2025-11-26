@@ -1,6 +1,11 @@
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
+    // 管理者UID
+    function isAdmin() {
+      return request.auth != null && request.auth.uid == 'PktGlRBWVZc9E0Y3OLSQ4TeRg0P2';
+    }
+    
     // ヘルパー関数：認証済みユーザーかチェック
     function isAuthenticated() {
       return request.auth != null;
@@ -47,7 +52,40 @@ service cloud.firestore {
     // ユーザープロファイル
     match /users/{userId} {
       allow read: if isAuthenticated();
-      allow write: if isAuthenticated() && request.auth.uid == userId;
+      // 作成: 新規登録時（承認待ち状態で作成）
+      allow create: if isAuthenticated() && request.auth.uid == userId && request.resource.data.approved == false;
+      // 更新: 自分のデータまたは管理者が承認する場合
+      // ただし、approvedフィールドは管理者のみ更新可能
+      allow update: if isAuthenticated() && (
+        (request.auth.uid == userId && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['approved', 'approvedBy', 'approvedAt'])) ||
+        (isAdmin())
+      );
+      // 削除: 自分のデータのみ
+      allow delete: if isAuthenticated() && request.auth.uid == userId;
+      
+      // ログイン履歴
+      match /loginHistory/{historyId} {
+        allow read: if isAuthenticated();
+        allow create: if isAuthenticated() && request.auth.uid == userId;
+      }
+    }
+    
+    // 管理者情報
+    match /admins/{adminId} {
+      allow read: if isAuthenticated();
+      allow write: if isAdmin();
+    }
+    
+    // 承認リクエスト
+    match /approvalRequests/{requestId} {
+      // 読み取り: 認証済みユーザー（管理者は全件、一般ユーザーは自分のリクエストのみ）
+      allow read: if isAuthenticated() && (isAdmin() || request.auth.uid == requestId);
+      // 作成: 新規登録時（自分のリクエストのみ）
+      allow create: if isAuthenticated() && request.auth.uid == requestId;
+      // 更新: 管理者のみ（承認/拒否）
+      allow update: if isAdmin();
+      // 削除: 管理者のみ
+      allow delete: if isAdmin();
     }
   }
 }

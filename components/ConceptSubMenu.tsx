@@ -14,6 +14,7 @@ export const SUB_MENU_ITEMS = [
   { id: 'case-study', label: 'ケーススタディ', path: 'case-study' },
   { id: 'risk-assessment', label: 'リスク評価', path: 'risk-assessment' },
   { id: 'itochu-synergy', label: '伊藤忠シナジー', path: 'itochu-synergy' },
+  { id: 'execution-schedule', label: '実行スケジュール', path: 'execution-schedule' },
   { id: 'snapshot-comparison', label: 'スナップショット比較', path: 'snapshot-comparison' },
 ];
 
