@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Script from 'next/script';
 import { usePlan } from '../layout';
 import { useParams, useRouter } from 'next/navigation';
@@ -27,8 +27,8 @@ export default function OverviewPage() {
     }
   }, [plan?.keyVisualHeight]);
   
-  // キービジュアルの高さを保存
-  const handleSaveKeyVisualHeight = async (height: number) => {
+  // キービジュアルの高さを保存（useCallbackでメモ化）
+  const handleSaveKeyVisualHeight = useCallback(async (height: number) => {
     if (!auth?.currentUser || !db || !planId) return;
     
     try {
@@ -40,7 +40,7 @@ export default function OverviewPage() {
     } catch (error) {
       console.error('キービジュアルサイズの保存エラー:', error);
     }
-  };
+  }, [auth?.currentUser, db, planId]);
   const aiFactoryCanvasRef = useRef<HTMLDivElement>(null);
   const cycleDiagramRef = useRef<HTMLDivElement>(null);
   const p5Loaded = useRef(false);
@@ -53,6 +53,313 @@ export default function OverviewPage() {
   const [showArchitecturePossibilities, setShowArchitecturePossibilities] = useState(false);
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25); // デフォルトは16:9のアスペクト比
   const [showSizeControl, setShowSizeControl] = useState(false);
+
+  // VegaChartのspecオブジェクトをメモ化（再レンダリングを防ぐ）
+  const vegaChartSpec = useMemo(() => ({
+    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
+    "width": 600,
+    "height": 500,
+    "data": {
+      "values": [
+        {
+          "category": "従来のIT/DX",
+          "name": "レガシーシステム",
+          "costEffectiveness": 0.8,
+          "monetization": 0.2,
+          "size": 30,
+          "subDescription": "人手依存・スケール不能・属人化"
+        },
+        {
+          "category": "従来のIT/DX",
+          "name": "パッケージソフト",
+          "costEffectiveness": 0.7,
+          "monetization": 0.65,
+          "size": 50,
+          "subDescription": "標準化されたソリューション"
+        },
+        {
+          "category": "従来のIT/DX",
+          "name": "従来のITシステム",
+          "costEffectiveness": 0.6,
+          "monetization": 0.5,
+          "size": 40,
+          "subDescription": "基幹システム・業務システム"
+        },
+        {
+          "category": "従来のIT/DX",
+          "name": "カスタム開発",
+          "costEffectiveness": 0.3,
+          "monetization": 0.75,
+          "size": 60,
+          "subDescription": "大規模開発・高収益"
+        },
+        {
+          "category": "従来のIT/DX",
+          "name": "DX",
+          "costEffectiveness": 0.35,
+          "monetization": 0.7,
+          "size": 55,
+          "subDescription": "効率は上がるが差別化しにくい"
+        },
+        {
+          "category": "AIの真価が開く領域",
+          "name": "マネタイズができなかった領域",
+          "costEffectiveness": 0.25,
+          "monetization": 0.25,
+          "size": 300,
+          "description": "採算が取れなかった領域",
+          "subDescription": "ほぼゼロ限界コスト・超スケール"
+        },
+        {
+          "category": "AIの真価が開く領域",
+          "name": "パーソナライズ化が困難だった領域",
+          "costEffectiveness": 0.25,
+          "monetization": 0.75,
+          "size": 300,
+          "description": "費用対効果の観点から困難だった領域",
+          "subDescription": "超個別最適・設計が複雑すぎた"
+        }
+      ]
+    },
+    "layer": [
+      {
+        "mark": {
+          "type": "rule",
+          "stroke": "#000",
+          "strokeWidth": 2
+        },
+        "encoding": {
+          "x": {"datum": 0.5}
+        }
+      },
+      {
+        "mark": {
+          "type": "rule",
+          "stroke": "#000",
+          "strokeWidth": 2
+        },
+        "encoding": {
+          "y": {"datum": 0.5}
+        }
+      },
+      {
+        "mark": {
+          "type": "circle",
+          "opacity": 0.85,
+          "stroke": "#FFA500",
+          "strokeWidth": 1.5,
+          "strokeOpacity": 0.6,
+          "fill": "#FFD700"
+        },
+        "encoding": {
+          "x": {
+            "field": "costEffectiveness",
+            "type": "quantitative",
+            "scale": {"domain": [0, 1]},
+            "title": "実現難易度・運用コスト（右に行くほど難しい・高コスト）",
+            "axis": {
+              "gridOpacity": 0.2,
+              "titleFontSize": 12,
+              "titleFontWeight": "bold"
+            }
+          },
+          "y": {
+            "field": "monetization",
+            "type": "quantitative",
+            "scale": {"domain": [0, 1]},
+            "title": "ビジネス価値・収益ポテンシャル（高いほど売れる・広がる）",
+            "axis": {
+              "gridOpacity": 0.2,
+              "titleFontSize": 12,
+              "titleFontWeight": "bold"
+            }
+          },
+          "size": {
+            "field": "size",
+            "type": "quantitative",
+            "scale": {"range": [100, 3000]},
+            "legend": null
+          },
+          "color": {
+            "field": "category",
+            "type": "nominal",
+            "scale": {
+              "domain": ["AIの真価が開く領域"],
+              "range": ["#FFD700"]
+            },
+            "legend": null
+          },
+          "fillOpacity": {
+            "value": 0.75
+          }
+        },
+        "transform": [
+          {"filter": "datum.category === 'AIの真価が開く領域'"}
+        ]
+      },
+      {
+        "mark": {
+          "type": "circle",
+          "fill": "transparent",
+          "stroke": "#999",
+          "strokeWidth": 2,
+          "strokeDash": [5, 5],
+          "opacity": 0.6
+        },
+        "encoding": {
+          "x": {
+            "field": "costEffectiveness",
+            "type": "quantitative",
+            "scale": {"domain": [0, 1], "reverse": true}
+          },
+          "y": {
+            "field": "monetization",
+            "type": "quantitative",
+            "scale": {"domain": [0, 1]}
+          },
+          "size": {
+            "field": "size",
+            "type": "quantitative",
+            "scale": {"range": [100, 3000]}
+          }
+        },
+        "transform": [
+          {"filter": "datum.category === '従来のIT/DX'"}
+        ]
+      },
+      {
+        "mark": {
+          "type": "text",
+          "fontSize": 10,
+          "fontWeight": "bold",
+          "dy": -8,
+          "fill": {
+            "field": "category",
+            "scale": {
+              "domain": ["従来のIT/DX", "AIの真価が開く領域"],
+              "range": ["#666", "#000"]
+            }
+          }
+        },
+        "encoding": {
+          "x": {
+            "field": "costEffectiveness",
+            "type": "quantitative"
+          },
+          "y": {
+            "field": "monetization",
+            "type": "quantitative"
+          },
+          "text": {
+            "field": "name"
+          }
+        }
+      },
+      {
+        "mark": {
+          "type": "text",
+          "fontSize": 7,
+          "fill": {
+            "field": "category",
+            "scale": {
+              "domain": ["従来のIT/DX", "AIの真価が開く領域"],
+              "range": ["#888", "#B8860B"]
+            }
+          },
+          "dy": 10
+        },
+        "encoding": {
+          "x": {
+            "field": "costEffectiveness",
+            "type": "quantitative"
+          },
+          "y": {
+            "field": "monetization",
+            "type": "quantitative"
+          },
+          "text": {
+            "field": "subDescription"
+          }
+        },
+        "transform": [
+          {"filter": "datum.subDescription"}
+        ]
+      },
+      {
+        "mark": {
+          "type": "text",
+          "fontSize": 8,
+          "fill": "#666",
+          "dy": 20
+        },
+        "encoding": {
+          "x": {
+            "field": "costEffectiveness",
+            "type": "quantitative"
+          },
+          "y": {
+            "field": "monetization",
+            "type": "quantitative"
+          },
+          "text": {
+            "field": "description"
+          }
+        },
+        "transform": [
+          {"filter": "datum.description"}
+        ]
+      },
+      {
+        "data": {
+          "values": [
+            {"x": 0.85, "y": 0.85, "label": "従来から\n可能だった領域", "xOffset": -60, "yOffset": -20},
+            {"x": 0.15, "y": 0.85, "label": "AIによって\n解放された領域", "xOffset": -60, "yOffset": -20},
+            {"x": 0.85, "y": 0.15, "label": "従来から\n可能だった領域", "xOffset": -60, "yOffset": -20},
+            {"x": 0.15, "y": 0.15, "label": "AIによって\n解放された領域", "xOffset": -60, "yOffset": -20}
+          ]
+        },
+        "mark": {
+          "type": "rect",
+          "fill": "white",
+          "opacity": 0.85,
+          "stroke": "#ddd",
+          "strokeWidth": 1,
+          "cornerRadius": 4,
+          "width": 120,
+          "height": 40
+        },
+        "encoding": {
+          "x": {"field": "x", "type": "quantitative"},
+          "y": {"field": "y", "type": "quantitative"},
+          "xOffset": {"field": "xOffset", "type": "quantitative"},
+          "yOffset": {"field": "yOffset", "type": "quantitative"}
+        }
+      },
+      {
+        "data": {
+          "values": [
+            {"x": 0.85, "y": 0.85, "label": "従来から\n可能だった領域"},
+            {"x": 0.15, "y": 0.85, "label": "AIによって\n解放された領域"},
+            {"x": 0.85, "y": 0.15, "label": "従来から\n可能だった領域"},
+            {"x": 0.15, "y": 0.15, "label": "AIによって\n解放された領域"}
+          ]
+        },
+        "mark": {
+          "type": "text",
+          "fontSize": 11,
+          "fontWeight": "bold",
+          "fill": "#333",
+          "align": "center",
+          "baseline": "middle"
+        },
+        "encoding": {
+          "x": {"field": "x", "type": "quantitative"},
+          "y": {"field": "y", "type": "quantitative"},
+          "text": {"field": "label"}
+        }
+      }
+    ]
+  }), []);
 
   // すべてのフィールドが空かどうかをチェック
   const isEmpty = !plan || (
@@ -595,6 +902,8 @@ export default function OverviewPage() {
             <img
               src={plan.keyVisualUrl}
               alt="キービジュアル"
+              loading="lazy"
+              decoding="async"
               style={{
                 position: 'absolute',
                 top: 0,
@@ -830,311 +1139,7 @@ export default function OverviewPage() {
                   <VegaChart
                   language="vega-lite"
                   title=""
-                  spec={{
-                    "$schema": "https://vega.github.io/schema/vega-lite/v6.json",
-                    "width": 600,
-                    "height": 500,
-                    "data": {
-                      "values": [
-                        {
-                          "category": "従来のIT/DX",
-                          "name": "レガシーシステム",
-                          "costEffectiveness": 0.8,
-                          "monetization": 0.2,
-                          "size": 30,
-                          "subDescription": "人手依存・スケール不能・属人化"
-                        },
-                        {
-                          "category": "従来のIT/DX",
-                          "name": "パッケージソフト",
-                          "costEffectiveness": 0.7,
-                          "monetization": 0.65,
-                          "size": 50,
-                          "subDescription": "標準化されたソリューション"
-                        },
-                        {
-                          "category": "従来のIT/DX",
-                          "name": "従来のITシステム",
-                          "costEffectiveness": 0.6,
-                          "monetization": 0.5,
-                          "size": 40,
-                          "subDescription": "基幹システム・業務システム"
-                        },
-                        {
-                          "category": "従来のIT/DX",
-                          "name": "カスタム開発",
-                          "costEffectiveness": 0.3,
-                          "monetization": 0.75,
-                          "size": 60,
-                          "subDescription": "大規模開発・高収益"
-                        },
-                        {
-                          "category": "従来のIT/DX",
-                          "name": "DX",
-                          "costEffectiveness": 0.35,
-                          "monetization": 0.7,
-                          "size": 55,
-                          "subDescription": "効率は上がるが差別化しにくい"
-                        },
-                        {
-                          "category": "AIの真価が開く領域",
-                          "name": "マネタイズができなかった領域",
-                          "costEffectiveness": 0.25,
-                          "monetization": 0.25,
-                          "size": 300,
-                          "description": "採算が取れなかった領域",
-                          "subDescription": "ほぼゼロ限界コスト・超スケール"
-                        },
-                        {
-                          "category": "AIの真価が開く領域",
-                          "name": "パーソナライズ化が困難だった領域",
-                          "costEffectiveness": 0.25,
-                          "monetization": 0.75,
-                          "size": 300,
-                          "description": "費用対効果の観点から困難だった領域",
-                          "subDescription": "超個別最適・設計が複雑すぎた"
-                        }
-                      ]
-                    },
-                    "layer": [
-                      {
-                        "mark": {
-                          "type": "rule",
-                          "stroke": "#000",
-                          "strokeWidth": 2
-                        },
-                        "encoding": {
-                          "x": {"datum": 0.5}
-                        }
-                      },
-                      {
-                        "mark": {
-                          "type": "rule",
-                          "stroke": "#000",
-                          "strokeWidth": 2
-                        },
-                        "encoding": {
-                          "y": {"datum": 0.5}
-                        }
-                      },
-                      {
-                        "mark": {
-                          "type": "circle",
-                          "opacity": 0.85,
-                          "stroke": "#FFA500",
-                          "strokeWidth": 1.5,
-                          "strokeOpacity": 0.6,
-                          "fill": "#FFD700"
-                        },
-                        "encoding": {
-                          "x": {
-                            "field": "costEffectiveness",
-                            "type": "quantitative",
-                            "scale": {"domain": [0, 1]},
-                            "title": "実現難易度・運用コスト（右に行くほど難しい・高コスト）",
-                            "axis": {
-                              "gridOpacity": 0.2,
-                              "titleFontSize": 12,
-                              "titleFontWeight": "bold"
-                            }
-                          },
-                          "y": {
-                            "field": "monetization",
-                            "type": "quantitative",
-                            "scale": {"domain": [0, 1]},
-                            "title": "ビジネス価値・収益ポテンシャル（高いほど売れる・広がる）",
-                            "axis": {
-                              "gridOpacity": 0.2,
-                              "titleFontSize": 12,
-                              "titleFontWeight": "bold"
-                            }
-                          },
-                          "size": {
-                            "field": "size",
-                            "type": "quantitative",
-                            "scale": {"range": [100, 3000]},
-                            "legend": null
-                          },
-                          "color": {
-                            "field": "category",
-                            "type": "nominal",
-                            "scale": {
-                              "domain": ["AIの真価が開く領域"],
-                              "range": ["#FFD700"]
-                            },
-                            "legend": null
-                          },
-                          "fillOpacity": {
-                            "value": 0.75
-                          }
-                        },
-                        "transform": [
-                          {"filter": "datum.category === 'AIの真価が開く領域'"}
-                        ]
-                      },
-                      {
-                        "mark": {
-                          "type": "circle",
-                          "fill": "transparent",
-                          "stroke": "#999",
-                          "strokeWidth": 2,
-                          "strokeDash": [5, 5],
-                          "opacity": 0.6
-                        },
-                        "encoding": {
-                          "x": {
-                            "field": "costEffectiveness",
-                            "type": "quantitative",
-                            "scale": {"domain": [0, 1], "reverse": true}
-                          },
-                          "y": {
-                            "field": "monetization",
-                            "type": "quantitative",
-                            "scale": {"domain": [0, 1]}
-                          },
-                          "size": {
-                            "field": "size",
-                            "type": "quantitative",
-                            "scale": {"range": [100, 3000]}
-                          }
-                        },
-                        "transform": [
-                          {"filter": "datum.category === '従来のIT/DX'"}
-                        ]
-                      },
-                      {
-                        "mark": {
-                          "type": "text",
-                          "fontSize": 10,
-                          "fontWeight": "bold",
-                          "dy": -8,
-                          "fill": {
-                            "field": "category",
-                            "scale": {
-                              "domain": ["従来のIT/DX", "AIの真価が開く領域"],
-                              "range": ["#666", "#000"]
-                            }
-                          }
-                        },
-                        "encoding": {
-                          "x": {
-                            "field": "costEffectiveness",
-                            "type": "quantitative"
-                          },
-                          "y": {
-                            "field": "monetization",
-                            "type": "quantitative"
-                          },
-                          "text": {
-                            "field": "name"
-                          }
-                        }
-                      },
-                      {
-                        "mark": {
-                          "type": "text",
-                          "fontSize": 7,
-                          "fill": {
-                            "field": "category",
-                            "scale": {
-                              "domain": ["従来のIT/DX", "AIの真価が開く領域"],
-                              "range": ["#888", "#B8860B"]
-                            }
-                          },
-                          "dy": 10
-                        },
-                        "encoding": {
-                          "x": {
-                            "field": "costEffectiveness",
-                            "type": "quantitative"
-                          },
-                          "y": {
-                            "field": "monetization",
-                            "type": "quantitative"
-                          },
-                          "text": {
-                            "field": "subDescription"
-                          }
-                        },
-                        "transform": [
-                          {"filter": "datum.subDescription"}
-                        ]
-                      },
-                      {
-                        "mark": {
-                          "type": "text",
-                          "fontSize": 8,
-                          "fill": "#666",
-                          "dy": 20
-                        },
-                        "encoding": {
-                          "x": {
-                            "field": "costEffectiveness",
-                            "type": "quantitative"
-                          },
-                          "y": {
-                            "field": "monetization",
-                            "type": "quantitative"
-                          },
-                          "text": {
-                            "field": "description"
-                          }
-                        },
-                        "transform": [
-                          {"filter": "datum.description"}
-                        ]
-                      },
-                      {
-                        "data": {
-                          "values": [
-                            {"x": 0.85, "y": 0.85, "label": "従来から\n可能だった領域", "xOffset": -60, "yOffset": -20},
-                            {"x": 0.15, "y": 0.85, "label": "AIによって\n解放された領域", "xOffset": -60, "yOffset": -20},
-                            {"x": 0.85, "y": 0.15, "label": "従来から\n可能だった領域", "xOffset": -60, "yOffset": -20},
-                            {"x": 0.15, "y": 0.15, "label": "AIによって\n解放された領域", "xOffset": -60, "yOffset": -20}
-                          ]
-                        },
-                        "mark": {
-                          "type": "rect",
-                          "fill": "white",
-                          "opacity": 0.85,
-                          "stroke": "#ddd",
-                          "strokeWidth": 1,
-                          "cornerRadius": 4,
-                          "width": 120,
-                          "height": 40
-                        },
-                        "encoding": {
-                          "x": {"field": "x", "type": "quantitative"},
-                          "y": {"field": "y", "type": "quantitative"},
-                          "xOffset": {"field": "xOffset", "type": "quantitative"},
-                          "yOffset": {"field": "yOffset", "type": "quantitative"}
-                        }
-                      },
-                      {
-                        "data": {
-                          "values": [
-                            {"x": 0.85, "y": 0.85, "label": "従来から\n可能だった領域"},
-                            {"x": 0.15, "y": 0.85, "label": "AIによって\n解放された領域"},
-                            {"x": 0.85, "y": 0.15, "label": "従来から\n可能だった領域"},
-                            {"x": 0.15, "y": 0.15, "label": "AIによって\n解放された領域"}
-                          ]
-                        },
-                        "mark": {
-                          "type": "text",
-                          "fontSize": 11,
-                          "fontWeight": "bold",
-                          "fill": "#333",
-                          "align": "center",
-                          "baseline": "middle"
-                        },
-                        "encoding": {
-                          "x": {"field": "x", "type": "quantitative"},
-                          "y": {"field": "y", "type": "quantitative"},
-                          "text": {"field": "label"}
-                        }
-                      }
-                    ]
-                  }}
+                  spec={vegaChartSpec}
                 />
                 </div>
               </div>
@@ -1160,7 +1165,7 @@ export default function OverviewPage() {
                 <li style={{ marginBottom: '8px' }}>ユーザー体験の向上により、データ収集→アルゴリズム改善→サービス向上→利用拡大という好循環が生まれる</li>
               </ul>
               <p style={{ marginBottom: '12px', paddingLeft: '11px' }}>
-                この好循環の起点は、ユーザーフレンドリーな設計である。
+                この好循環の起点は、<span style={{ color: 'red' }}>ユーザーフレンドリーな設計</span>である。
               </p>
             </div>
 
@@ -1774,7 +1779,9 @@ export default function OverviewPage() {
               <div style={{ marginBottom: '12px', paddingLeft: '11px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                 <img 
                   src="/ChatGPT Image 2025年11月26日 12_15_46.png" 
-                  alt="株式会社AIアシスタントの使命" 
+                  alt="株式会社AIアシスタントの使命"
+                  loading="lazy"
+                  decoding="async"
                   style={{ 
                     maxWidth: '400px', 
                     width: '100%',
@@ -1790,7 +1797,7 @@ export default function OverviewPage() {
                       1. Mission
                     </h5>
                     <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
-                      株式会社AIアシスタントは、自社がAIファーストカンパニーとして、ユーザーフレンドリーなUI設計を通じて、パーソナルDXの実現を目指す。そして、その実践経験とノウハウを活かして、他社のAIファーストカンパニーへの変革も支援する。
+                      株式会社AIアシスタントは、自社がAIファーストカンパニーの試験場となり、ユーザーフレンドリーなUI設計を通じて、パーソナルDXの実現を目指す。そして、その実践経験とノウハウを活かして、他社のAIファーストカンパニーへの変革を支援する。
                     </p>
                   </div>
 
@@ -1800,7 +1807,7 @@ export default function OverviewPage() {
                       2. Vision
                     </h5>
                     <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
-                      すべての個人と組織が、AIを自然に活用できる社会の実現を目指す。パーソナルデータレイクを基盤とした、真にユーザー中心のAIエコシステムを構築し、データ主権を個人に取り戻すことで、より豊かで創造的な未来を創造する。
+                      すべての個人と組織が、AIを自然に活用できる社会の実現を目指す。パーソナルデータレイクを基盤とした、真にユーザー中心のAIエコシステムを構築し、データ主権を個人に取り戻すことで、より豊かで創造的な未来を創る。
                     </p>
                   </div>
 
@@ -1810,7 +1817,7 @@ export default function OverviewPage() {
                       3. Value
                     </h5>
                     <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
-                      ユーザーフレンドリーな設計を最優先とし、技術の複雑さを隠し、直感的な体験を提供する。実践を通じて得た知見を積極的に共有し、オープンな協業により、AIファーストカンパニーへの変革を加速させる。常にユーザーの視点に立ち、データの透明性とプライバシーを尊重する。
+                      ユーザーフレンドリーな設計を最優先とし、直感的な体験を提供する。実践を通じて得た知見を積極的に共有し、オープンな協業により、AIファーストカンパニーへの変革を加速させる。常にユーザーの視点に立ち、データの透明性とプライバシーを尊重する。
                     </p>
                   </div>
 
@@ -1820,7 +1827,7 @@ export default function OverviewPage() {
                       4. Business / Service
                     </h5>
                     <p style={{ marginBottom: '0', paddingLeft: '11px', fontSize: '14px', lineHeight: '1.8' }}>
-                      自社開発・自社サービス事業としてパーソナルアプリケーションを提供し、AIファーストカンパニーとしての実績とナレッジを獲得。獲得した経験を元にAI導入ルール設計・人材育成・教育事業を展開し、伊藤忠グループのエコシステムによる顧客伴奏支援型の業務コンサル事業を拡大。顧客課題を具体化しAI駆動開発・DX支援SI事業で企業のシステム開発を支援する。
+                      自社開発・自社サービス事業としてパーソナルアプリケーションを提供し、AIファーストカンパニーとしての実績とナレッジを獲得。獲得した経験を元にAI導入のルール設計・人材育成・教育事業を展開し、伊藤忠グループのエコシステムによる顧客伴奏型の業務コンサル事業を拡大。顧客課題を具体化しAI駆動開発・DX支援SI事業で企業のシステム開発を支援する。
                     </p>
                   </div>
                 </div>

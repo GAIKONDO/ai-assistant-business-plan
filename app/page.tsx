@@ -6,6 +6,27 @@ import { auth, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import { useRouter } from 'next/navigation';
 
+// 固定構想の定義（app/business-plan/page.tsxと同じ）
+const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
+  'own-service': [
+    { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
+    { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  ],
+  'ai-dx': [
+    { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },
+    { id: 'sme-dx', name: '中小企業向けDX', description: '内部データ管理やHP作成、Invoice制度の対応など' },
+  ],
+  'consulting': [
+    { id: 'sme-process', name: '中小企業向け業務プロセス可視化・改善', description: '中小企業の業務プロセス可視化、効率化、経営課題の解決支援、助成金活用支援' },
+    { id: 'medical-care-process', name: '医療・介護施設向け業務プロセス可視化・改善', description: '医療・介護施設の業務フロー可視化、記録業務の効率化、コンプライアンス対応支援' },
+  ],
+  'education-training': [
+    { id: 'corporate-ai-training', name: '大企業向けAI人材育成・教育', description: '企業内AI人材の育成、AI活用スキル研修、AI導入教育プログラムの提供' },
+    { id: 'ai-governance', name: 'AI導入ルール設計・ガバナンス支援', description: '企業のAI導入におけるルール設計、ガバナンス構築、コンプライアンス対応支援' },
+    { id: 'sme-ai-education', name: '中小企業向けAI導入支援・教育', description: '中小企業向けのAI導入支援、実践的なAI教育、導入ルール設計支援、助成金活用支援' },
+  ],
+};
+
 export default function DashboardPage() {
   const [businessProjectsCount, setBusinessProjectsCount] = useState<number>(0);
   const [conceptsCount, setConceptsCount] = useState<number>(0);
@@ -54,15 +75,30 @@ export default function DashboardPage() {
       setBusinessProjectsCount(totalBusinessProjects);
 
       // 構想の数を取得（動的に追加されたもの + 固定構想）
-      let conceptsCount = 0;
+      // 固定構想のconceptIdを収集（重複カウントを防ぐため）
+      const fixedConceptIds = new Set<string>();
+      Object.keys(FIXED_CONCEPTS).forEach((serviceId) => {
+        FIXED_CONCEPTS[serviceId].forEach((concept) => {
+          fixedConceptIds.add(concept.id);
+        });
+      });
+
+      let dynamicConceptsCount = 0;
       try {
         const conceptsQuery = query(
           collection(db, 'concepts'),
           where('userId', '==', userId)
         );
         const conceptsSnapshot = await getDocs(conceptsQuery);
-        conceptsCount = conceptsSnapshot.size;
-        console.log('Dashboard: 動的構想数', conceptsCount, conceptsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        // 固定構想と同じconceptIdを持つ構想は除外
+        conceptsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const conceptId = data.conceptId;
+          if (!fixedConceptIds.has(conceptId)) {
+            dynamicConceptsCount++;
+          }
+        });
+        console.log('Dashboard: 動的構想数（固定構想除外後）', dynamicConceptsCount, conceptsSnapshot.docs.map(d => ({ id: d.id, conceptId: d.data().conceptId, ...d.data() })));
       } catch (error: any) {
         console.error('Dashboard: 構想取得エラー:', error);
       }
@@ -73,8 +109,8 @@ export default function DashboardPage() {
       // プロセス可視化・業務コンサル事業: 2つ（中小企業向け、医療・介護施設向け）
       // AI導入ルール設計・人材育成・教育事業: 3つ（大企業向けAI人材育成、AI導入ルール設計、中小企業向けAI導入支援）
       const fixedConceptsCount = 2 + 2 + 2 + 3; // 9つ
-      const totalConcepts = conceptsCount + fixedConceptsCount;
-      console.log('Dashboard: 構想総数（動的 + 固定）', totalConcepts);
+      const totalConcepts = dynamicConceptsCount + fixedConceptsCount;
+      console.log('Dashboard: 構想総数（動的 + 固定）', totalConcepts, { dynamicConceptsCount, fixedConceptsCount });
       setConceptsCount(totalConcepts);
 
       // 事業計画の数を取得（会社全体の事業計画のみ）

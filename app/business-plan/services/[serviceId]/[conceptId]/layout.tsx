@@ -218,6 +218,8 @@ function ConceptLayoutContent({
   const [currentPage, setCurrentPage] = useState(0);
   const [totalPages, setTotalPages] = useState(1);
   const contentRef = useRef<HTMLDivElement>(null);
+  const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
+  const presentationContainerRef = useRef<HTMLDivElement>(null);
 
   // 現在のサブメニュー項目を判定
   const getCurrentSubMenu = () => {
@@ -561,6 +563,7 @@ function ConceptLayoutContent({
       )}
       {isPresentationMode && (
         <div
+          ref={presentationContainerRef}
           style={{
             position: 'fixed',
             top: 0,
@@ -575,8 +578,28 @@ function ConceptLayoutContent({
             justifyContent: 'center',
             padding: '40px',
             overflow: 'auto',
+            cursor: 'none',
+          }}
+          onMouseMove={(e) => {
+            setMousePosition({ x: e.clientX, y: e.clientY });
           }}
         >
+          {/* レーザーポインター風ポインター */}
+          <div
+            style={{
+              position: 'fixed',
+              left: mousePosition.x - 5,
+              top: mousePosition.y - 5,
+              width: '10px',
+              height: '10px',
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, #ff3333 0%, #ff0000 50%, #ff3333 100%)',
+              boxShadow: '0 0 5px #ff0000, 0 0 10px rgba(255, 0, 0, 0.8), 0 0 15px rgba(255, 0, 0, 0.4), inset 0 0 3px rgba(255, 255, 255, 0.5)',
+              pointerEvents: 'none',
+              zIndex: 10000,
+              transition: 'none',
+            }}
+          />
           {/* 開始ガイド */}
           {showStartGuide && (
             <div

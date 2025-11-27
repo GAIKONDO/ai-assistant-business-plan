@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useEffect, useRef, useMemo, memo } from 'react';
 
 interface VegaChartProps {
   spec: any; // VegaまたはVega-Liteの仕様
@@ -18,7 +18,7 @@ const getVegaEmbed = () => {
   return vegaEmbedPromise;
 };
 
-export default function VegaChart({ spec, language = 'vega-lite', title }: VegaChartProps) {
+const VegaChart = memo(function VegaChart({ spec, language = 'vega-lite', title }: VegaChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
 
@@ -133,5 +133,7 @@ export default function VegaChart({ spec, language = 'vega-lite', title }: VegaC
       />
     </div>
   );
-}
+});
+
+export default VegaChart;
 
