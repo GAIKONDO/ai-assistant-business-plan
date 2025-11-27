@@ -19,8 +19,8 @@ const SERVICE_NAMES: { [key: string]: string } = {
 // 固定構想の定義
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
   'own-service': [
-    { id: 'maternity-support', name: '出産支援パーソナルアプリケーション', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
-    { id: 'care-support', name: '介護支援パーソナルアプリケーション', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+    { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
+    { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
   ],
   'ai-dx': [
     { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },

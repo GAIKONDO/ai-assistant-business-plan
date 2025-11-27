@@ -12,7 +12,7 @@ declare global {
 
 const SERVICE_NAMES: { [key: string]: string } = {
   'own-service': '自社開発・自社サービス事業',
-  'education-training': 'AI導入ルール設計・人材育成・教育事業',
+  'education-training': 'AI導入ルール設計・教育プログラム提供',
   'consulting': 'プロセス可視化・業務コンサル事業',
   'ai-dx': 'AI駆動開発・DX支援SI事業',
 };
@@ -27,7 +27,7 @@ const SERVICE_SCOPE: { [key: string]: string } = {
 
 // 各事業企画のターゲット顧客層
 const SERVICE_TARGET: { [key: string]: string } = {
-  'own-service': 'エンドユーザー',
+  'own-service': '自治体、民間企業、一般利用者',
   'ai-dx': 'システム部門',
   'consulting': '経営層・人事、営業部門、職能部門',
   'education-training': '経営層・人事部門・全社',
@@ -41,10 +41,51 @@ const SERVICE_FLOW: { [key: string]: string } = {
   'ai-dx': '自社 → システム部門 → エンドユーザー',
 };
 
+// 各事業企画の差別化要因
+const SERVICE_DIFFERENTIATION: { [key: string]: string } = {
+  'own-service': 'AIファーストカンパニーによるAIネイティブ設計',
+  'education-training': '自社での成功事例が裏付けとなるルール設計や教育コンテンツ',
+  'consulting': 'AIネイティブ設計の知見と伊藤忠Gとの連携事業',
+  'ai-dx': '自社のAI駆動開発の経験とAIネイティブ設計の知見。伊藤忠Gとの連携事業',
+};
+
+// 各事業企画で獲得できる強み
+const SERVICE_STRENGTHS: { [key: string]: string[] } = {
+  'own-service': [
+    '収益基盤の確立',
+    '自社の開発経験の蓄積',
+    'ドッグフーディング実績',
+    'ユーザーデータの蓄積',
+    'AI活用ノウハウの獲得'
+  ],
+  'education-training': [
+    '人材育成・ルール設計事業への強み獲得',
+    '教育コンテンツの蓄積',
+    '企業との信頼関係構築'
+  ],
+  'consulting': [
+    '業務コンサル実績の創出',
+    '業務コンサル事業の収益化'
+  ],
+  'ai-dx': [
+    'AI駆動開発実績の創出',
+    'AI駆動開発事業の収益化',
+    '技術リーダーシップの確立'
+  ],
+};
+
+// 各事業企画の立ち上げタイミング
+const SERVICE_LAUNCH_TIMING: { [key: string]: string } = {
+  'own-service': '0 - 1年目',
+  'education-training': '1 - 2年目',
+  'consulting': '2 - 3年目',
+  'ai-dx': '2 - 3年目',
+};
+
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string; target: string }> } = {
   'own-service': [
-    { id: 'maternity-support', name: '出産支援パーソナルアプリケーション', description: '出産前後のママとパパをサポートするパーソナルアプリケーション', target: 'エンドユーザー（ママ・パパ）' },
-    { id: 'care-support', name: '介護支援パーソナルアプリケーション', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション', target: 'エンドユーザー（介護が必要な方・家族）' },
+    { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション', target: 'エンドユーザー（ママ・パパ）' },
+    { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション', target: 'エンドユーザー（介護が必要な方・家族）' },
   ],
   'ai-dx': [
     { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援', target: '医療法人 → 患者' },
@@ -67,6 +108,7 @@ export default function FeaturesPage() {
   const [svgContent, setSvgContent] = useState<string>('');
   const [error, setError] = useState<string | null>(null);
   const [isRendering, setIsRendering] = useState(false);
+  const [selectedServiceId, setSelectedServiceId] = useState<string>('own-service'); // 選択中の事業企画
   const initializedRef = useRef(false);
   const renderedRef = useRef(false);
 
@@ -83,65 +125,84 @@ export default function FeaturesPage() {
     }
   }, []);
 
-  // Mermaidシーケンス図のコードを生成
-  const generateMermaidDiagram = () => {
-    const services = Object.keys(SERVICE_NAMES);
-    let diagram = 'sequenceDiagram\n';
-    diagram += '    participant 自社 as 株式会社AIアシスタント\n';
-    diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
-    diagram += '    participant 業務部門 as 顧客企業・営業部門・職能部門\n';
-    diagram += '    participant システム部門 as 顧客企業・システム部門\n';
-    diagram += '    participant エンドユーザー as エンドユーザー<br/>(従業員・利用者)\n\n';
+  // 特定の事業企画のMermaidシーケンス図のコードを生成
+  const generateMermaidDiagram = (serviceId: string) => {
+    const serviceName = SERVICE_NAMES[serviceId];
+    const scope = SERVICE_SCOPE[serviceId];
+    const target = SERVICE_TARGET[serviceId];
     
-    // 各企画を追加
-    services.forEach((serviceId, index) => {
-      const serviceName = SERVICE_NAMES[serviceId];
-      const scope = SERVICE_SCOPE[serviceId];
-      const target = SERVICE_TARGET[serviceId];
+    let diagram = 'sequenceDiagram\n';
+    
+    // 自社開発・自社サービス事業の場合は専用の参加者構成
+    if (serviceId === 'own-service') {
+      diagram += '    participant 自社 as 株式会社AIアシスタント\n';
+      diagram += '    participant 自治体 as 顧客：自治体\n';
+      diagram += '    participant 企業 as 顧客：企業\n';
+      diagram += '    participant 従業員 as エンドユーザー：従業員\n';
+      diagram += '    participant 一般利用者 as エンドユーザー：一般利用者\n\n';
       
-      // 自社開発・自社サービス事業の場合は直接エンドユーザーへ
-      if (serviceId === 'own-service') {
-        diagram += `    Note over 自社,エンドユーザー: ${serviceName}<br/>【${scope}】\n`;
-        diagram += `    自社->>エンドユーザー: ${serviceName}\n`;
-      } else if (serviceId === 'ai-dx') {
+      diagram += `    Note over 自社,一般利用者: ${serviceName}<br/>【${scope}】\n`;
+      diagram += `    自社->>自治体: ${serviceName}\n`;
+      diagram += `    activate 自治体\n`;
+      diagram += `    自治体->>一般利用者: アプリ提供\n`;
+      diagram += `    deactivate 自治体\n`;
+      diagram += `    自社->>企業: ${serviceName}\n`;
+      diagram += `    activate 企業\n`;
+      diagram += `    企業->>従業員: アプリ提供\n`;
+      diagram += `    deactivate 企業\n`;
+      diagram += `    自社->>一般利用者: ${serviceName}\n`;
+    } else {
+      // その他の事業企画は従来の参加者構成
+      diagram += '    participant 自社 as 株式会社AIアシスタント\n';
+      diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
+      diagram += '    participant 業務部門 as 顧客企業・営業部門・職能部門\n';
+      diagram += '    participant システム部門 as 顧客企業・システム部門\n';
+      diagram += '    participant エンドユーザー as エンドユーザー<br/>(従業員・利用者)\n\n';
+      
+      if (serviceId === 'ai-dx') {
         // AI駆動開発・DX支援SI事業はシステム部門が主な顧客
         diagram += `    Note over 自社,システム部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
         diagram += `    自社->>システム部門: ${serviceName}\n`;
         diagram += `    activate システム部門\n`;
-        diagram += `    システム部門->>エンドユーザー: AI活用支援\n`;
-        diagram += `    システム部門->>エンドユーザー: 業務改善・効率化\n`;
         diagram += `    システム部門->>エンドユーザー: システム導入・運用\n`;
+        diagram += `    システム部門->>業務部門: システム導入・運用\n`;
+        diagram += `    システム部門->>経営層: システム導入・運用\n`;
         diagram += `    deactivate システム部門\n`;
       } else if (serviceId === 'consulting') {
         // プロセス可視化・業務コンサル事業は経営層・人事、営業部門、職能部門が主な顧客
-        diagram += `    Note over 自社,経営層: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
+        diagram += `    Note over 自社,業務部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
+        diagram += `    エンドユーザー->>システム部門: 課題相談・課題共有\n`;
+        diagram += `    エンドユーザー->>業務部門: 課題相談・課題共有\n`;
+        diagram += `    エンドユーザー->>経営層: 課題相談・課題共有\n`;
         diagram += `    自社->>経営層: ${serviceName}\n`;
         diagram += `    activate 経営層\n`;
-        diagram += `    経営層->>業務部門: プロセス可視化・業務コンサル展開\n`;
+        diagram += `    自社->>業務部門: ${serviceName}\n`;
         diagram += `    activate 業務部門\n`;
-        diagram += `    業務部門->>エンドユーザー: 業務改善・効率化\n`;
-        diagram += `    deactivate 業務部門\n`;
-        diagram += `    deactivate 経営層\n`;
-      } else if (serviceId === 'education-training') {
-        // AI導入ルール設計・人材育成・教育事業は経営層・全社が主な顧客
-        diagram += `    Note over 自社,経営層: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
-        diagram += `    自社->>経営層: ${serviceName}\n`;
-        diagram += `    activate 経営層\n`;
-        diagram += `    経営層->>業務部門: 教育・研修\n`;
-        diagram += `    activate 業務部門\n`;
-        diagram += `    業務部門->>エンドユーザー: 業務改善\n`;
-        diagram += `    deactivate 業務部門\n`;
-        diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
+        diagram += `    自社->>システム部門: ${serviceName}\n`;
         diagram += `    activate システム部門\n`;
-        diagram += `    システム部門->>エンドユーザー: AI活用支援\n`;
+        diagram += `    deactivate 業務部門\n`;
         diagram += `    deactivate システム部門\n`;
         diagram += `    deactivate 経営層\n`;
+    } else if (serviceId === 'education-training') {
+      // AI導入ルール設計・人材育成・教育事業は経営層・全社が主な顧客
+      diagram += `    Note over 自社,業務部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
+      diagram += `    自社->>経営層: ${serviceName}\n`;
+      diagram += `    activate 経営層\n`;
+      diagram += `    自社->>業務部門: ${serviceName}\n`;
+      diagram += `    activate 業務部門\n`;
+      diagram += `    経営層->>業務部門: 教育・研修\n`;
+      diagram += `    経営層->>エンドユーザー: 教育・研修\n`;
+      diagram += `    業務部門->>エンドユーザー: ルール設計・ガバナンス\n`;
+      diagram += `    deactivate 業務部門\n`;
+      diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
+      diagram += `    activate システム部門\n`;
+      diagram += `    システム部門->>エンドユーザー: ルール設計・ガバナンス\n`;
+      diagram += `    システム部門->>業務部門: ルール設計・ガバナンス\n`;
+      diagram += `    システム部門->>経営層: ルール設計・ガバナンス\n`;
+      diagram += `    deactivate システム部門\n`;
+      diagram += `    deactivate 経営層\n`;
       }
-      
-      if (index < services.length - 1) {
-        diagram += '\n';
-      }
-    });
+    }
 
     return diagram;
   };
@@ -151,16 +212,16 @@ export default function FeaturesPage() {
       return;
     }
 
-    // 既にレンダリング済みまたはレンダリング中の場合はスキップ
-    if (renderedRef.current || isRendering) {
-      return;
-    }
+    // 選択された事業企画が変更されたら再レンダリング
+    renderedRef.current = false;
 
     const renderDiagram = async () => {
       setIsRendering(true);
+      setSvgContent('');
+      setError(null);
       try {
         const mermaid = window.mermaid;
-        const diagram = generateMermaidDiagram();
+        const diagram = generateMermaidDiagram(selectedServiceId);
         
         // 初期化（一度だけ実行）
         if (!initializedRef.current) {
@@ -253,7 +314,7 @@ export default function FeaturesPage() {
     };
 
     renderDiagram();
-  }, [mermaidLoaded]);
+  }, [mermaidLoaded, selectedServiceId]);
 
   // Mermaidの読み込み状態をチェック
   useEffect(() => {
@@ -285,7 +346,7 @@ export default function FeaturesPage() {
             4つの事業企画
           </h3>
           <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-            当社の4つの事業企画が、自社から顧客、そしてエンドユーザーへとどのようにサービスを提供するかを示しています。
+            4つの事業企画の立ち上げ時期、提供範囲、ターゲット、構想、差別化要因、獲得する強みをまとめています。
           </p>
         </div>
 
@@ -377,7 +438,7 @@ export default function FeaturesPage() {
           </div>
 
           <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            各事業企画のターゲット範囲と顧客層
+            各事業企画の詳細情報
           </h4>
           <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
             <table style={{ 
@@ -419,6 +480,26 @@ export default function FeaturesPage() {
                     backgroundColor: '#f5f5f5',
                     width: '120px'
                   }}>
+                    立ち上げ時期
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id]) => (
+                    <td key={id} style={{ 
+                      padding: '12px', 
+                      border: '1px solid var(--color-border-color)', 
+                      verticalAlign: 'top'
+                    }}>
+                      {SERVICE_LAUNCH_TIMING[id]}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ backgroundColor: '#fff' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
                     提供範囲
                   </td>
                   {Object.entries(SERVICE_NAMES).map(([id]) => (
@@ -439,7 +520,7 @@ export default function FeaturesPage() {
                     backgroundColor: '#f5f5f5',
                     width: '120px'
                   }}>
-                    サービス提供の流れ
+                    ターゲット
                   </td>
                   {Object.entries(SERVICE_NAMES).map(([id]) => (
                     <td key={id} style={{ 
@@ -447,7 +528,7 @@ export default function FeaturesPage() {
                       border: '1px solid var(--color-border-color)', 
                       verticalAlign: 'top'
                     }}>
-                      {SERVICE_FLOW[id]}
+                      {SERVICE_TARGET[id]}
                     </td>
                   ))}
                 </tr>
@@ -459,7 +540,7 @@ export default function FeaturesPage() {
                     backgroundColor: '#f5f5f5',
                     width: '120px'
                   }}>
-                    構想
+                    事業構想
                   </td>
                   {Object.entries(SERVICE_NAMES).map(([id], index) => {
                     const concepts = FIXED_CONCEPTS[id] || [];
@@ -474,6 +555,59 @@ export default function FeaturesPage() {
                             {concepts.map((concept, conceptIndex) => (
                               <li key={conceptIndex} style={{ marginBottom: '4px', fontSize: '13px' }}>
                                 {concept.name}
+                              </li>
+                            ))}
+                          </ul>
+                        ) : (
+                          <span style={{ color: 'var(--color-text-light)' }}>-</span>
+                        )}
+                      </td>
+                    );
+                  })}
+                </tr>
+                <tr style={{ backgroundColor: '#fff' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
+                    差別化要因
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id]) => (
+                    <td key={id} style={{ 
+                      padding: '12px', 
+                      border: '1px solid var(--color-border-color)', 
+                      verticalAlign: 'top'
+                    }}>
+                      {SERVICE_DIFFERENTIATION[id]}
+                    </td>
+                  ))}
+                </tr>
+                <tr style={{ backgroundColor: '#fff' }}>
+                  <td style={{ 
+                    padding: '12px', 
+                    border: '1px solid var(--color-border-color)', 
+                    fontWeight: 600,
+                    backgroundColor: '#f5f5f5',
+                    width: '120px'
+                  }}>
+                    獲得する強み
+                  </td>
+                  {Object.entries(SERVICE_NAMES).map(([id]) => {
+                    const strengths = SERVICE_STRENGTHS[id] || [];
+                    return (
+                      <td key={id} style={{ 
+                        padding: '12px', 
+                        border: '1px solid var(--color-border-color)', 
+                        verticalAlign: 'top'
+                      }}>
+                        {strengths.length > 0 ? (
+                          <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'disc' }}>
+                            {strengths.map((strength, strengthIndex) => (
+                              <li key={strengthIndex} style={{ marginBottom: '4px', fontSize: '13px' }}>
+                                {strength}
                               </li>
                             ))}
                           </ul>
@@ -500,6 +634,45 @@ export default function FeaturesPage() {
             {error}
           </div>
         )}
+        
+        {/* 事業企画選択ボタン */}
+        <div style={{ marginTop: '20px', marginBottom: '16px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+            サービス提供の流れ
+          </h4>
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            {Object.entries(SERVICE_NAMES).map(([id, name]) => (
+              <button
+                key={id}
+                onClick={() => setSelectedServiceId(id)}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: selectedServiceId === id ? 'var(--color-primary)' : '#fff',
+                  color: selectedServiceId === id ? '#fff' : 'var(--color-text)',
+                  border: `1px solid ${selectedServiceId === id ? 'var(--color-primary)' : 'var(--color-border-color)'}`,
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '13px',
+                  fontWeight: selectedServiceId === id ? 600 : 400,
+                  transition: 'all 0.2s ease',
+                  whiteSpace: 'nowrap'
+                }}
+                onMouseEnter={(e) => {
+                  if (selectedServiceId !== id) {
+                    e.currentTarget.style.backgroundColor = 'var(--color-bg-secondary)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedServiceId !== id) {
+                    e.currentTarget.style.backgroundColor = '#fff';
+                  }
+                }}
+              >
+                {name}
+              </button>
+            ))}
+          </div>
+        </div>
         
         <div 
           ref={diagramRef}

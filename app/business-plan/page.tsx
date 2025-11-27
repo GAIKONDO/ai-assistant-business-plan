@@ -17,6 +17,27 @@ const SPECIAL_SERVICES = [
   { id: 'ai-dx', name: 'AI駆動開発・DX支援SI事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
 ];
 
+// 固定構想の定義（重複カウントを防ぐため）
+const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
+  'own-service': [
+    { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
+    { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  ],
+  'ai-dx': [
+    { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },
+    { id: 'sme-dx', name: '中小企業向けDX', description: '内部データ管理やHP作成、Invoice制度の対応など' },
+  ],
+  'consulting': [
+    { id: 'sme-process', name: '中小企業向け業務プロセス可視化・改善', description: '中小企業の業務プロセス可視化、効率化、経営課題の解決支援、助成金活用支援' },
+    { id: 'medical-care-process', name: '医療・介護施設向け業務プロセス可視化・改善', description: '医療・介護施設の業務フロー可視化、記録業務の効率化、コンプライアンス対応支援' },
+  ],
+  'education-training': [
+    { id: 'corporate-ai-training', name: '大企業向けAI人材育成・教育', description: '企業内AI人材の育成、AI活用スキル研修、AI導入教育プログラムの提供' },
+    { id: 'ai-governance', name: 'AI導入ルール設計・ガバナンス支援', description: '企業のAI導入におけるルール設計、ガバナンス構築、コンプライアンス対応支援' },
+    { id: 'sme-ai-education', name: '中小企業向けAI導入支援・教育', description: '中小企業向けのAI導入支援、実践的なAI教育、導入ルール設計支援、助成金活用支援' },
+  ],
+};
+
 export default function BusinessPlanPage() {
   const router = useRouter();
   const [companyPlans, setCompanyPlans] = useState<(BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
@@ -189,16 +210,44 @@ export default function BusinessPlanPage() {
         'education-training': 3,
       };
 
-      // 構想をサービスIDごとに集計
+      // 固定構想のconceptIdを収集（重複カウントを防ぐため）
+      const fixedConceptIds = new Set<string>();
+      Object.keys(FIXED_CONCEPTS).forEach((serviceId) => {
+        FIXED_CONCEPTS[serviceId].forEach((concept) => {
+          fixedConceptIds.add(concept.id);
+        });
+      });
+
+      // 構想をサービスIDごとに集計（固定構想と同じconceptIdを持つ構想は除外）
+      const dynamicConcepts: { [key: string]: Array<{ id: string; name: string; conceptId: string }> } = {};
       if (conceptsSnapshot) {
         conceptsSnapshot.forEach((doc) => {
           const data = doc.data();
           const serviceId = data.serviceId;
-          if (serviceId) {
+          const conceptId = data.conceptId;
+          // 固定構想と同じconceptIdを持つ構想は除外
+          if (serviceId && !fixedConceptIds.has(conceptId)) {
             counts[serviceId] = (counts[serviceId] || 0) + 1;
+            // 動的構想の情報を記録
+            if (!dynamicConcepts[serviceId]) {
+              dynamicConcepts[serviceId] = [];
+            }
+            dynamicConcepts[serviceId].push({
+              id: doc.id,
+              name: data.name || '名前なし',
+              conceptId: conceptId || 'conceptIdなし'
+            });
           }
         });
       }
+      
+      // 動的構想の情報をコンソールに出力
+      console.log('動的構想の一覧:', dynamicConcepts);
+      Object.keys(dynamicConcepts).forEach((serviceId) => {
+        const service = SPECIAL_SERVICES.find(s => s.id === serviceId);
+        const serviceName = service ? service.name : serviceId;
+        console.log(`${serviceName}: ${dynamicConcepts[serviceId].length}件`, dynamicConcepts[serviceId]);
+      });
 
       // 固定構想数を追加
       Object.keys(fixedConceptCounts).forEach((serviceId) => {

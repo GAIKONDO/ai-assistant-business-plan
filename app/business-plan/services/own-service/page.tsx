@@ -9,8 +9,8 @@ import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
 
 const FIXED_CONCEPTS = [
-  { id: 'maternity-support', name: '出産支援パーソナルアプリケーション', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
-  { id: 'care-support', name: '介護支援パーソナルアプリケーション', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
+  { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
 ];
 
 export default function OwnServicePage() {

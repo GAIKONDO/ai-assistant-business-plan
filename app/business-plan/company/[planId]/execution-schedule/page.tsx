@@ -47,12 +47,12 @@ const SCHEDULE_DATA: ScheduleItem[] = [
       'パーソナルアプリ開発開始',
       'ユーザー獲得施策',
       'B2B契約獲得',
-      'ドックフーディング案件実施'
+      'ドッグフーディング案件実施'
     ],
     achievements: [
       '収益基盤の確立',
       '自社の開発経験の蓄積',
-      'ドックフーディング実績',
+      'ドッグフーディング実績',
       'ユーザーデータの蓄積',
       'AI活用ノウハウの獲得'
     ],
@@ -398,7 +398,7 @@ export default function ExecutionSchedulePage() {
     diagram += '    A1["獲得：収益基盤の確立<br/>自社の開発経験の蓄積<br/>AI活用ノウハウの獲得"]\n';
     diagram += '    R1A["なぜ必要？<br/>収益基盤の確立<br/>→ 次の事業への投資資金が必要<br/>→ 事業拡大のための資金調達"]\n';
     diagram += '    R1B["なぜ必要？<br/>自社の開発経験の蓄積<br/>→ 人材育成事業で教育コンテンツを作るため<br/>→ 実践的なノウハウの提供が可能に"]\n';
-    diagram += '    R1C["なぜ必要？<br/>AI活用ノウハウの獲得<br/>→ AI駆動開発事業を立ち上げるため<br/>→ ドックフーディング実績が信頼性を生む"]\n';
+    diagram += '    R1C["なぜ必要？<br/>AI活用ノウハウの獲得<br/>→ AI駆動開発事業を立ち上げるため<br/>→ ドッグフーディング実績が信頼性を生む"]\n';
     diagram += '    class Y1,A1 year1Class\n';
     diagram += '    class R1A,R1B,R1C reasonClass\n\n';
 

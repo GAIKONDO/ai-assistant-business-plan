@@ -1655,10 +1655,10 @@ export default function OverviewPage() {
                       </p>
                       <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
                         <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>出産支援パーソナルアプリケーション:</strong> 個人の健康データ、生活パターン、メール・チャット履歴を統合し、妊娠・出産・育児に最適化されたアドバイスとサポートを提供
+                          <strong>出産支援パーソナルApp:</strong> 個人の健康データ、生活パターン、メール・チャット履歴を統合し、妊娠・出産・育児に最適化されたアドバイスとサポートを提供
                         </li>
                         <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>介護支援パーソナルアプリケーション:</strong> 介護者・被介護者のデータを統合し、個別の状況に応じた介護計画、医療連携、家族間コミュニケーション支援を実現
+                          <strong>介護支援パーソナルApp:</strong> 介護者・被介護者のデータを統合し、個別の状況に応じた介護計画、医療連携、家族間コミュニケーション支援を実現
                         </li>
                         <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
                           <strong>その他パーソナルサービス:</strong> 個人の分散データを統合し、ライフステージやニーズに応じたカスタマイズされたサービスを提供可能

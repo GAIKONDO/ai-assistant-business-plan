@@ -91,8 +91,8 @@ export default function ConceptDetailLayout({
         // Firestoreにデータがない場合は固定の名前を使用
         const fixedConcepts: { [key: string]: { [key: string]: string } } = {
           'own-service': {
-            'maternity-support': '出産支援パーソナルアプリケーション',
-            'care-support': '介護支援パーソナルアプリケーション',
+            'maternity-support': '出産支援パーソナルApp',
+            'care-support': '介護支援パーソナルApp',
           },
           'ai-dx': {
             'medical-dx': '医療法人向けDX',
@@ -124,8 +124,8 @@ export default function ConceptDetailLayout({
       // エラー時も固定の名前を使用
       const fixedConcepts: { [key: string]: { [key: string]: string } } = {
         'own-service': {
-          'maternity-support': '出産支援パーソナルアプリケーション',
-          'care-support': '介護支援パーソナルアプリケーション',
+          'maternity-support': '出産支援パーソナルApp',
+          'care-support': '介護支援パーソナルApp',
         },
         'ai-dx': {
           'medical-dx': '医療法人向けDX',

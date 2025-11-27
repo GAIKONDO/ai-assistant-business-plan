@@ -16,6 +16,14 @@ const SERVICE_NAMES: { [key: string]: string } = {
   'ai-dx': 'AI駆動開発・DX支援SI事業',
 };
 
+// 各事業企画ごとの伊藤忠グループ企業
+const GROUP_COMPANIES_BY_SERVICE: { [key: string]: string[] } = {
+  'own-service': ['ベルシステム24', '伊藤忠テクノソリューションズ', '伊藤忠インタラクティブ', 'GIクラウド', 'I&B'],
+  'education-training': ['ベルシステム24', 'I&B', '辻本郷itコンサル'],
+  'consulting': ['シグマクシス', '辻本郷itコンサル', 'GIクラウド'],
+  'ai-dx': ['シグマクシス', 'GIクラウド', '辻本郷itコンサル'],
+};
+
 type ServiceId = 'own-service' | 'education-training' | 'consulting' | 'ai-dx';
 
 export default function BusinessModelPage() {
@@ -61,7 +69,8 @@ export default function BusinessModelPage() {
     diagram += '    classDef partnerClass fill:#FFB6C1,stroke:#FF69B4,stroke-width:2px,color:#000\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
     diagram += '    classDef userClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
-    diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n\n';
+    diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n\n';
     
     diagram += '    P["パートナー企業<br/>広告費・紹介手数料等"]\n';
     diagram += '    C["株式会社AIアシスタント<br/>出産支援パーソナルアプリ提供"]\n';
@@ -73,23 +82,27 @@ export default function BusinessModelPage() {
     diagram += '    G2["自治体の住民<br/>エンドユーザー"]\n';
     diagram += '    A["認定取得支援<br/>くるみん認定取得支援<br/>健康経営優良法人認定取得<br/>企業向け"]\n\n';
     
-    diagram += '    P -->|広告費・紹介手数料<br/>代行手数料・リファラル手数料<br/>マッチング手数料| C\n';
+    diagram += '    P ==>|💰 広告費・紹介手数料<br/>代行手数料・リファラル手数料<br/>マッチング手数料| C\n';
     diagram += '    C -->|直接提供| U1\n';
     diagram += '    C -->|直接提供| U2\n';
     diagram += '    C -->|B2B提供| E\n';
     diagram += '    C -->|B2B提供| G\n';
     diagram += '    C -->|認定取得支援サービス提供| A\n\n';
     
-    diagram += '    U1 -->|月額/年額| C\n';
-    diagram += '    E -->|企業契約| C\n';
+    diagram += '    U1 ==>|💰 月額/年額| C\n';
+    diagram += '    E ==>|💰 企業契約| C\n';
     diagram += '    E -->|提供| E2\n';
-    diagram += '    G -->|自治体契約| C\n';
+    diagram += '    G ==>|💰 自治体契約| C\n';
     diagram += '    G -->|提供| G2\n';
-    diagram += '    A -->|認定取得支援手数料| C\n\n';
+    diagram += '    A ==>|💰 認定取得支援手数料| C\n\n';
     
     diagram += '    class P partnerClass\n';
     diagram += '    class C companyClass\n';
-    diagram += '    class U1,U2,E,E2,G,G2,A userClass\n';
+    diagram += '    class U1 paymentClass\n';
+    diagram += '    class E paymentClass\n';
+    diagram += '    class G paymentClass\n';
+    diagram += '    class A paymentClass\n';
+    diagram += '    class U2,E2,G2 userClass\n';
     
     return diagram;
   };
@@ -102,7 +115,8 @@ export default function BusinessModelPage() {
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
     diagram += '    classDef userClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
-    diagram += '    classDef serviceClass fill:#E6F2FF,stroke:#6495ED,stroke-width:2px,color:#000\n\n';
+    diagram += '    classDef serviceClass fill:#E6F2FF,stroke:#6495ED,stroke-width:2px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n\n';
     
     diagram += '    subgraph Partners["パートナー企業"]\n';
     diagram += '        A1["広告主企業<br/>広告費"]\n';
@@ -134,14 +148,14 @@ export default function BusinessModelPage() {
     diagram += '        S4["認定取得支援<br/>企業向け<br/>━━━━━━━━━━━━━━━━<br/>くるみん認定取得支援<br/>次世代育成支援対策推進法に基づく認定マーク<br/>健康経営優良法人認定取得支援<br/>認定取得支援手数料<br/>1件あたり100,000円"]\n';
     diagram += '    end\n\n';
     
-    diagram += '    A1 -->|広告費| Company\n';
-    diagram += '    A2 -->|紹介手数料| Company\n';
-    diagram += '    A3 -->|紹介手数料・代行手数料| Company\n';
-    diagram += '    A4 -->|紹介手数料・代行手数料| Company\n';
-    diagram += '    A5 -->|リファラル手数料| Company\n';
-    diagram += '    A6 -->|マッチング手数料| Company\n';
-    diagram += '    A7 -->|紹介手数料| Company\n';
-    diagram += '    A8 -->|紹介手数料| Company\n\n';
+    diagram += '    A1 ==>|💰 広告費| Company\n';
+    diagram += '    A2 ==>|💰 紹介手数料| Company\n';
+    diagram += '    A3 ==>|💰 紹介手数料・代行手数料| Company\n';
+    diagram += '    A4 ==>|💰 紹介手数料・代行手数料| Company\n';
+    diagram += '    A5 ==>|💰 リファラル手数料| Company\n';
+    diagram += '    A6 ==>|💰 マッチング手数料| Company\n';
+    diagram += '    A7 ==>|💰 紹介手数料| Company\n';
+    diagram += '    A8 ==>|💰 紹介手数料| Company\n\n';
     
     diagram += '    Company -->|直接提供| U1\n';
     diagram += '    Company -->|直接提供| U2\n';
@@ -152,13 +166,13 @@ export default function BusinessModelPage() {
     diagram += '    Company -->|医療サービス代行提供| S3\n';
     diagram += '    Company -->|認定取得支援サービス提供| S4\n\n';
     
-    diagram += '    U1 -->|月額/年額| Company\n';
-    diagram += '    U3 -->|企業契約<br/>月額従業員1人あたり500円<br/>従業員数ベース| Company\n';
-    diagram += '    U5 -->|自治体契約<br/>月額利用者1人あたり300円<br/>利用者数ベース| Company\n';
-    diagram += '    S1 -->|代行手数料<br/>成功報酬型<br/>1件あたり3,000円~| Company\n';
-    diagram += '    S2 -->|代行手数料<br/>成功報酬型<br/>1件あたり5,000円~| Company\n';
-    diagram += '    S3 -->|代行手数料<br/>成功報酬型<br/>1件あたり4,000円~| Company\n';
-    diagram += '    S4 -->|認定取得支援手数料<br/>1件あたり100,000円| Company\n\n';
+    diagram += '    U1 ==>|💰 月額/年額| Company\n';
+    diagram += '    U3 ==>|💰 企業契約<br/>月額従業員1人あたり500円<br/>従業員数ベース| Company\n';
+    diagram += '    U5 ==>|💰 自治体契約<br/>月額利用者1人あたり300円<br/>利用者数ベース| Company\n';
+    diagram += '    S1 ==>|💰 代行手数料<br/>成功報酬型<br/>1件あたり3,000円~| Company\n';
+    diagram += '    S2 ==>|💰 代行手数料<br/>成功報酬型<br/>1件あたり5,000円~| Company\n';
+    diagram += '    S3 ==>|💰 代行手数料<br/>成功報酬型<br/>1件あたり4,000円~| Company\n';
+    diagram += '    S4 ==>|💰 認定取得支援手数料<br/>1件あたり100,000円| Company\n\n';
     
     diagram += '    U3 -->|提供| U4\n';
     diagram += '    U5 -->|提供| U6\n';
@@ -171,186 +185,238 @@ export default function BusinessModelPage() {
     diagram += '    U3 -->|認定取得支援利用| S4\n\n';
     
     diagram += '    class A1,A2,A3,A4,A5,A6,A7,A8 partnerClass\n';
-    diagram += '    class U1,U2,U3,U4,U5,U6 userClass\n';
-    diagram += '    class S1,S2,S3,S4 serviceClass\n';
+    diagram += '    class U1,U3,U5 paymentClass\n';
+    diagram += '    class U2,U4,U6 userClass\n';
+    diagram += '    class S1,S2,S3,S4 paymentClass\n';
     
     return diagram;
   };
 
   // AI導入ルール設計・人材育成・教育事業のMermaid図を生成（簡素版）
   const generateEducationTrainingDiagramSimple = () => {
-    let diagram = 'graph TD\n';
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:1px,color:#000\n';
-    diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
+    diagram += '    Group["伊藤忠G"]\n';
     diagram += '    Company["株式会社AIアシスタント<br/>AI導入ルール設計・人材育成・教育事業"]\n';
-    diagram += '    Clients["顧客企業<br/>経営層・人事部門"]\n';
-    diagram += '    Services["提供サービス<br/>教育・研修・コンサルティング"]\n';
-    diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
     
-    diagram += '    Company -->|サービス提供| Clients\n';
-    diagram += '    Clients -->|契約料金| Company\n';
-    diagram += '    Company -->|サービス提供| Services\n';
-    diagram += '    Services -->|教育・研修| Clients\n';
-    diagram += '    Clients -->|AI活用支援| EndUsers\n\n';
+    diagram += '    subgraph ClientArea["顧客企業"]\n';
+    diagram += '        Management["経営層・人事部門<br/>契約料金"]\n';
+    diagram += '        BusinessDept["業務部門<br/>営業部門・職能部門"]\n';
+    diagram += '        SystemDept["システム部門"]\n';
+    diagram += '        EndUsers["エンドユーザー<br/>従業員・利用者"]\n';
+    diagram += '    end\n\n';
     
+    diagram += '    Group -.->|連携・サポート↓| Company\n';
+    diagram += '    Company -.->|サービス提供↑| Group\n';
+    diagram += '    Company -->|AI導入ルール設計・人材育成・教育事業| Management\n';
+    diagram += '    Company -->|AI導入ルール設計・人材育成・教育事業| BusinessDept\n';
+    diagram += '    Management ==>|💰 契約料金| Company\n';
+    diagram += '    Management -->|教育・研修| BusinessDept\n';
+    diagram += '    Management -->|教育・研修| EndUsers\n';
+    diagram += '    BusinessDept -->|ルール設計・ガバナンス| EndUsers\n';
+    diagram += '    Management -->|ルール設計・ガバナンス| SystemDept\n';
+    diagram += '    SystemDept -->|ルール設計・ガバナンス| EndUsers\n';
+    diagram += '    SystemDept -->|ルール設計・ガバナンス| BusinessDept\n';
+    diagram += '    SystemDept -->|ルール設計・ガバナンス| Management\n\n';
+    
+    diagram += '    class Group groupClass\n';
     diagram += '    class Company companyClass\n';
-    diagram += '    class Clients clientClass\n';
-    diagram += '    class Services serviceClass\n';
-    diagram += '    class EndUsers endUserClass\n';
+    diagram += '    class Management paymentClass\n';
+    diagram += '    class BusinessDept,SystemDept,EndUsers clientClass\n';
     
     return diagram;
   };
 
   // AI導入ルール設計・人材育成・教育事業のMermaid図を生成（詳細版）
   const generateEducationTrainingDiagram = () => {
-    let diagram = 'graph TD\n';
+    const groupCompanies = GROUP_COMPANIES_BY_SERVICE['education-training'] || [];
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
-    diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
+    
+    if (groupCompanies.length > 0) {
+      diagram += '    subgraph Group["伊藤忠グループ企業"]\n';
+      groupCompanies.forEach((company, index) => {
+        diagram += `        G${index + 1}["${company}"]\n`;
+      });
+      diagram += '    end\n\n';
+    }
     
     diagram += '    Company["株式会社AIアシスタント<br/>AI導入ルール設計・人材育成・教育事業"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Clients["顧客企業"]\n';
-    diagram += '        C1["経営層・人事部門<br/>全社向けサービス<br/>契約料金"]\n';
-    diagram += '        C2["システム部門<br/>ルール設計・ガバナンス<br/>技術サポート"]\n';
-    diagram += '        C3["業務部門<br/>教育・研修<br/>実践サポート"]\n';
+    diagram += '        C1["経営層・人事部門<br/>契約料金"]\n';
+    diagram += '        C2["業務部門<br/>営業部門・職能部門"]\n';
+    diagram += '        C3["システム部門"]\n';
+    diagram += '        E1["エンドユーザー<br/>従業員・利用者"]\n';
     diagram += '    end\n\n';
     
-    diagram += '    subgraph Services["提供サービス"]\n';
-    diagram += '        S1["AI活用教育・研修<br/>基礎から実践まで"]\n';
-    diagram += '        S2["AI導入ルール設計<br/>ガバナンス構築"]\n';
-    diagram += '        S3["組織全体のAI活用能力向上<br/>コンサルティング"]\n';
-    diagram += '    end\n\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    G${index + 1} -.->|連携・サポート↓| Company\n`;
+        diagram += `    Company -.->|サービス提供↑| G${index + 1}\n`;
+      });
+      diagram += '\n';
+    }
     
-    diagram += '    subgraph EndUsers["エンドユーザー"]\n';
-    diagram += '        E1["従業員<br/>AI活用実践者"]\n';
-    diagram += '    end\n\n';
+    diagram += '    Company -->|AI導入ルール設計・人材育成・教育事業| C1\n';
+    diagram += '    Company -->|AI導入ルール設計・人材育成・教育事業| C2\n';
+    diagram += '    C1 ==>|💰 契約料金| Company\n';
+    diagram += '    C1 -->|教育・研修| C2\n';
+    diagram += '    C1 -->|教育・研修| E1\n';
+    diagram += '    C2 -->|ルール設計・ガバナンス| E1\n';
+    diagram += '    C1 -->|ルール設計・ガバナンス| C3\n';
+    diagram += '    C3 -->|ルール設計・ガバナンス| E1\n';
+    diagram += '    C3 -->|ルール設計・ガバナンス| C2\n';
+    diagram += '    C3 -->|ルール設計・ガバナンス| C1\n\n';
     
-    diagram += '    Company -->|サービス提供| C1\n';
-    diagram += '    C1 -->|契約料金| Company\n';
-    diagram += '    Company -->|サービス提供| S1\n';
-    diagram += '    Company -->|サービス提供| S2\n';
-    diagram += '    Company -->|サービス提供| S3\n';
-    diagram += '    S1 -->|教育・研修| C2\n';
-    diagram += '    S1 -->|教育・研修| C3\n';
-    diagram += '    S2 -->|ルール設計| C2\n';
-    diagram += '    S3 -->|コンサルティング| C1\n';
-    diagram += '    C2 -->|AI活用支援| E1\n';
-    diagram += '    C3 -->|業務改善| E1\n\n';
-    
-    diagram += '    class C1,C2,C3 clientClass\n';
-    diagram += '    class S1,S2,S3 serviceClass\n';
-    diagram += '    class E1 endUserClass\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    class G${index + 1} groupClass\n`;
+      });
+      diagram += '\n';
+    }
+    diagram += '    class C1 paymentClass\n';
+    diagram += '    class C2,C3,E1 clientClass\n';
     
     return diagram;
   };
 
   // プロセス可視化・業務コンサル事業のMermaid図を生成（簡素版）
   const generateConsultingDiagramSimple = () => {
-    let diagram = 'graph TD\n';
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:1px,color:#000\n';
-    diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
-    diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n\n';
     
+    diagram += '    Group["伊藤忠G"]\n';
     diagram += '    Company["株式会社AIアシスタント<br/>プロセス可視化・業務コンサル事業"]\n';
-    diagram += '    Clients["顧客企業<br/>業務部門"]\n';
-    diagram += '    Services["提供サービス<br/>プロセス可視化・改善提案"]\n';
-    diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
     
-    diagram += '    Company -->|サービス提供| Clients\n';
-    diagram += '    Clients -->|コンサルティング料金| Company\n';
-    diagram += '    Company -->|サービス提供| Services\n';
-    diagram += '    Services -->|分析結果・改善提案| Clients\n';
-    diagram += '    Clients -->|業務改善・効率化| EndUsers\n\n';
+    diagram += '    subgraph ClientArea["顧客企業"]\n';
+    diagram += '        EndUsers["エンドユーザー<br/>従業員・利用者"]\n';
+    diagram += '        Management["経営層"]\n';
+    diagram += '        BusinessDept["業務部門<br/>営業部門・職能部門"]\n';
+    diagram += '        SystemDept["システム部門"]\n';
+    diagram += '    end\n\n';
     
+    diagram += '    Group -.->|連携・サポート↓| Company\n';
+    diagram += '    Company -.->|サービス提供↑| Group\n';
+    diagram += '    EndUsers -->|課題相談・課題共有| SystemDept\n';
+    diagram += '    EndUsers -->|課題相談・課題共有| BusinessDept\n';
+    diagram += '    EndUsers -->|課題相談・課題共有| Management\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| Management\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| BusinessDept\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| SystemDept\n';
+    diagram += '    Management ==>|💰 コンサルティング料金| Company\n';
+    diagram += '    BusinessDept ==>|💰 コンサルティング料金| Company\n';
+    diagram += '    SystemDept ==>|💰 コンサルティング料金| Company\n\n';
+    
+    diagram += '    class Group groupClass\n';
     diagram += '    class Company companyClass\n';
-    diagram += '    class Clients clientClass\n';
-    diagram += '    class Services serviceClass\n';
-    diagram += '    class EndUsers endUserClass\n';
+    diagram += '    class Management,BusinessDept,SystemDept paymentClass\n';
+    diagram += '    class EndUsers clientClass\n';
     
     return diagram;
   };
 
   // プロセス可視化・業務コンサル事業のMermaid図を生成（詳細版）
   const generateConsultingDiagram = () => {
-    let diagram = 'graph TD\n';
+    const groupCompanies = GROUP_COMPANIES_BY_SERVICE['consulting'] || [];
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
-    diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
-    diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n\n';
+    
+    if (groupCompanies.length > 0) {
+      diagram += '    subgraph Group["伊藤忠グループ企業"]\n';
+      groupCompanies.forEach((company, index) => {
+        diagram += `        G${index + 1}["${company}"]\n`;
+      });
+      diagram += '    end\n\n';
+    }
     
     diagram += '    Company["株式会社AIアシスタント<br/>プロセス可視化・業務コンサル事業"]\n';
     diagram += '    class Company companyClass\n\n';
     
     diagram += '    subgraph Clients["顧客企業"]\n';
-    diagram += '        C1["業務部門<br/>業務プロセス改善依頼<br/>コンサルティング料金"]\n';
-    diagram += '        C2["中小企業<br/>業務プロセス可視化・改善<br/>助成金活用支援"]\n';
-    diagram += '        C3["医療・介護施設<br/>業務フロー可視化<br/>記録業務効率化<br/>コンプライアンス対応"]\n';
+    diagram += '        E1["エンドユーザー<br/>従業員・利用者"]\n';
+    diagram += '        C1["経営層<br/>コンサルティング料金"]\n';
+    diagram += '        C2["業務部門<br/>営業部門・職能部門<br/>コンサルティング料金"]\n';
+    diagram += '        C3["システム部門<br/>コンサルティング料金"]\n';
     diagram += '    end\n\n';
     
-    diagram += '    subgraph Services["提供サービス"]\n';
-    diagram += '        S1["業務プロセス可視化<br/>AI活用による分析"]\n';
-    diagram += '        S2["業務改善提案<br/>データドリブンな改善"]\n';
-    diagram += '        S3["助成金活用支援<br/>申請サポート"]\n';
-    diagram += '        S4["コンプライアンス対応支援<br/>記録業務効率化"]\n';
-    diagram += '    end\n\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    G${index + 1} -.->|連携・サポート↓| Company\n`;
+        diagram += `    Company -.->|サービス提供↑| G${index + 1}\n`;
+      });
+      diagram += '\n';
+    }
     
-    diagram += '    subgraph EndUsers["エンドユーザー"]\n';
-    diagram += '        E1["従業員<br/>業務改善・効率化の実践者"]\n';
-    diagram += '    end\n\n';
+    diagram += '    E1 -->|課題相談・課題共有| C3\n';
+    diagram += '    E1 -->|課題相談・課題共有| C2\n';
+    diagram += '    E1 -->|課題相談・課題共有| C1\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| C1\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| C2\n';
+    diagram += '    Company -->|プロセス可視化・業務コンサル事業| C3\n';
+    diagram += '    C1 ==>|💰 コンサルティング料金| Company\n';
+    diagram += '    C2 ==>|💰 コンサルティング料金| Company\n';
+    diagram += '    C3 ==>|💰 コンサルティング料金| Company\n\n';
     
-    diagram += '    Company -->|サービス提供| C1\n';
-    diagram += '    Company -->|サービス提供| C2\n';
-    diagram += '    Company -->|サービス提供| C3\n';
-    diagram += '    C1 -->|コンサルティング料金| Company\n';
-    diagram += '    C2 -->|コンサルティング料金| Company\n';
-    diagram += '    C3 -->|コンサルティング料金| Company\n';
-    diagram += '    Company -->|サービス提供| S1\n';
-    diagram += '    Company -->|サービス提供| S2\n';
-    diagram += '    Company -->|サービス提供| S3\n';
-    diagram += '    Company -->|サービス提供| S4\n';
-    diagram += '    S1 -->|分析結果| C1\n';
-    diagram += '    S2 -->|改善提案| C1\n';
-    diagram += '    S3 -->|支援| C2\n';
-    diagram += '    S4 -->|支援| C3\n';
-    diagram += '    C1 -->|業務改善・効率化| E1\n';
-    diagram += '    C2 -->|業務改善・効率化| E1\n';
-    diagram += '    C3 -->|業務改善・効率化| E1\n\n';
-    
-    diagram += '    class C1,C2,C3 clientClass\n';
-    diagram += '    class S1,S2,S3,S4 serviceClass\n';
-    diagram += '    class E1 endUserClass\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    class G${index + 1} groupClass\n`;
+      });
+      diagram += '\n';
+    }
+    diagram += '    class C1,C2,C3 paymentClass\n';
+    diagram += '    class E1 clientClass\n';
     
     return diagram;
   };
 
   // AI駆動開発・DX支援SI事業のMermaid図を生成（簡素版）
   const generateAiDxDiagramSimple = () => {
-    let diagram = 'graph TD\n';
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:2px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:1px,color:#000\n';
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:1px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
     
+    diagram += '    Group["伊藤忠G"]\n';
     diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援SI事業"]\n';
-    diagram += '    Clients["顧客企業<br/>システム部門"]\n';
     diagram += '    Services["提供サービス<br/>AIシステム開発・導入"]\n';
+    diagram += '    Clients["顧客企業<br/>システム部門"]\n';
     diagram += '    EndUsers["エンドユーザー<br/>従業員"]\n\n';
     
-    diagram += '    Company -->|サービス提供| Clients\n';
-    diagram += '    Clients -->|開発・導入費用| Company\n';
+    diagram += '    Group -.->|連携・サポート↓| Company\n';
+    diagram += '    Company -.->|サービス提供↑| Group\n';
     diagram += '    Company -->|サービス提供| Services\n';
     diagram += '    Services -->|システム導入| Clients\n';
+    diagram += '    Clients ==>|💰 開発・導入費用| Company\n';
     diagram += '    Clients -->|システム導入・運用| EndUsers\n\n';
     
+    diagram += '    class Group groupClass\n';
     diagram += '    class Company companyClass\n';
-    diagram += '    class Clients clientClass\n';
+    diagram += '    class Clients paymentClass\n';
     diagram += '    class Services serviceClass\n';
     diagram += '    class EndUsers endUserClass\n';
     
@@ -359,20 +425,26 @@ export default function BusinessModelPage() {
 
   // AI駆動開発・DX支援SI事業のMermaid図を生成（詳細版）
   const generateAiDxDiagram = () => {
-    let diagram = 'graph TD\n';
+    const groupCompanies = GROUP_COMPANIES_BY_SERVICE['ai-dx'] || [];
+    let diagram = 'graph LR\n';
+    diagram += '    direction LR\n';
     diagram += '    classDef companyClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
+    diagram += '    classDef groupClass fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000\n';
     diagram += '    classDef clientClass fill:#FFA500,stroke:#FF8C00,stroke-width:2px,color:#000\n';
     diagram += '    classDef serviceClass fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000\n';
+    diagram += '    classDef paymentClass fill:#90EE90,stroke:#32CD32,stroke-width:3px,color:#000\n';
     diagram += '    classDef endUserClass fill:#E6F2FF,stroke:#6495ED,stroke-width:1px,color:#000\n\n';
+    
+    if (groupCompanies.length > 0) {
+      diagram += '    subgraph Group["伊藤忠グループ企業"]\n';
+      groupCompanies.forEach((company, index) => {
+        diagram += `        G${index + 1}["${company}"]\n`;
+      });
+      diagram += '    end\n\n';
+    }
     
     diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援SI事業"]\n';
     diagram += '    class Company companyClass\n\n';
-    
-    diagram += '    subgraph Clients["顧客企業"]\n';
-    diagram += '        C1["システム部門<br/>AIシステム開発依頼<br/>開発・導入費用"]\n';
-    diagram += '        C2["医療法人<br/>電子カルテ導入支援<br/>助成金活用"]\n';
-    diagram += '        C3["中小企業<br/>内部データ管理<br/>HP作成<br/>Invoice制度対応"]\n';
-    diagram += '    end\n\n';
     
     diagram += '    subgraph Services["提供サービス"]\n';
     diagram += '        S1["AI活用アーキテクチャ導入<br/>カスタムAIシステム開発"]\n';
@@ -381,16 +453,24 @@ export default function BusinessModelPage() {
     diagram += '        S4["助成金活用支援<br/>申請サポート"]\n';
     diagram += '    end\n\n';
     
+    diagram += '    subgraph Clients["顧客企業"]\n';
+    diagram += '        C1["システム部門<br/>AIシステム開発依頼<br/>開発・導入費用"]\n';
+    diagram += '        C2["医療法人<br/>電子カルテ導入支援<br/>助成金活用"]\n';
+    diagram += '        C3["中小企業<br/>内部データ管理<br/>HP作成<br/>Invoice制度対応"]\n';
+    diagram += '    end\n\n';
+    
     diagram += '    subgraph EndUsers["エンドユーザー"]\n';
     diagram += '        E1["従業員<br/>システム利用者"]\n';
     diagram += '    end\n\n';
     
-    diagram += '    Company -->|サービス提供| C1\n';
-    diagram += '    Company -->|サービス提供| C2\n';
-    diagram += '    Company -->|サービス提供| C3\n';
-    diagram += '    C1 -->|開発・導入費用| Company\n';
-    diagram += '    C2 -->|開発・導入費用| Company\n';
-    diagram += '    C3 -->|開発・導入費用| Company\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    G${index + 1} -.->|連携・サポート↓| Company\n`;
+        diagram += `    Company -.->|サービス提供↑| G${index + 1}\n`;
+      });
+      diagram += '\n';
+    }
+    
     diagram += '    Company -->|サービス提供| S1\n';
     diagram += '    Company -->|サービス提供| S2\n';
     diagram += '    Company -->|サービス提供| S3\n';
@@ -400,11 +480,20 @@ export default function BusinessModelPage() {
     diagram += '    S3 -->|技術支援| C1\n';
     diagram += '    S4 -->|支援| C2\n';
     diagram += '    S4 -->|支援| C3\n';
+    diagram += '    C1 ==>|💰 開発・導入費用| Company\n';
+    diagram += '    C2 ==>|💰 開発・導入費用| Company\n';
+    diagram += '    C3 ==>|💰 開発・導入費用| Company\n';
     diagram += '    C1 -->|システム導入・運用| E1\n';
     diagram += '    C2 -->|システム導入・運用| E1\n';
     diagram += '    C3 -->|システム導入・運用| E1\n\n';
     
-    diagram += '    class C1,C2,C3 clientClass\n';
+    if (groupCompanies.length > 0) {
+      groupCompanies.forEach((company, index) => {
+        diagram += `    class G${index + 1} groupClass\n`;
+      });
+      diagram += '\n';
+    }
+    diagram += '    class C1,C2,C3 paymentClass\n';
     diagram += '    class S1,S2,S3,S4 serviceClass\n';
     diagram += '    class E1 endUserClass\n';
     
@@ -434,7 +523,7 @@ export default function BusinessModelPage() {
         return {
           title: '自社開発・自社サービス事業のビジネスモデル',
           description: [
-            '自社開発・自社サービス事業は、パーソナルアプリケーションを直接エンドユーザーに提供する事業です。主なサービスとして「出産支援パーソナルアプリケーション」と「介護支援パーソナルアプリケーション」を展開しています。',
+            '自社開発・自社サービス事業は、パーソナルアプリケーションを直接エンドユーザーに提供する事業です。主なサービスとして「出産支援パーソナルApp」と「介護支援パーソナルApp」を展開しています。',
             'ビジネスモデルは、多様なパートナー企業との連携による紹介手数料・広告費収入と、個人ユーザー・企業・自治体からの直接収益を組み合わせたマルチチャネルモデルです。無料で利用できる基本機能によりユーザーを獲得し、プレミアムプランやB2B契約、パートナー紹介による収益化を実現します。',
           ],
           revenueModel: [
@@ -471,7 +560,7 @@ export default function BusinessModelPage() {
         return {
           title: 'プロセス可視化・業務コンサル事業のビジネスモデル',
           description: [
-            'プロセス可視化・業務コンサル事業は、業務部門を主な顧客として、分散データの可視化とプロセス改善を支援する事業です。',
+            'プロセス可視化・業務コンサル事業は、エンドユーザーからの課題相談・課題共有を起点として、経営層・業務部門・システム部門に対して分散データの可視化とプロセス改善を支援する事業です。',
             'ビジネスモデルは、コンサルティング料金を主な収益源とし、業務プロセス可視化、データドリブンな業務改善提案、助成金活用支援を提供します。メール、チャット、ストレージなどの分散データをAI Agentが分析し、業務フローの最適化を提案することで、従来可視化困難だった個人・組織の分散データを活用した改善を実現します。',
           ],
           revenueModel: [

@@ -105,7 +105,7 @@ export default function ConceptForm({ concept, serviceId, onSave, onCancel }: Co
             value={formData.name}
             onChange={(e) => handleNameChange(e.target.value)}
             required
-            placeholder="例: 出産支援パーソナルアプリケーション"
+            placeholder="例: 出産支援パーソナルApp"
           />
         </div>
 

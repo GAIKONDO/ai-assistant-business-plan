@@ -127,7 +127,7 @@ const BUSINESS_SYNERGIES: BusinessSynergy[] = [
         companyName: 'シグマクシス',
         synergy: [
           'AI活用教育プログラムの開発支援',
-          'ドックフーディング案件の教育コンテンツ化',
+          'ドッグフーディング案件の教育コンテンツ化',
           'AI活用ノウハウの教育への展開'
         ],
         collaboration: [
@@ -223,7 +223,7 @@ const BUSINESS_SYNERGIES: BusinessSynergy[] = [
         companyName: 'シグマクシス',
         synergy: [
           'AI駆動開発の技術的実現',
-          'ドックフーディング案件の共同開発',
+          'ドッグフーディング案件の共同開発',
           'AI活用ノウハウの蓄積'
         ],
         collaboration: [
@@ -317,7 +317,7 @@ const GROUP_COMPANIES: GroupCompany[] = [
     business: 'システム開発・DX支援',
     synergy: [
       'AIアシスタント機能の開発支援',
-      'ドックフーディング案件の共同開発',
+      'ドッグフーディング案件の共同開発',
       'AI活用ノウハウの蓄積'
     ],
     collaboration: [
@@ -411,7 +411,7 @@ export default function ItochuSynergyPage() {
     
     diagram += '    subgraph Quantitative["定量面（数値で測定可能な価値）"]\n';
     diagram += '        Q1["事業実績・売上<br/>━━━━━━━━━━━━━━━━<br/>・ユーザー獲得数<br/>・B2B契約数<br/>・プレミアムプラン加入者数<br/>・パートナー連携件数<br/>・代行サービス取扱件数<br/>・売上高・利益率"]\n';
-    diagram += '        Q2["ドックフーディング案件<br/>━━━━━━━━━━━━━━━━<br/>・実施件数<br/>・成功件数<br/>・顧客満足度スコア<br/>・案件あたり平均売上<br/>・リピート率"]\n';
+    diagram += '        Q2["ドッグフーディング案件<br/>━━━━━━━━━━━━━━━━<br/>・実施件数<br/>・成功件数<br/>・顧客満足度スコア<br/>・案件あたり平均売上<br/>・リピート率"]\n';
     diagram += '        Q3["データ・アセット蓄積<br/>━━━━━━━━━━━━━━━━<br/>・ユーザーデータ蓄積量<br/>・AI学習データ量・質<br/>・業務プロセスデータ<br/>・改善効果の数値化"]\n';
     diagram += '        Q4["組織・人材の成長<br/>━━━━━━━━━━━━━━━━<br/>・AIスキル人材育成数<br/>・教育プログラム受講者数<br/>・資格・認定取得者数<br/>・社内AIプロジェクト件数"]\n';
     diagram += '    end\n\n';
@@ -473,7 +473,7 @@ export default function ItochuSynergyPage() {
     diagram += '    classDef area2Class fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000\n';
     diagram += '    classDef sowClass fill:#F5F5F5,stroke:#666,stroke-width:1px,color:#000\n\n';
     
-    diagram += '    Area1["エリア1: 情報・通信部門AI事業戦略<br/>━━━━━━━━━━━━━━━━<br/>【SOW】<br/>・AI新規事業会社の設立<br/>・ドックフーディング案件の創出<br/>・AI活用ノウハウの獲得<br/>・業務コンサル基盤の構築"]\n';
+    diagram += '    Area1["エリア1: 情報・通信部門AI事業戦略<br/>━━━━━━━━━━━━━━━━<br/>【SOW】<br/>・AI新規事業会社の設立<br/>・ドッグフーディング案件の創出<br/>・AI活用ノウハウの獲得<br/>・業務コンサル基盤の構築"]\n';
     diagram += '    Company["株式会社AIアシスタント<br/>━━━━━━━━━━━━━━━━<br/>【役割】プレイグラウンド<br/>【提供】出産支援パーソナルアプリ<br/>【成果物】実績・ノウハウ・データ"]\n';
     diagram += '    Google["Google等大手AI企業<br/>━━━━━━━━━━━━━━━━<br/>【SOW】<br/>・AIモデル・Agent技術提供<br/>・協業連携・技術支援"]\n\n';
     
@@ -502,8 +502,8 @@ export default function ItochuSynergyPage() {
     diagram += '    end\n\n';
     
     diagram += '    subgraph SOW4["SOW: シグマクシス"]\n';
-    diagram += '        SG_Input["【インプット】<br/>・AI機能開発要件<br/>・ドックフーディング案件"]\n';
-    diagram += '        SG_Work["【作業範囲】<br/>・AIアシスタント機能開発支援<br/>・ドックフーディング案件の共同開発<br/>・セキュリティ・データガバナンス実装<br/>・業務コンサル事業への展開"]\n';
+    diagram += '        SG_Input["【インプット】<br/>・AI機能開発要件<br/>・ドッグフーディング案件"]\n';
+    diagram += '        SG_Work["【作業範囲】<br/>・AIアシスタント機能開発支援<br/>・ドッグフーディング案件の共同開発<br/>・セキュリティ・データガバナンス実装<br/>・業務コンサル事業への展開"]\n';
     diagram += '        SG_Output["【アウトプット】<br/>・AI事業戦略の技術的実現<br/>・AI活用ノウハウの蓄積<br/>・業務コンサル基盤"]\n';
     diagram += '        SG_Input --> SG_Work\n';
     diagram += '        SG_Work --> SG_Output\n';
@@ -865,10 +865,10 @@ export default function ItochuSynergyPage() {
 
               <div style={{ marginBottom: '20px', padding: '16px', backgroundColor: 'rgba(31, 41, 51, 0.05)', borderRadius: '6px' }}>
                 <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                  2. ドックフーディング案件の実績
+                  2. ドッグフーディング案件の実績
                 </h5>
                 <ul style={{ marginLeft: '20px', marginBottom: 0, lineHeight: '1.8' }}>
-                  <li>ドックフーディング案件の実施件数</li>
+                  <li>ドッグフーディング案件の実施件数</li>
                   <li>AI活用プロジェクトの成功件数</li>
                   <li>顧客満足度スコア（NPS等）</li>
                   <li>案件あたりの平均売上・利益</li>
@@ -939,7 +939,7 @@ export default function ItochuSynergyPage() {
                 <ul style={{ marginLeft: '20px', marginBottom: 0, lineHeight: '1.8' }}>
                   <li>AIモデル・Agent技術の実装ノウハウ</li>
                   <li>セキュリティ・データ・ガバナンスを考慮したAI活用のベストプラクティス</li>
-                  <li>ドックフーディング案件での課題解決ノウハウ</li>
+                  <li>ドッグフーディング案件での課題解決ノウハウ</li>
                   <li>エンドユーザーとの接点を通じたAI活用の知見</li>
                   <li>業務コンサル事業への展開に必要な知識・スキル</li>
                 </ul>
