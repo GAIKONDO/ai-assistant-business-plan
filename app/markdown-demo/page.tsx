@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import Script from 'next/script';
 import Layout from '@/components/Layout';
 import MarkdownRenderer from '@/components/MarkdownRenderer';
@@ -19,6 +19,9 @@ export default function MarkdownDemoPage() {
   const p5Instance6 = useRef<any>(null);
   const p5Instance7 = useRef<any>(null);
   const p5Instance8 = useRef<any>(null);
+  const [isComplete6, setIsComplete6] = useState(false);
+  const [isComplete7, setIsComplete7] = useState(false);
+  const [isComplete8, setIsComplete8] = useState(false);
 
   useEffect(() => {
     const initArt = () => {
@@ -77,6 +80,7 @@ export default function MarkdownDemoPage() {
               setTimeout(drawStep, 0);
             } else {
               p.noLoop();
+              setIsComplete6(true);
             }
           };
           
@@ -146,6 +150,7 @@ export default function MarkdownDemoPage() {
             } else {
               isDrawing = false;
               p.noLoop();
+              setIsComplete7(true);
             }
           };
 
@@ -320,6 +325,7 @@ export default function MarkdownDemoPage() {
               setTimeout(drawStep, 0);
             } else {
               p.noLoop();
+              setIsComplete8(true);
             }
           };
 
@@ -847,21 +853,132 @@ export default function MarkdownDemoPage() {
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(400px, 1fr))', gap: '24px', marginBottom: '32px' }}>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>1. アトラクタアート（横幅広げ版）</h3>
-              <div ref={canvasRef6} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+              <div style={{ position: 'relative' }}>
+                <div ref={canvasRef6} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+                {isComplete6 && (
+                  <button
+                    onClick={() => {
+                      if (p5Instance6.current?.canvas) {
+                        const link = document.createElement('a');
+                        link.download = 'attractor-art.png';
+                        link.href = p5Instance6.current.canvas.toDataURL('image/png');
+                        link.click();
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+                    }}
+                  >
+                    PNGでダウンロード
+                  </button>
+                )}
+              </div>
               <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginTop: '8px' }}>
                 700,000ステップで描画される高密度のパターン。横幅を広げてより横長の形状に（描画に時間がかかります）
               </p>
             </div>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>2. Neural Flow Field - AIっぽいモノトーンアート</h3>
-              <div ref={canvasRef7} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+              <div style={{ position: 'relative' }}>
+                <div ref={canvasRef7} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+                {isComplete7 && (
+                  <button
+                    onClick={() => {
+                      if (p5Instance7.current?.canvas) {
+                        const link = document.createElement('a');
+                        link.download = 'neural-flow-field.png';
+                        link.href = p5Instance7.current.canvas.toDataURL('image/png');
+                        link.click();
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+                    }}
+                  >
+                    PNGでダウンロード
+                  </button>
+                )}
+              </div>
               <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginTop: '8px' }}>
                 4,000個のパーティクルがノイズベースのフローフィールドに従って流れる。左右対称のミラーリングでAIチップのような幾何学的な美しさを表現（描画に時間がかかります）
               </p>
             </div>
             <div>
               <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '8px' }}>3. Brain / Human Hybrid Neural Field</h3>
-              <div ref={canvasRef8} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+              <div style={{ position: 'relative' }}>
+                <div ref={canvasRef8} style={{ border: '1px solid var(--color-border-color)', borderRadius: '6px', overflow: 'hidden' }} />
+                {isComplete8 && (
+                  <button
+                    onClick={() => {
+                      if (p5Instance8.current?.canvas) {
+                        const link = document.createElement('a');
+                        link.download = 'brain-neural-field.png';
+                        link.href = p5Instance8.current.canvas.toDataURL('image/png');
+                        link.click();
+                      }
+                    }}
+                    style={{
+                      position: 'absolute',
+                      top: '8px',
+                      right: '8px',
+                      padding: '8px 16px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+                      transition: 'all 0.2s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary-hover)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'var(--color-primary)';
+                    }}
+                  >
+                    PNGでダウンロード
+                  </button>
+                )}
+              </div>
               <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginTop: '8px' }}>
                 5,000個のパーティクルが脳のシルエット内を流れる。ノイズベースのフローフィールドとハブへの引力で、人間とAIのハイブリッドな神経ネットワークを表現（描画に時間がかかります）
               </p>

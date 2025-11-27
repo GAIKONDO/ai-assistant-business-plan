@@ -153,12 +153,12 @@ export default function FeaturesPage() {
       diagram += `    自社->>一般利用者: ${serviceName}\n`;
     } else {
       // その他の事業企画は従来の参加者構成
-      diagram += '    participant 自社 as 株式会社AIアシスタント\n';
-      diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
+    diagram += '    participant 自社 as 株式会社AIアシスタント\n';
+    diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
       diagram += '    participant 業務部門 as 顧客企業・営業部門・職能部門\n';
-      diagram += '    participant システム部門 as 顧客企業・システム部門\n';
-      diagram += '    participant エンドユーザー as エンドユーザー<br/>(従業員・利用者)\n\n';
-      
+    diagram += '    participant システム部門 as 顧客企業・システム部門\n';
+    diagram += '    participant エンドユーザー as エンドユーザー<br/>(従業員・利用者)\n\n';
+    
       if (serviceId === 'ai-dx') {
         // AI駆動開発・DX支援SI事業はシステム部門が主な顧客
         diagram += `    Note over 自社,システム部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
@@ -183,26 +183,26 @@ export default function FeaturesPage() {
         diagram += `    deactivate 業務部門\n`;
         diagram += `    deactivate システム部門\n`;
         diagram += `    deactivate 経営層\n`;
-    } else if (serviceId === 'education-training') {
+      } else if (serviceId === 'education-training') {
       // AI導入ルール設計・人材育成・教育事業は経営層・全社が主な顧客
       diagram += `    Note over 自社,業務部門: ${serviceName}<br/>【${scope}】<br/>ターゲット: ${target}\n`;
-      diagram += `    自社->>経営層: ${serviceName}\n`;
-      diagram += `    activate 経営層\n`;
+        diagram += `    自社->>経営層: ${serviceName}\n`;
+        diagram += `    activate 経営層\n`;
       diagram += `    自社->>業務部門: ${serviceName}\n`;
       diagram += `    activate 業務部門\n`;
       diagram += `    経営層->>業務部門: 教育・研修\n`;
       diagram += `    経営層->>エンドユーザー: 教育・研修\n`;
       diagram += `    業務部門->>エンドユーザー: ルール設計・ガバナンス\n`;
       diagram += `    deactivate 業務部門\n`;
-      diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
+        diagram += `    経営層->>システム部門: ルール設計・ガバナンス\n`;
       diagram += `    activate システム部門\n`;
       diagram += `    システム部門->>エンドユーザー: ルール設計・ガバナンス\n`;
       diagram += `    システム部門->>業務部門: ルール設計・ガバナンス\n`;
       diagram += `    システム部門->>経営層: ルール設計・ガバナンス\n`;
       diagram += `    deactivate システム部門\n`;
-      diagram += `    deactivate 経営層\n`;
+        diagram += `    deactivate 経営層\n`;
       }
-    }
+      }
 
     return diagram;
   };

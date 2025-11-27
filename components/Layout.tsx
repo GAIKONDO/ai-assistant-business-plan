@@ -138,42 +138,42 @@ export default function Layout({ children }: LayoutProps) {
                 console.log('Layout: キャッシュから承認状態を取得:', { approved: isApproved });
               } else {
                 // キャッシュが無効または存在しない場合はFirestoreから取得
-                const userDoc = await getDoc(doc(db, 'users', user.uid));
+              const userDoc = await getDoc(doc(db, 'users', user.uid));
+              
+              if (userDoc.exists()) {
+                const userData = userDoc.data();
                 
-                if (userDoc.exists()) {
-                  const userData = userDoc.data();
-                  
-                  // デバッグログ
-                  console.log('Layout: ユーザーデータ確認:', {
-                    approved: userData.approved,
-                  });
-                  
-                  // 承認されていない場合はログアウト
-                  if (userData.approved === false) {
-                    console.log('Layout: 承認されていないためログアウト');
+                // デバッグログ
+                console.log('Layout: ユーザーデータ確認:', {
+                  approved: userData.approved,
+                });
+                
+                // 承認されていない場合はログアウト
+                if (userData.approved === false) {
+                  console.log('Layout: 承認されていないためログアウト');
                     userApprovalCache.set(user.uid, { approved: false, timestamp: now });
-                    await signOut(auth);
-                    setUser(null);
-                    setLoading(false);
-                    return;
-                  }
-                  
-                  // approvedがtrueまたはundefined（既存ユーザー）の場合は承認済み
-                  if (userData.approved === true || userData.approved === undefined) {
-                    isApproved = true;
-                    // キャッシュに保存
-                    userApprovalCache.set(user.uid, { approved: true, timestamp: now });
-                  }
-                } else {
-                  // ユーザードキュメントが存在しない場合
-                  // 新規登録直後の可能性があるため、安全側に倒してログアウト
-                  // （新規登録時は必ずユーザードキュメントが作成される）
-                  console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
-                  userApprovalCache.set(user.uid, { approved: false, timestamp: now });
                   await signOut(auth);
                   setUser(null);
                   setLoading(false);
                   return;
+                }
+                
+                // approvedがtrueまたはundefined（既存ユーザー）の場合は承認済み
+                if (userData.approved === true || userData.approved === undefined) {
+                  isApproved = true;
+                    // キャッシュに保存
+                    userApprovalCache.set(user.uid, { approved: true, timestamp: now });
+                }
+              } else {
+                // ユーザードキュメントが存在しない場合
+                // 新規登録直後の可能性があるため、安全側に倒してログアウト
+                // （新規登録時は必ずユーザードキュメントが作成される）
+                console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
+                  userApprovalCache.set(user.uid, { approved: false, timestamp: now });
+                await signOut(auth);
+                setUser(null);
+                setLoading(false);
+                return;
                 }
               }
             }

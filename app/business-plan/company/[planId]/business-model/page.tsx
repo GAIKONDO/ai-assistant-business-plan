@@ -440,7 +440,7 @@ export default function BusinessModelPage() {
       groupCompanies.forEach((company, index) => {
         diagram += `        G${index + 1}["${company}"]\n`;
       });
-      diagram += '    end\n\n';
+    diagram += '    end\n\n';
     }
     
     diagram += '    Company["株式会社AIアシスタント<br/>AI駆動開発・DX支援SI事業"]\n';

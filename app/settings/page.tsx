@@ -124,7 +124,7 @@ export default function SettingsPage() {
           approved: data.approved !== undefined ? data.approved : true, // 既存ユーザーは自動承認済みとみなす
           requestedAt: data.requestedAt?.toDate ? data.requestedAt.toDate().toISOString() : (data.requestedAt || undefined),
         };
-      });
+        });
       
       // すべてのユーザーデータを並列で取得
       const usersData = await Promise.all(userHistoryPromises);

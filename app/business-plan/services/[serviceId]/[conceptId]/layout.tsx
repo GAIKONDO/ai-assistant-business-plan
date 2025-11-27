@@ -421,13 +421,8 @@ function ConceptLayoutContent({
   const goToNextPage = useCallback(() => {
     if (currentPage < totalPages - 1) {
       setCurrentPage(prev => prev + 1);
-    } else if (currentSlideIndex < totalSlides - 1) {
-      // 最後のページで、次のスライドがある場合は次のスライドの最初のページに移動
-      setCurrentPage(0);
-      const nextItem = SUB_MENU_ITEMS[currentSlideIndex + 1];
-      router.push(`/business-plan/services/${serviceId}/${conceptId}/${nextItem.path}`);
     }
-  }, [currentPage, totalPages, currentSlideIndex, totalSlides, serviceId, conceptId, router]);
+  }, [currentPage, totalPages]);
 
   // プレゼンテーションモード時のキーボードナビゲーション
   useEffect(() => {
@@ -976,38 +971,80 @@ function ConceptLayoutContent({
             </button>
           )}
           
-          {(currentPage < totalPages - 1 || currentSlideIndex < totalSlides - 1) && (
-            <button
-              onClick={goToNextPage}
-              style={{
-                position: 'absolute',
-                right: '20px',
-                top: '50%',
-                transform: 'translateY(-50%)',
-                zIndex: 10000,
-                width: '50px',
-                height: '50px',
-                borderRadius: '50%',
-                backgroundColor: 'rgba(255, 255, 255, 0.2)',
-                border: '1px solid rgba(255, 255, 255, 0.3)',
-                color: '#fff',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: '24px',
-                transition: 'background-color 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
-              }}
-            >
-              →
-            </button>
-          )}
+          {/* 右側のナビゲーションボタン */}
+          <div
+            style={{
+              position: 'absolute',
+              right: '20px',
+              top: '50%',
+              transform: 'translateY(-50%)',
+              zIndex: 10000,
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+            }}
+          >
+            {/* 右矢印：次のページまたは次のスライド */}
+            {(currentPage < totalPages - 1 || currentSlideIndex < totalSlides - 1) && (
+              <button
+                onClick={goToNextPage}
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: '1px solid rgba(255, 255, 255, 0.3)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '24px',
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                }}
+                title="次のページ"
+              >
+                →
+              </button>
+            )}
+            
+            {/* 次のスライドボタン */}
+            {currentSlideIndex < totalSlides - 1 && (
+              <button
+                onClick={goToNextSlide}
+                style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                  border: '2px solid rgba(255, 255, 255, 0.5)',
+                  color: '#fff',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  fontSize: '20px',
+                  fontWeight: 600,
+                  transition: 'background-color 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.2)';
+                }}
+                title="次のスライド"
+              >
+                ≫
+              </button>
+            )}
+          </div>
           
           {/* メインコンテンツ */}
           <div

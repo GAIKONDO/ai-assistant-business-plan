@@ -359,7 +359,7 @@ export default function UploadKeyVisualPage() {
         blobToUpload = selectedFile;
       }
       
-      setUploadProgress('画像をアップロード中...');
+    setUploadProgress('画像をアップロード中...');
       
       const storageRef = ref(storage, `business-plans/${planId}/key-visual.png`);
       await uploadBytes(storageRef, blobToUpload);
@@ -421,26 +421,26 @@ export default function UploadKeyVisualPage() {
         <h2 style={{ marginBottom: '24px' }}>キービジュアル画像をアップロード</h2>
         
         {!imageSrc ? (
-          <div style={{ marginBottom: '24px' }}>
-            <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-              事業計画のキービジュアル画像を選択してください。
-            </p>
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept="image/*"
-              onChange={handleFileSelect}
-              disabled={uploading}
-              style={{
-                width: '100%',
-                padding: '12px',
-                border: '1px solid var(--color-border-color)',
-                borderRadius: '6px',
-                fontSize: '14px',
-                cursor: uploading ? 'not-allowed' : 'pointer',
-              }}
-            />
-          </div>
+        <div style={{ marginBottom: '24px' }}>
+          <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
+            事業計画のキービジュアル画像を選択してください。
+          </p>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleFileSelect}
+            disabled={uploading}
+            style={{
+              width: '100%',
+              padding: '12px',
+              border: '1px solid var(--color-border-color)',
+              borderRadius: '6px',
+              fontSize: '14px',
+              cursor: uploading ? 'not-allowed' : 'pointer',
+            }}
+          />
+        </div>
         ) : (
           <div style={{ marginBottom: '24px' }}>
             {/* アスペクト比選択 */}
