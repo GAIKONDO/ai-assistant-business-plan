@@ -33,6 +33,25 @@ const SERVICE_TARGET: { [key: string]: string } = {
   'education-training': '経営層・人事部門・全社',
 };
 
+// ターゲットの階層化
+const SERVICE_TARGET_LAYER: { [key: string]: { cLayer?: string; department?: string; user?: string } } = {
+  'own-service': {
+    cLayer: '自治体・企業経営層',
+    user: '一般利用者'
+  },
+  'ai-dx': {
+    department: 'システム部門'
+  },
+  'consulting': {
+    cLayer: '経営層・人事',
+    department: '営業部門・職能部門'
+  },
+  'education-training': {
+    cLayer: '経営層・人事部門',
+    department: '全社'
+  },
+};
+
 // 各事業企画のサービス提供の流れ
 const SERVICE_FLOW: { [key: string]: string } = {
   'own-service': '自社から直接エンドユーザーへサービス提供',
@@ -92,8 +111,8 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
     { id: 'sme-dx', name: '中小企業向けDX', description: '内部データ管理やHP作成、Invoice制度の対応など', target: '中小企業 → 従業員・顧客' },
   ],
   'consulting': [
-    { id: 'sme-process', name: '中小企業向け業務プロセス可視化・改善', description: '中小企業の業務プロセス可視化、効率化、経営課題の解決支援、助成金活用支援', target: '中小企業 → 従業員' },
-    { id: 'medical-care-process', name: '医療・介護施設向け業務プロセス可視化・改善', description: '医療・介護施設の業務フロー可視化、記録業務の効率化、コンプライアンス対応支援', target: '医療・介護施設 → 患者・利用者' },
+    { id: 'sme-process', name: '中小企業向けプロセス可視化', description: '中小企業の業務プロセス可視化、効率化、経営課題の解決支援、助成金活用支援', target: '中小企業 → 従業員' },
+    { id: 'medical-care-process', name: '医療・介護向けプロセス可視化', description: '医療・介護施設の業務フロー可視化、記録業務の効率化、コンプライアンス対応支援', target: '医療・介護施設 → 患者・利用者' },
   ],
   'education-training': [
     { id: 'corporate-ai-training', name: '大企業向けAI人材育成・教育', description: '企業内AI人材の育成、AI活用スキル研修、AI導入教育プログラムの提供', target: '大企業 → 従業員' },
@@ -342,285 +361,756 @@ export default function FeaturesPage() {
       </p>
       <div className="card">
         <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
+          {/* 全体ロードマップ - ステップ図 */}
+          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+            ロードマップ
+          </h3>
+          <div style={{ 
+            marginBottom: '32px', 
+            padding: '40px 20px', 
+            backgroundColor: '#F9FAFB', 
+            borderRadius: '8px',
+            border: '1px solid #E5E7EB',
+            position: 'relative',
+            overflow: 'hidden'
+          }}>
+            <h4 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '8px', color: 'var(--color-text)', textAlign: 'center' }}>
+              成長ロードマップ
+            </h4>
+            <p style={{ fontSize: '16px', fontWeight: 500, marginBottom: '-10px', color: 'var(--color-text-light)', textAlign: 'center', lineHeight: '1.6' }}>
+              事業立ち上げからAIファーストカンパニー実現までの4ステップ成長戦略
+            </p>
+            
+            {/* ステップ図コンテナ - 登る階段デザイン */}
+            <div style={{ 
+              display: 'flex', 
+              alignItems: 'flex-end', 
+              justifyContent: 'space-between',
+              gap: '16px',
+              position: 'relative',
+              paddingTop: '0px',
+              paddingBottom: '60px',
+              minHeight: '600px',
+              borderBottom: '2px solid #E5E7EB'
+            }}>
+              {/* 接続線 - 上向きの階段状パス（グラデーション付き） */}
+              <svg 
+                style={{
+                  position: 'absolute',
+                  top: '0px',
+                  left: '0',
+                  width: '100%',
+                  height: '250px',
+                  zIndex: 0,
+                  pointerEvents: 'none'
+                }}
+                viewBox="0 0 1000 250"
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  {/* グラデーション定義 */}
+                  <linearGradient id="stepGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity="0.3" />
+                    <stop offset="33%" stopColor="#3B82F6" stopOpacity="0.4" />
+                    <stop offset="66%" stopColor="#8B5CF6" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#059669" stopOpacity="0.6" />
+                  </linearGradient>
+                  {/* 矢印マーカー */}
+                  <marker
+                    id="stepArrow"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#059669" />
+                  </marker>
+                </defs>
+                {/* 階段の段を描画 - 上向き（グラデーション付き、右向き矢印） */}
+                {/* ステップ1: x=50, y=200 | ステップ2: x=250, y=140 | ステップ3: x=500, y=80 | ステップ4: x=750, y=20 */}
+                <path
+                  d="M 50 200 L 250 200 L 250 140 L 500 140 L 500 80 L 750 80 L 750 20 L 950 20"
+                  stroke="url(#stepGradient)"
+                  strokeWidth="3"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  markerEnd="url(#stepArrow)"
+                />
+              </svg>
+              
+              {/* 成長曲線ライン（下部の右肩上がり、階段の登り幅に合わせる） */}
+              <svg 
+                style={{
+                  position: 'absolute',
+                  bottom: '0px',
+                  left: '0',
+                  width: '100%',
+                  height: '250px',
+                  zIndex: 0,
+                  pointerEvents: 'none'
+                }}
+                viewBox="0 0 1000 250"
+                preserveAspectRatio="none"
+              >
+                <defs>
+                  <linearGradient id="growthGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                    <stop offset="0%" stopColor="#10B981" stopOpacity="0.3" />
+                    <stop offset="33%" stopColor="#3B82F6" stopOpacity="0.4" />
+                    <stop offset="66%" stopColor="#8B5CF6" stopOpacity="0.5" />
+                    <stop offset="100%" stopColor="#059669" stopOpacity="0.6" />
+                  </linearGradient>
+                  <marker
+                    id="growthArrow"
+                    markerWidth="10"
+                    markerHeight="10"
+                    refX="9"
+                    refY="3"
+                    orient="auto"
+                  >
+                    <polygon points="0 0, 10 3, 0 6" fill="#059669" />
+                  </marker>
+                </defs>
+                {/* 階段の各ステップ位置を通る成長曲線: ステップ1(50,200) → ステップ2(250,140) → ステップ3(500,80) → ステップ4(750,20) */}
+                <path
+                  d="M 50 200 Q 150 170, 250 140 Q 375 110, 500 80 Q 625 50, 750 20 L 950 20"
+                  stroke="url(#growthGradient)"
+                  strokeWidth="3"
+                  fill="none"
+                  strokeLinecap="round"
+                  strokeDasharray="5,5"
+                  opacity="0.6"
+                  markerEnd="url(#growthArrow)"
+                />
+              </svg>
+
+              {/* ステップ1: 0-1年目 - 自社サービス（一番下） */}
+              <div style={{ flex: '1', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '0' }}>
+                {/* 番号マーカー */}
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  border: '3px solid #10B981',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#10B981',
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  marginBottom: '20px',
+                  boxShadow: '0 2px 8px rgba(16, 185, 129, 0.2)',
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  1
+                </div>
+                {/* カード */}
+                <div style={{
+                  backgroundColor: '#fff',
+                  padding: '24px 20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  marginBottom: '16px',
+                  width: '100%',
+                  minHeight: '200px',
+                  border: '1px solid #F3F4F6',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <h5 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px', color: '#1F2937' }}>
+                    0〜1年目
+                  </h5>
+                  <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.7', marginBottom: '0', flex: 1 }}>
+                    <span style={{ color: '#10B981', fontWeight: 600 }}>自社の技術力とAI活用の基盤</span>を活用し、自社サービス事業を立ち上げ、データ蓄積とユーザー獲得を実現
+                  </p>
+                </div>
+                {/* 色付きバー */}
+                <div style={{
+                  backgroundColor: '#10B981',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  width: '100%',
+                  boxShadow: '0 2px 4px rgba(16, 185, 129, 0.2)'
+                }}>
+                  自社サービス
+                </div>
+                {/* 獲得する強み */}
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '6px',
+                  border: '1px solid #E5E7EB',
+                  width: '100%'
+                }}>
+                  <h6 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    獲得する強み
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: '1.8' }}>
+                    <li>収益基盤の確立</li>
+                    <li>自社の開発経験の蓄積</li>
+                    <li>ドッグフーディング実績</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* ステップ2: 1-2年目 - AI導入ルール設計 */}
+              <div style={{ flex: '1', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '60px' }}>
+                {/* 番号マーカー */}
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  border: '3px solid #3B82F6',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#3B82F6',
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  marginBottom: '20px',
+                  boxShadow: '0 2px 8px rgba(59, 130, 246, 0.2)',
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  2
+                </div>
+                {/* カード */}
+                <div style={{
+                  backgroundColor: '#fff',
+                  padding: '24px 20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  marginBottom: '16px',
+                  width: '100%',
+                  minHeight: '200px',
+                  border: '1px solid #F3F4F6',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <h5 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px', color: '#1F2937' }}>
+                    1〜2年目
+                  </h5>
+                  <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.7', marginBottom: '0', flex: 1 }}>
+                    <span style={{ color: '#10B981', fontWeight: 600 }}>ステップ1で獲得した開発経験とドッグフーディング実績</span>を活用し、AI導入ルール設計と人材育成事業を展開し、自社事例を教材化
+                  </p>
+                </div>
+                {/* 色付きバー */}
+                <div style={{
+                  backgroundColor: '#3B82F6',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  width: '100%',
+                  boxShadow: '0 2px 4px rgba(59, 130, 246, 0.2)'
+                }}>
+                  AI導入ルール設計
+                </div>
+                {/* 獲得する強み */}
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '6px',
+                  border: '1px solid #E5E7EB',
+                  width: '100%'
+                }}>
+                  <h6 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    獲得する強み
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: '1.8' }}>
+                    <li>人材育成・ルール設計事業への強み獲得</li>
+                    <li>教育コンテンツの蓄積</li>
+                    <li>企業との信頼関係構築</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* ステップ3: 2-3年目 - 業務可視化 + DX支援SI */}
+              <div style={{ flex: '1', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '120px' }}>
+                {/* 番号マーカー */}
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  border: '3px solid #8B5CF6',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#8B5CF6',
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  marginBottom: '20px',
+                  boxShadow: '0 2px 8px rgba(139, 92, 246, 0.2)',
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  3
+                </div>
+                {/* カード */}
+                <div style={{
+                  backgroundColor: '#fff',
+                  padding: '24px 20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                  marginBottom: '16px',
+                  width: '100%',
+                  minHeight: '200px',
+                  border: '1px solid #F3F4F6',
+                  display: 'flex',
+                  flexDirection: 'column'
+                }}>
+                  <h5 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '12px', color: '#1F2937' }}>
+                    2〜3年目
+                  </h5>
+                  <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.7', marginBottom: '0', flex: 1 }}>
+                    <span style={{ color: '#3B82F6', fontWeight: 600 }}>ステップ2で構築した信頼関係と教育コンテンツ</span>を活用し、業務可視化コンサルとDX支援SI事業を展開し、プロダクト化を実現
+                  </p>
+                </div>
+                {/* 色付きバー */}
+                <div style={{
+                  backgroundColor: '#8B5CF6',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  width: '100%',
+                  boxShadow: '0 2px 4px rgba(139, 92, 246, 0.2)'
+                }}>
+                  業務可視化 + DX支援SI
+                </div>
+                {/* 獲得する強み */}
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '6px',
+                  border: '1px solid #E5E7EB',
+                  width: '100%'
+                }}>
+                  <h6 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    獲得する強み
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: '1.8' }}>
+                    <li>業務コンサル実績の創出</li>
+                    <li>業務コンサル事業の収益化</li>
+                    <li>データ整備とプロダクト化の実現</li>
+                  </ul>
+                </div>
+              </div>
+
+              {/* ステップ4: 最終目標 - AIファーストカンパニー（一番上） */}
+              <div style={{ flex: '1', position: 'relative', zIndex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', marginBottom: '180px' }}>
+                {/* 番号マーカー */}
+                <div style={{
+                  width: '50px',
+                  height: '50px',
+                  borderRadius: '50%',
+                  border: '3px solid #059669',
+                  backgroundColor: '#fff',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#059669',
+                  fontSize: '20px',
+                  fontWeight: 700,
+                  marginBottom: '20px',
+                  boxShadow: '0 2px 8px rgba(5, 150, 105, 0.2)',
+                  position: 'relative',
+                  zIndex: 2
+                }}>
+                  4
+                </div>
+                {/* カード - 最終目標（強調） */}
+                <div style={{
+                  backgroundColor: '#F0FDF4',
+                  padding: '24px 20px',
+                  borderRadius: '8px',
+                  boxShadow: '0 4px 12px rgba(5, 150, 105, 0.15)',
+                  marginBottom: '16px',
+                  width: '100%',
+                  minHeight: '200px',
+                  border: '3px solid #059669',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  position: 'relative'
+                }}>
+                  <h5 style={{ fontSize: '16px', fontWeight: 700, marginBottom: '8px', color: '#1F2937' }}>
+                    最終目標
+                    <span style={{ fontSize: '12px', fontWeight: 500, color: '#059669', marginLeft: '8px', fontStyle: 'italic' }}>
+                      Final Goal
+                    </span>
+                  </h5>
+                  <p style={{ fontSize: '14px', color: '#6B7280', lineHeight: '1.7', marginBottom: '0', flex: 1 }}>
+                    <span style={{ color: '#8B5CF6', fontWeight: 600 }}>これまでの全ステップで獲得した強み</span>を統合し、全事業を横串で強化し、AIファーストカンパニーとしての地位を確立
+                  </p>
+                </div>
+                {/* 色付きバー */}
+                <div style={{
+                  backgroundColor: '#059669',
+                  color: '#fff',
+                  padding: '12px 16px',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  textAlign: 'center',
+                  width: '100%',
+                  boxShadow: '0 2px 4px rgba(5, 150, 105, 0.2)'
+                }}>
+                  AIファーストカンパニーへ
+                </div>
+                {/* 獲得する強み */}
+                <div style={{
+                  marginTop: '16px',
+                  padding: '16px',
+                  backgroundColor: '#F9FAFB',
+                  borderRadius: '6px',
+                  border: '1px solid #E5E7EB',
+                  width: '100%'
+                }}>
+                  <h6 style={{ fontSize: '12px', fontWeight: 600, marginBottom: '10px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    獲得する強み
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '13px', color: '#374151', lineHeight: '1.8' }}>
+                    <li>AI駆動開発実績の創出</li>
+                    <li>AI駆動開発事業の収益化</li>
+                    <li>技術リーダーシップの確立</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
             4つの事業企画
           </h3>
-          <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-            4つの事業企画の立ち上げ時期、提供範囲、ターゲット、構想、差別化要因、獲得する強みをまとめています。
-          </p>
+          <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
+            AIファーストカンパニーで4つの事業を立ち上げ
+          </h2>
+          <h3 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '20px', color: 'var(--color-text-light)', lineHeight: '1.6', textAlign: 'center', fontStyle: 'normal' }}>
+            立ち上げ時期、提供範囲、ターゲット、構想、差別化要因、獲得する強み
+          </h3>
         </div>
 
         <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
-          <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-around', flexWrap: 'wrap', marginBottom: '24px' }}>
+          <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-around', flexWrap: 'wrap' }}>
             {/* 1. 自社開発・自社サービス事業 */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '250px', maxWidth: '300px' }}>
               <div style={{
-                width: '100px',
-                height: '100px',
+                width: '200px',
+                height: '200px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: '#F3F4F6',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '12px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                color: '#fff'
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                position: 'relative'
               }}>
-                <FaMobileAlt size={40} />
+                <div style={{
+                  width: '160px',
+                  height: '160px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}>
+                  <FaMobileAlt size={80} />
+                </div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
                 自社開発<br />自社サービス事業
               </div>
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px', marginBottom: '20px' }}>
+                サービス開発
+              </div>
+              
+              {/* カード */}
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                width: '100%',
+                border: '1px solid #E5E7EB',
+                minHeight: '280px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    提供範囲
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0 }}>
+                    {SERVICE_SCOPE['own-service']}
+                  </p>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    事業構想
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '14px', color: '#374151', lineHeight: '1.8' }}>
+                    {(FIXED_CONCEPTS['own-service'] || []).slice(0, 2).map((concept, idx) => (
+                      <li key={idx}>{concept.name}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    差別化要因
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
+                    {SERVICE_DIFFERENTIATION['own-service']}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* 2. AI導入ルール設計・人材育成・教育事業 */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '250px', maxWidth: '300px' }}>
               <div style={{
-                width: '100px',
-                height: '100px',
+                width: '200px',
+                height: '200px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: '#F3F4F6',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '12px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                color: '#fff'
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                position: 'relative'
               }}>
-                <FaGraduationCap size={40} />
+                <div style={{
+                  width: '160px',
+                  height: '160px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}>
+                  <FaGraduationCap size={80} />
+                </div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
                 AI導入ルール設計<br />人材育成・教育事業
               </div>
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px', marginBottom: '20px' }}>
+                ルール設計
+              </div>
+              
+              {/* カード */}
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                width: '100%',
+                border: '1px solid #E5E7EB',
+                minHeight: '280px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    提供範囲
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0 }}>
+                    {SERVICE_SCOPE['education-training']}
+                  </p>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    事業構想
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '14px', color: '#374151', lineHeight: '1.8' }}>
+                    {(FIXED_CONCEPTS['education-training'] || []).slice(0, 2).map((concept, idx) => (
+                      <li key={idx}>{concept.name}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    差別化要因
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
+                    {SERVICE_DIFFERENTIATION['education-training']}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* 3. プロセス可視化・業務コンサル事業 */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '250px', maxWidth: '300px' }}>
               <div style={{
-                width: '100px',
-                height: '100px',
+                width: '200px',
+                height: '200px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: '#F3F4F6',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '12px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                color: '#fff'
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                position: 'relative'
               }}>
-                <FaChartBar size={40} />
+                <div style={{
+                  width: '160px',
+                  height: '160px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}>
+                  <FaChartBar size={80} />
+                </div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
                 プロセス可視化<br />業務コンサル事業
               </div>
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px', marginBottom: '20px' }}>
+                可視化
+              </div>
+              
+              {/* カード */}
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                width: '100%',
+                border: '1px solid #E5E7EB',
+                minHeight: '280px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    提供範囲
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0 }}>
+                    {SERVICE_SCOPE['consulting']}
+                  </p>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    事業構想
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '14px', color: '#374151', lineHeight: '1.8' }}>
+                    {(FIXED_CONCEPTS['consulting'] || []).slice(0, 2).map((concept, idx) => (
+                      <li key={idx}>{concept.name}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    差別化要因
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
+                    {SERVICE_DIFFERENTIATION['consulting']}
+                  </p>
+                </div>
+              </div>
             </div>
 
             {/* 4. AI駆動開発・DX支援SI事業 */}
-            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '150px' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '250px', maxWidth: '300px' }}>
               <div style={{
-                width: '100px',
-                height: '100px',
+                width: '200px',
+                height: '200px',
                 borderRadius: '50%',
-                backgroundColor: 'var(--color-primary)',
+                backgroundColor: '#F3F4F6',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                marginBottom: '12px',
-                boxShadow: '0 2px 8px rgba(0,0,0,0.1)',
-                color: '#fff'
+                marginBottom: '16px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.1)',
+                position: 'relative'
               }}>
-                <FaLaptopCode size={40} />
+                <div style={{
+                  width: '160px',
+                  height: '160px',
+                  borderRadius: '50%',
+                  backgroundColor: 'var(--color-primary)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#fff'
+                }}>
+                  <FaLaptopCode size={80} />
+                </div>
               </div>
               <div style={{ textAlign: 'center', fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px', lineHeight: '1.4' }}>
                 AI駆動開発<br />DX支援SI事業
               </div>
+              <div style={{ textAlign: 'center', fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px', marginBottom: '20px' }}>
+                SI
+              </div>
+              
+              {/* カード */}
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '20px',
+                borderRadius: '8px',
+                boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+                width: '100%',
+                border: '1px solid #E5E7EB',
+                minHeight: '280px',
+                display: 'flex',
+                flexDirection: 'column'
+              }}>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    提供範囲
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0 }}>
+                    {SERVICE_SCOPE['ai-dx']}
+                  </p>
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    事業構想
+                  </h6>
+                  <ul style={{ margin: 0, paddingLeft: '18px', listStyleType: 'disc', fontSize: '14px', color: '#374151', lineHeight: '1.8' }}>
+                    {(FIXED_CONCEPTS['ai-dx'] || []).slice(0, 2).map((concept, idx) => (
+                      <li key={idx}>{concept.name}</li>
+                    ))}
+                  </ul>
+                </div>
+                <div style={{ flex: 1 }}>
+                  <h6 style={{ fontSize: '13px', fontWeight: 600, marginBottom: '8px', color: '#6B7280', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                    差別化要因
+                  </h6>
+                  <p style={{ fontSize: '14px', color: '#374151', lineHeight: '1.6', margin: 0, fontWeight: 500 }}>
+                    {SERVICE_DIFFERENTIATION['ai-dx']}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
 
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            各事業企画の詳細情報
-          </h4>
-          <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
-            <table style={{ 
-              width: '100%', 
-              borderCollapse: 'collapse', 
-              fontSize: '14px',
-              backgroundColor: '#fff'
-            }}>
-              <thead>
-                <tr style={{ backgroundColor: '#f5f5f5' }}>
-                  <th style={{ 
-                    padding: '12px', 
-                    textAlign: 'left', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    width: '120px'
-                  }}>
-                    
-                  </th>
-                  {Object.entries(SERVICE_NAMES).map(([id, name], index) => (
-                    <th key={id} style={{ 
-                      padding: '12px', 
-                      textAlign: 'left', 
-                      border: '1px solid var(--color-border-color)', 
-                      fontWeight: 600,
-                      minWidth: '200px'
-                    }}>
-                      {index + 1}. {name}
-                    </th>
-                  ))}
-                </tr>
-              </thead>
-              <tbody>
-                <tr style={{ backgroundColor: '#fff' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    立ち上げ時期
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id]) => (
-                    <td key={id} style={{ 
-                      padding: '12px', 
-                      border: '1px solid var(--color-border-color)', 
-                      verticalAlign: 'top'
-                    }}>
-                      {SERVICE_LAUNCH_TIMING[id]}
-                    </td>
-                  ))}
-                </tr>
-                <tr style={{ backgroundColor: '#fff' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    提供範囲
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id]) => (
-                    <td key={id} style={{ 
-                      padding: '12px', 
-                      border: '1px solid var(--color-border-color)', 
-                      verticalAlign: 'top'
-                    }}>
-                      {SERVICE_SCOPE[id]}
-                    </td>
-                  ))}
-                </tr>
-                <tr style={{ backgroundColor: '#fff' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    ターゲット
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id]) => (
-                    <td key={id} style={{ 
-                      padding: '12px', 
-                      border: '1px solid var(--color-border-color)', 
-                      verticalAlign: 'top'
-                    }}>
-                      {SERVICE_TARGET[id]}
-                    </td>
-                  ))}
-                </tr>
-                <tr style={{ backgroundColor: '#fafafa' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    事業構想
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id], index) => {
-                    const concepts = FIXED_CONCEPTS[id] || [];
-                    return (
-                      <td key={id} style={{ 
-                        padding: '12px', 
-                        border: '1px solid var(--color-border-color)', 
-                        verticalAlign: 'top'
-                      }}>
-                        {concepts.length > 0 ? (
-                          <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'disc' }}>
-                            {concepts.map((concept, conceptIndex) => (
-                              <li key={conceptIndex} style={{ marginBottom: '4px', fontSize: '13px' }}>
-                                {concept.name}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span style={{ color: 'var(--color-text-light)' }}>-</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-                <tr style={{ backgroundColor: '#fff' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    差別化要因
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id]) => (
-                    <td key={id} style={{ 
-                      padding: '12px', 
-                      border: '1px solid var(--color-border-color)', 
-                      verticalAlign: 'top'
-                    }}>
-                      {SERVICE_DIFFERENTIATION[id]}
-                    </td>
-                  ))}
-                </tr>
-                <tr style={{ backgroundColor: '#fff' }}>
-                  <td style={{ 
-                    padding: '12px', 
-                    border: '1px solid var(--color-border-color)', 
-                    fontWeight: 600,
-                    backgroundColor: '#f5f5f5',
-                    width: '120px'
-                  }}>
-                    獲得する強み
-                  </td>
-                  {Object.entries(SERVICE_NAMES).map(([id]) => {
-                    const strengths = SERVICE_STRENGTHS[id] || [];
-                    return (
-                      <td key={id} style={{ 
-                        padding: '12px', 
-                        border: '1px solid var(--color-border-color)', 
-                        verticalAlign: 'top'
-                      }}>
-                        {strengths.length > 0 ? (
-                          <ul style={{ margin: 0, paddingLeft: '20px', listStyleType: 'disc' }}>
-                            {strengths.map((strength, strengthIndex) => (
-                              <li key={strengthIndex} style={{ marginBottom: '4px', fontSize: '13px' }}>
-                                {strength}
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span style={{ color: 'var(--color-text-light)' }}>-</span>
-                        )}
-                      </td>
-                    );
-                  })}
-                </tr>
-              </tbody>
-            </table>
-          </div>
         </div>
         
         {error && (

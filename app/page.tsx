@@ -5,6 +5,8 @@ import { collection, query, where, getDocs } from 'firebase/firestore';
 import { auth, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import { useRouter } from 'next/navigation';
+import ForceDirectedGraph3D from '@/components/ForceDirectedGraph3D';
+import ForceDirectedGraph from '@/components/ForceDirectedGraph';
 
 // 固定構想の定義（app/business-plan/page.tsxと同じ）
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
@@ -202,6 +204,16 @@ export default function DashboardPage() {
             <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>構想</div>
           </div>
         </div>
+      </div>
+
+      {/* 会社・事業企画・構想の関係性（2D） */}
+      <div className="card" style={{ marginTop: '24px', marginBottom: '24px' }}>
+        <ForceDirectedGraph width={1200} height={600} title="会社・事業企画・構想の関係性（2D）" />
+      </div>
+      
+      {/* 会社・事業企画・構想の関係性（3D） */}
+      <div className="card" style={{ marginBottom: '24px' }}>
+        <ForceDirectedGraph3D width={1200} height={600} title="会社・事業企画・構想の関係性（3D）" />
       </div>
     </Layout>
   );

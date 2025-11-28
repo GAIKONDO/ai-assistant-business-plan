@@ -505,9 +505,30 @@ function ConceptLayoutContent({
       />
       <Script
         src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
-        strategy="lazyOnload"
+        strategy="afterInteractive"
         onLoad={() => {
           if (typeof window !== 'undefined' && window.mermaid) {
+            // 初期化を確実に実行
+            window.mermaid.initialize({ 
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: 'inherit',
+              htmlLabels: true
+            });
+            window.dispatchEvent(new Event('mermaidloaded'));
+          }
+        }}
+        onReady={() => {
+          // 既に読み込まれている場合も初期化とイベントを発火
+          if (typeof window !== 'undefined' && window.mermaid) {
+            window.mermaid.initialize({ 
+              startOnLoad: false,
+              theme: 'default',
+              securityLevel: 'loose',
+              fontFamily: 'inherit',
+              htmlLabels: true
+            });
             window.dispatchEvent(new Event('mermaidloaded'));
           }
         }}

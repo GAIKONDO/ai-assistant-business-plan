@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
-import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon } from './Icons';
+import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon, VisualizationsIcon } from './Icons';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -19,6 +19,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
   const menuItems = [
     { icon: DashboardIcon, label: 'ダッシュボード', id: 'dashboard', path: '/' },
     { icon: LineChartIcon, label: '事業計画', id: 'business-plan', path: '/business-plan' },
+    { icon: VisualizationsIcon, label: 'データ可視化', id: 'visualizations', path: '/visualizations' },
     { icon: BarChartIcon, label: '分析', id: 'analytics', path: '/analytics' },
     { icon: DocumentIcon, label: 'レポート', id: 'reports', path: '/reports' },
     { icon: SpecificationIcon, label: '仕様書', id: 'specification', path: '/specification' },
@@ -33,6 +34,9 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
     // /markdown-demo のようなパスを正しく処理
     const pathWithoutSlash = pathname.replace('/', '');
     if (pathWithoutSlash === 'markdown-demo') return 'markdown-demo';
+    if (pathWithoutSlash === 'visualizations') return 'visualizations';
+    // /business-plan/company/[planId]/visualizations のようなパスも処理
+    if (pathname.includes('/visualizations')) return 'visualizations';
     return pathWithoutSlash || 'dashboard';
   };
 
