@@ -367,7 +367,7 @@ export default function FeaturesPage() {
           </h3>
           <div style={{ 
             marginBottom: '32px', 
-            padding: '40px 20px', 
+            padding: '24px 20px', 
             backgroundColor: '#F9FAFB', 
             borderRadius: '8px',
             border: '1px solid #E5E7EB',
@@ -389,8 +389,8 @@ export default function FeaturesPage() {
               gap: '16px',
               position: 'relative',
               paddingTop: '0px',
-              paddingBottom: '60px',
-              minHeight: '600px',
+              paddingBottom: '40px',
+              minHeight: '550px',
               borderBottom: '2px solid #E5E7EB'
             }}>
               {/* 接続線 - 上向きの階段状パス（グラデーション付き） */}

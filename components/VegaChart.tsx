@@ -6,6 +6,7 @@ interface VegaChartProps {
   spec: any; // VegaまたはVega-Liteの仕様
   language?: 'vega' | 'vega-lite';
   title?: string;
+  noBorder?: boolean; // 枠線なしオプション
 }
 
 // vega-embedモジュールを一度だけインポートしてキャッシュ
@@ -18,7 +19,7 @@ const getVegaEmbed = () => {
   return vegaEmbedPromise;
 };
 
-const VegaChart = memo(function VegaChart({ spec, language = 'vega-lite', title }: VegaChartProps) {
+const VegaChart = memo(function VegaChart({ spec, language = 'vega-lite', title, noBorder = false }: VegaChartProps) {
   const chartRef = useRef<HTMLDivElement>(null);
   const viewRef = useRef<any>(null);
 
@@ -125,9 +126,9 @@ const VegaChart = memo(function VegaChart({ spec, language = 'vega-lite', title 
       <div
         ref={chartRef}
         style={{
-          borderRadius: title ? '0 0 6px 6px' : '6px',
-          padding: '16px',
-          backgroundColor: '#fff',
+          borderRadius: title ? '0 0 6px 6px' : (noBorder ? '0' : '6px'),
+          padding: noBorder ? '0' : '16px',
+          backgroundColor: noBorder ? 'transparent' : '#fff',
           overflow: 'auto',
         }}
       />

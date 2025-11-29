@@ -1286,7 +1286,7 @@ export default function OverviewPage() {
                       {/* AIがもたらした主な変化 */}
                       <div style={{ marginTop: '24px' }}>
                         <p style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                          ● AIがもたらした主な変化
+                          <span style={{ color: '#4DB368' }}>●</span> AIがもたらした主な変化
                         </p>
                         <ul style={{ margin: '0', paddingLeft: '20px', fontSize: '13px', color: 'var(--color-text-light)', lineHeight: '1.8' }}>
                           <li>個人向けパーソナライズ領域が高採算化</li>

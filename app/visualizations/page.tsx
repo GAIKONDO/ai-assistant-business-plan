@@ -743,19 +743,28 @@ const maternityCareChallengeFlowData: EcosystemAlluvialData = {
 
 export default function VisualizationsPage() {
   // Intersection Observerでビューポートに入ったら読み込む
-  const [visibleCharts, setVisibleCharts] = useState<Set<string>>(new Set());
+  const [visibleCharts, setVisibleCharts] = useState<Set<string>>(new Set(['chaos'])); // 最初のチャートを自動表示
   const chartRefs = useRef<Map<string, HTMLDivElement>>(new Map());
+  const observerRef = useRef<IntersectionObserver | null>(null);
 
+  // クライアントサイドでのみ実行
   useEffect(() => {
-    const observer = new IntersectionObserver(
+    if (typeof window === 'undefined') return;
+
+    // IntersectionObserverを設定
+    observerRef.current = new IntersectionObserver(
       (entries) => {
         entries.forEach((entry) => {
           if (entry.isIntersecting) {
             const chartId = entry.target.getAttribute('data-chart-id');
             if (chartId) {
-              setVisibleCharts((prev) => new Set(prev).add(chartId));
+              setVisibleCharts((prev) => {
+                // 既に表示されている場合は何もしない
+                if (prev.has(chartId)) return prev;
+                return new Set(prev).add(chartId);
+              });
               // 一度表示されたら監視を停止
-              observer.unobserve(entry.target);
+              observerRef.current?.unobserve(entry.target);
             }
           }
         });
@@ -763,12 +772,29 @@ export default function VisualizationsPage() {
       { rootMargin: '200px' } // 200px手前から読み込み開始
     );
 
-    // すべてのチャート要素を監視
-    chartRefs.current.forEach((ref) => {
-      if (ref) observer.observe(ref);
-    });
+    // DOM要素を直接検索して監視対象に追加
+    const observeCharts = () => {
+      if (!observerRef.current || typeof document === 'undefined') return;
+      
+      const chartElements = document.querySelectorAll('[data-chart-id]');
+      chartElements.forEach((el) => {
+        const chartId = el.getAttribute('data-chart-id');
+        // 最初のチャート（ecosystem3）は既に表示されているので監視しない
+        if (chartId && chartId !== 'ecosystem3' && observerRef.current) {
+          observerRef.current.observe(el);
+        }
+      });
+    };
 
-    return () => observer.disconnect();
+    // DOMが完全にレンダリングされた後に監視を開始
+    const timer = setTimeout(observeCharts, 100);
+
+    return () => {
+      clearTimeout(timer);
+      if (observerRef.current) {
+        observerRef.current.disconnect();
+      }
+    };
   }, []);
 
   return (
@@ -776,26 +802,6 @@ export default function VisualizationsPage() {
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         データ可視化
       </p>
-      
-      {/* 事業計画・エコシステム設計：技術キーワード → 技術カテゴリ → サービス → 産業 */}
-      <div 
-        ref={(el) => { if (el) chartRefs.current.set('ecosystem3', el); }} 
-        data-chart-id="ecosystem3"
-        className="card" 
-        style={{ marginBottom: '24px' }}
-      >
-        {visibleCharts.has('ecosystem3') ? (
-          <EcosystemAlluvialDiagram
-            data={technologyToIndustryData}
-            width={1600}
-            height={900}
-            title="事業計画・エコシステム設計：技術キーワード → 技術カテゴリ → サービス → 産業"
-            subtitle="From Technology to Industry"
-          />
-        ) : (
-          <ChartSkeleton height={900} />
-        )}
-      </div>
       
       {/* カオスマップ */}
       <div 
@@ -837,26 +843,6 @@ export default function VisualizationsPage() {
         )}
       </div>
       
-      {/* 散布図バブルチャート */}
-      <div 
-        ref={(el) => { if (el) chartRefs.current.set('scatter', el); }} 
-        data-chart-id="scatter"
-        className="card" 
-        style={{ marginBottom: '24px' }}
-      >
-        {visibleCharts.has('scatter') ? (
-          <ScatterBubbleChart
-            data={scatterBubbleData}
-            width={1000}
-            height={600}
-            xAxisLabel="実現難易度・運用コスト（右に行くほど難しい・高コスト）"
-            title="ビジネスモデル分析：汎用性 vs 契約金額規模"
-          />
-        ) : (
-          <ChartSkeleton height={600} />
-        )}
-      </div>
-      
       {/* Alluvial Diagram */}
       <div 
         ref={(el) => { if (el) chartRefs.current.set('alluvial1', el); }} 
@@ -870,25 +856,6 @@ export default function VisualizationsPage() {
             width={1000}
             height={600}
             title="市場規模フロー分析：地域からサービスカテゴリへの流れ"
-          />
-        ) : (
-          <ChartSkeleton height={600} />
-        )}
-      </div>
-      
-      {/* 自社開発・自社サービス事業のビジネスモデル（Alluvial Diagram） */}
-      <div 
-        ref={(el) => { if (el) chartRefs.current.set('alluvial2', el); }} 
-        data-chart-id="alluvial2"
-        className="card" 
-        style={{ marginBottom: '24px' }}
-      >
-        {visibleCharts.has('alluvial2') ? (
-          <AlluvialDiagram
-            data={ownServiceBusinessModelData}
-            width={1000}
-            height={600}
-            title="自社開発・自社サービス事業のビジネスモデル：サービスから収益源への流れ"
           />
         ) : (
           <ChartSkeleton height={600} />

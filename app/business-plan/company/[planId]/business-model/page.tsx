@@ -786,7 +786,11 @@ export default function BusinessModelPage() {
 
       <div className="card">
         <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
+          <h3 style={{ fontSize: '28px', fontWeight: 700, marginBottom: '16px', color: 'var(--color-text)' }}>
+            {selectedService === 'own-service' && '1. '}
+            {selectedService === 'education-training' && '2. '}
+            {selectedService === 'consulting' && '3. '}
+            {selectedService === 'ai-dx' && '4. '}
             {serviceInfo.title}
           </h3>
           {serviceInfo.description.map((desc, index) => (
@@ -942,34 +946,139 @@ export default function BusinessModelPage() {
           )}
         </div>
 
-        <div style={{ marginTop: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            収益モデル
-          </h4>
-          {serviceInfo.revenueModel.map((revenue, index) => (
-            <div key={index} style={{ marginBottom: '16px' }}>
-              <strong style={{ fontSize: '14px', color: 'var(--color-text)' }}>{revenue.title}:</strong>
-              <ul style={{ marginTop: '8px', marginBottom: '0', paddingLeft: '20px', listStyleType: 'disc' }}>
-                {revenue.items.map((item, itemIndex) => (
-                  <li key={itemIndex} style={{ marginBottom: '4px', fontSize: '14px', color: 'var(--color-text)' }}>
-                    {item}
-                  </li>
-                ))}
-              </ul>
+        {/* 収益モデルとサービス提供先 */}
+        <div style={{ marginTop: '32px' }}>
+          {/* 収益モデル */}
+          <div style={{ marginBottom: '32px' }}>
+            <h4 style={{ 
+              fontSize: '20px', 
+              fontWeight: 700, 
+              marginBottom: '20px', 
+              color: 'var(--color-text)',
+              borderLeft: '4px solid var(--color-primary)',
+              paddingLeft: '12px'
+            }}>
+              収益モデル
+            </h4>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+              gap: '16px' 
+            }}>
+              {serviceInfo.revenueModel.map((revenue, index) => (
+                <div 
+                  key={index} 
+                  style={{ 
+                    backgroundColor: '#fff',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    border: '1px solid #E5E7EB',
+                    boxShadow: '0 2px 4px rgba(0,0,0,0.05)',
+                    transition: 'all 0.2s ease',
+                    display: 'flex',
+                    flexDirection: 'column'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.boxShadow = '0 4px 8px rgba(0,0,0,0.1)';
+                    e.currentTarget.style.transform = 'translateY(-2px)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.boxShadow = '0 2px 4px rgba(0,0,0,0.05)';
+                    e.currentTarget.style.transform = 'translateY(0)';
+                  }}
+                >
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: 'var(--color-primary)',
+                    marginBottom: '12px',
+                    paddingBottom: '8px',
+                    borderBottom: '2px solid #E5E7EB'
+                  }}>
+                    {revenue.title}
+                  </div>
+                  <ul style={{ 
+                    margin: 0, 
+                    paddingLeft: '20px', 
+                    listStyleType: 'disc',
+                    flex: 1
+                  }}>
+                    {revenue.items.map((item, itemIndex) => (
+                      <li 
+                        key={itemIndex} 
+                        style={{ 
+                          marginBottom: '8px', 
+                          fontSize: '14px', 
+                          color: '#374151',
+                          lineHeight: '1.6'
+                        }}
+                      >
+                        {item}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
           
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', marginTop: '20px', color: 'var(--color-text)' }}>
-            サービス提供先
-          </h4>
-          {serviceInfo.serviceTargets.map((target, index) => (
-            <div key={index} style={{ marginBottom: '8px' }}>
-              <strong style={{ fontSize: '14px', color: 'var(--color-text)' }}>{target.title}:</strong>
-              <span style={{ fontSize: '14px', color: 'var(--color-text)', marginLeft: '8px' }}>
-                {target.description}
-              </span>
+          {/* サービス提供先 */}
+          <div>
+            <h4 style={{ 
+              fontSize: '20px', 
+              fontWeight: 700, 
+              marginBottom: '20px', 
+              color: 'var(--color-text)',
+              borderLeft: '4px solid var(--color-primary)',
+              paddingLeft: '12px'
+            }}>
+              サービス提供先
+            </h4>
+            <div style={{ 
+              display: 'grid', 
+              gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', 
+              gap: '16px' 
+            }}>
+              {serviceInfo.serviceTargets.map((target, index) => (
+                <div 
+                  key={index} 
+                  style={{ 
+                    backgroundColor: '#F9FAFB',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    border: '1px solid #E5E7EB',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    transition: 'all 0.2s ease'
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6';
+                    e.currentTarget.style.borderColor = 'var(--color-primary)';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F9FAFB';
+                    e.currentTarget.style.borderColor = '#E5E7EB';
+                  }}
+                >
+                  <div style={{
+                    fontSize: '16px',
+                    fontWeight: 700,
+                    color: '#1F2937',
+                    marginBottom: '8px'
+                  }}>
+                    {target.title}
+                  </div>
+                  <div style={{
+                    fontSize: '14px',
+                    color: '#6B7280',
+                    lineHeight: '1.6'
+                  }}>
+                    {target.description}
+                  </div>
+                </div>
+              ))}
             </div>
-          ))}
+          </div>
         </div>
       </div>
     </>
