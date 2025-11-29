@@ -1280,7 +1280,7 @@ export default function OverviewPage() {
                         特に個人向けパーソナライズと企業向けカスタム領域で新市場が出現。従来は不採算または高コストだった領域が「低コスト × 高採算」の象限へ大幅に移動している。この高採算化の背景には、AIによって多くの案件を同時並行的に、スピーディーに処理できるようになったことがある。案件数の増加により、従来は個別対応が困難だった領域でも採算性が確保できるようになった。
                       </p>
                       <p style={{ fontSize: '15px', fontWeight: 700, color: 'var(--color-primary)', lineHeight: '1.8', marginBottom: '20px', marginTop: '16px', paddingTop: '16px', borderTop: '2px solid rgba(74, 144, 226, 0.2)' }}>
-                        → この領域拡張こそが、新規会社が狙うべきコア市場である。
+                        → この領域拡張<sup style={{ fontSize: '10px', verticalAlign: 'super' }}>※</sup>こそが、新規会社が狙うべきコア市場である。
                       </p>
                       
                       {/* AIがもたらした主な変化 */}
@@ -1295,6 +1295,17 @@ export default function OverviewPage() {
                           <li>企業向け大規模開発は一部AIで効率化され別象限へシフト</li>
                         </ul>
                       </div>
+                    </div>
+                    
+                    {/* 脚注 */}
+                    <div style={{ 
+                      marginTop: '12px',
+                      fontSize: '11px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.5',
+                      fontStyle: 'italic'
+                    }}>
+                      <sup style={{ fontSize: '9px', verticalAlign: 'super' }}>※</sup> Stanford/MIT（2024）による"生成AIの98–99%コスト削減"、McKinsey（2023）の"ソフト開発効率30〜75%改善"、Gartner（2024）の"AIアプリ市場CAGR44%"に基づき作成。
                     </div>
                   </div>
                 </div>

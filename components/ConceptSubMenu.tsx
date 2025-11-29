@@ -6,7 +6,7 @@ import { useTransition } from 'react';
 
 export const SUB_MENU_ITEMS = [
   { id: 'overview', label: '概要・コンセプト', path: 'overview' },
-  { id: 'features', label: '提供機能', path: 'features' },
+  { id: 'features', label: '成長戦略', path: 'features' },
   { id: 'business-model', label: 'ビジネスモデル', path: 'business-model' },
   { id: 'market-size', label: '市場規模', path: 'market-size' },
   { id: 'plan', label: '事業計画', path: 'plan' },
@@ -17,6 +17,7 @@ export const SUB_MENU_ITEMS = [
   { id: 'case-study', label: 'ケーススタディ', path: 'case-study' },
   { id: 'risk-assessment', label: 'リスク評価', path: 'risk-assessment' },
   { id: 'snapshot-comparison', label: 'スナップショット比較', path: 'snapshot-comparison' },
+  { id: 'references', label: '参考文献', path: 'references' },
 ];
 
 interface ConceptSubMenuProps {
