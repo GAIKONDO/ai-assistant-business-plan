@@ -798,6 +798,89 @@ export default function FeaturesPage() {
 
         <div style={{ marginBottom: '24px' }}>
           <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+            機能一覧
+          </h3>
+          <div style={{ 
+            marginBottom: '32px',
+            textAlign: 'center'
+          }}>
+            <h2 style={{ 
+              margin: '0 0 12px 0', 
+              fontSize: '32px', 
+              fontWeight: 700, 
+              color: 'var(--color-text)',
+              lineHeight: '1.3',
+              letterSpacing: '-0.5px'
+            }}>
+              出産・育児を支える包括的な機能群
+            </h2>
+            <p style={{ 
+              margin: 0, 
+              fontSize: '18px', 
+              fontWeight: 500,
+              color: 'var(--color-text)',
+              letterSpacing: '0.3px',
+              lineHeight: '1.6'
+            }}>
+              支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供
+            </p>
+          </div>
+          <div style={{ paddingLeft: '11px' }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', border: '1px solid var(--color-border-color)', borderRadius: '8px', overflow: 'hidden' }}>
+              <thead>
+                <tr style={{ backgroundColor: 'var(--color-background)' }}>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid var(--color-border-color)', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)', width: '30%' }}>機能名</th>
+                  <th style={{ padding: '12px', textAlign: 'left', borderBottom: '2px solid var(--color-border-color)', fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>説明</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>1. 支援制度の検索・閲覧</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>国、都道府県、市区町村、企業などの支援制度を一元管理し、効率的に検索・閲覧できる</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>2. 支援制度の詳細情報表示</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>各支援制度の詳細情報（申請方法、必要書類、支給金額など）を分かりやすく表示</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>3. Mermaid図による可視化</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>制度の仕組みや申請フロー、関係組織などを視覚的に分かりやすく表示</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>4. アクション管理</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>申請予定の制度を管理し、申請期限を可視化。リマインダー機能で期限を逃さないようサポート</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>5. 統計情報の表示</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>カテゴリ別の支援制度の件数や支給金額の合計を表示し、全体像を把握できる</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>6. 収支概算</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>子育てにかかる収支の概算を表示し、経済的な見通しを立てやすくする</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>7. AIアシスタント機能</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>24時間365日いつでも育児に関する相談やアドバイスを受けられる伴走型育児支援</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>8. 電子母子手帳機能</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>妊婦健診の記録を電子化し、いつでも確認できる。データの共有も容易</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>9. 家族・パートナーとの情報共有</td>
+                  <td style={{ padding: '12px', borderBottom: '1px solid var(--color-border-color)', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>アカウント共有機能により、家族やパートナーと情報を共有し、申請手続きや記録を共同で管理</td>
+                </tr>
+                <tr>
+                  <td style={{ padding: '12px', fontSize: '14px', color: 'var(--color-text)', verticalAlign: 'top', fontWeight: 600 }}>10. パートナー連携</td>
+                  <td style={{ padding: '12px', fontSize: '13px', color: 'var(--color-text)', verticalAlign: 'top' }}>教育サービス、保険、医療・ヘルスケア、ECサイトなど、様々なパートナーと連携し、ワンストップで必要なサービスを利用できる</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+
+        <div style={{ marginBottom: '24px' }}>
+          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
             4つの事業企画
           </h3>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>

@@ -3,7 +3,6 @@
 import { useState, useEffect, useRef } from 'react';
 import dynamic from 'next/dynamic';
 import Layout from '@/components/Layout';
-import type { ChaosMapData } from '@/components/ChaosMap';
 import type { BubbleData } from '@/components/BubbleChart';
 import type { ScatterBubbleData } from '@/components/ScatterBubbleChart';
 import type { PopulationData } from '@/components/PopulationPyramid';
@@ -13,10 +12,6 @@ import type { AlluvialDiagramData } from '@/components/AlluvialDiagram';
 import type { EcosystemAlluvialData } from '@/components/EcosystemAlluvialDiagram';
 
 // 遅延読み込みコンポーネント（パフォーマンス最適化）
-const ChaosMap = dynamic(() => import('@/components/ChaosMap').then(mod => ({ default: mod.default })), { 
-  ssr: false,
-  loading: () => <ChartSkeleton height={600} />
-});
 const BubbleChart = dynamic(() => import('@/components/BubbleChart').then(mod => ({ default: mod.default })), { 
   ssr: false,
   loading: () => <ChartSkeleton height={600} />
@@ -72,82 +67,6 @@ function ChartSkeleton({ height }: { height: number }) {
     </div>
   );
 }
-
-// サンプルデータ（実際のデータはFirebaseなどから取得）
-const sampleChaosMapData: ChaosMapData = {
-  title: '市場カオスマップ 2024',
-  bands: [
-    { id: 'personal', label: '個人向け' },
-    { id: 'enterprise', label: '企業向け' },
-    { id: 'professional', label: '専門家向け' },
-  ],
-  segments: [
-    { id: 'document', label: '文書作成・レビュー' },
-    { id: 'management', label: '文書・案件管理' },
-    { id: 'contract', label: '契約締結' },
-    { id: 'application', label: '申請・出願' },
-    { id: 'research', label: 'リサーチ・検索ポータル' },
-    { id: 'due-diligence', label: 'デューデリ・フォレンジック' },
-    { id: 'dispute', label: '紛争解決・訴訟' },
-  ],
-  cells: [
-    {
-      bandId: 'personal',
-      segmentId: 'document',
-      companies: [
-        { name: 'サービスA', description: '個人向け文書作成サービス' },
-        { name: 'サービスB', description: '簡単文書作成ツール' },
-      ],
-    },
-    {
-      bandId: 'enterprise',
-      segmentId: 'document',
-      companies: [
-        { name: '企業向けサービスA', description: '企業向け文書作成' },
-        { name: '企業向けサービスB', description: '文書レビューAI' },
-        { name: '企業向けサービスC', description: '契約書作成ツール' },
-      ],
-    },
-    {
-      bandId: 'enterprise',
-      segmentId: 'management',
-      companies: [
-        { name: '管理ツールA', description: '文書管理システム' },
-        { name: '管理ツールB', description: '案件管理プラットフォーム' },
-      ],
-    },
-    {
-      bandId: 'enterprise',
-      segmentId: 'contract',
-      companies: [
-        { name: '電子署名A', description: '電子契約サービス' },
-        { name: '電子署名B', description: '契約管理プラットフォーム' },
-      ],
-    },
-    {
-      bandId: 'professional',
-      segmentId: 'document',
-      companies: [
-        { name: '専門家ツールA', description: '専門家向け文書作成' },
-      ],
-    },
-    {
-      bandId: 'professional',
-      segmentId: 'management',
-      companies: [
-        { name: '専門家管理A', description: '専門家向け案件管理' },
-        { name: '専門家管理B', description: '高度な文書管理' },
-      ],
-    },
-    {
-      bandId: 'professional',
-      segmentId: 'research',
-      companies: [
-        { name: 'リサーチツールA', description: '法律リサーチプラットフォーム' },
-      ],
-    },
-  ],
-};
 
 // バブルチャート用のサンプルデータ（市場規模を表す）
 const bubbleChartData: BubbleData[] = [
@@ -743,7 +662,7 @@ const maternityCareChallengeFlowData: EcosystemAlluvialData = {
 
 export default function VisualizationsPage() {
   // Intersection Observerでビューポートに入ったら読み込む
-  const [visibleCharts, setVisibleCharts] = useState<Set<string>>(new Set(['chaos'])); // 最初のチャートを自動表示
+  const [visibleCharts, setVisibleCharts] = useState<Set<string>>(new Set(['bubble'])); // 最初のチャートを自動表示
   const chartRefs = useRef<Map<string, HTMLDivElement>>(new Map());
   const observerRef = useRef<IntersectionObserver | null>(null);
 
@@ -802,27 +721,6 @@ export default function VisualizationsPage() {
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         データ可視化
       </p>
-      
-      {/* カオスマップ */}
-      <div 
-        ref={(el) => { if (el) chartRefs.current.set('chaos', el); }} 
-        data-chart-id="chaos"
-        className="card" 
-        style={{ marginBottom: '24px' }}
-      >
-        {visibleCharts.has('chaos') ? (
-          <ChaosMap 
-            data={sampleChaosMapData} 
-            width={1000} 
-            height={600}
-            innerRadius={60}
-            outerRadius={320}
-            backgroundImageUrl="/Gemini_Generated_Image_4awgre4awgre4awg.png"
-          />
-        ) : (
-          <ChartSkeleton height={600} />
-        )}
-      </div>
       
       {/* バブルチャート */}
       <div 
@@ -897,6 +795,26 @@ export default function VisualizationsPage() {
           />
         ) : (
           <ChartSkeleton height={700} />
+        )}
+      </div>
+      
+      {/* 事業計画・エコシステム設計：技術キーワード → 技術カテゴリ → サービス → 産業 */}
+      <div 
+        ref={(el) => { if (el) chartRefs.current.set('ecosystem3', el); }} 
+        data-chart-id="ecosystem3"
+        className="card" 
+        style={{ marginBottom: '24px' }}
+      >
+        {visibleCharts.has('ecosystem3') ? (
+          <EcosystemAlluvialDiagram
+            data={technologyToIndustryData}
+            width={1800}
+            height={900}
+            title="事業計画・エコシステム設計：技術キーワード → 技術カテゴリ → サービス → 産業"
+            subtitle="From Technology to Industry"
+          />
+        ) : (
+          <ChartSkeleton height={900} />
         )}
       </div>
       

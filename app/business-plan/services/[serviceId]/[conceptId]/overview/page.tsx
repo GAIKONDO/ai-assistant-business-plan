@@ -2048,7 +2048,260 @@ export default function OverviewPage() {
 
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    6. 提供価値
+                    6. 法改正に対応
+                  </h4>
+                  <div style={{ 
+                    marginBottom: '32px',
+                    textAlign: 'center'
+                  }}>
+                    <h2 style={{ 
+                      margin: '0 0 12px 0', 
+                      fontSize: '32px', 
+                      fontWeight: 700, 
+                      color: 'var(--color-text)',
+                      lineHeight: '1.3',
+                      letterSpacing: '-0.5px'
+                    }}>
+                      法改正に完全対応した<br />申請サポートを実現
+                    </h2>
+                    <p style={{ 
+                      margin: 0, 
+                      fontSize: '18px', 
+                      fontWeight: 500,
+                      color: 'var(--color-text)',
+                      letterSpacing: '0.3px',
+                      lineHeight: '1.6'
+                    }}>
+                      2025年4月施行の次世代育成支援対策推進法の改正に対応し、企業の法遵守と認定取得をサポート
+                    </p>
+                  </div>
+                  <div style={{ paddingLeft: '11px', lineHeight: '1.8', color: 'var(--color-text)' }}>
+                    <div style={{
+                      display: 'grid',
+                      gridTemplateColumns: '1fr 1fr',
+                      gap: '20px',
+                      marginBottom: '24px'
+                    }}>
+                      {/* POINT 4 */}
+                      <div style={{
+                        padding: '20px',
+                        backgroundColor: '#f0f8ff',
+                        borderRadius: '8px',
+                        border: '1px solid #4a90e2'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#ffd700',
+                            color: '#333',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            flexShrink: 0
+                          }}>
+                            POINT
+                          </div>
+                          <span style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: '#1e3a8a'
+                          }}>
+                            4
+                          </span>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            color: '#666',
+                            marginLeft: 'auto',
+                            padding: '4px 12px',
+                            border: '1px solid #333',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            2025年4月1日施行
+                          </span>
+                        </div>
+                        <h5 style={{
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          color: '#1e3a8a',
+                          marginBottom: '12px',
+                          lineHeight: '1.4'
+                        }}>
+                          育児休業等の取得状況の公表義務が300人超の企業に拡大
+                        </h5>
+                        <div style={{
+                          marginTop: '16px',
+                          padding: '12px',
+                          backgroundColor: '#fff',
+                          borderRadius: '4px',
+                          borderLeft: '3px solid #4a90e2'
+                        }}>
+                          <p style={{
+                            fontSize: '13px',
+                            lineHeight: '1.7',
+                            color: '#333',
+                            marginBottom: '8px'
+                          }}>
+                            <strong>対象企業：</strong>
+                            従業員数1,000人超に加え、<strong>300人超1,000人以下の企業</strong>にも、育児休業等の取得状況を公表することが義務付けられました。
+                          </p>
+                          <p style={{
+                            fontSize: '13px',
+                            lineHeight: '1.7',
+                            color: '#333',
+                            marginBottom: '8px'
+                          }}>
+                            <strong>公表内容：</strong>
+                            公表を行う日の属する事業年度の直前の事業年度（公表前事業年度）における男性の「育児休業等の取得割合」または「育児休業等と育児目的休暇の取得割合」のいずれかの割合です。
+                          </p>
+                          <div style={{
+                            marginTop: '12px',
+                            padding: '8px',
+                            backgroundColor: '#f5f5f5',
+                            borderRadius: '4px',
+                            fontSize: '12px'
+                          }}>
+                            <strong>※「育児休業等」とは：</strong>
+                            <ul style={{
+                              margin: '8px 0 0 20px',
+                              padding: 0,
+                              listStyle: 'disc'
+                            }}>
+                              <li>育児休業（産後パパ育休を含む）</li>
+                              <li>法第23条第2項又は第24条第1項の規定に基づく措置として育児休業に関する制度に準ずる措置を講じた場合は、その措置に基づく休業</li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* POINT 5 */}
+                      <div style={{
+                        padding: '20px',
+                        backgroundColor: '#f0f8ff',
+                        borderRadius: '8px',
+                        border: '1px solid #4a90e2'
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px',
+                          marginBottom: '16px'
+                        }}>
+                          <div style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: '32px',
+                            height: '32px',
+                            borderRadius: '50%',
+                            backgroundColor: '#ffd700',
+                            color: '#333',
+                            fontSize: '14px',
+                            fontWeight: 700,
+                            flexShrink: 0
+                          }}>
+                            POINT
+                          </div>
+                          <span style={{
+                            fontSize: '24px',
+                            fontWeight: 700,
+                            color: '#1e3a8a'
+                          }}>
+                            5
+                          </span>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 500,
+                            color: '#666',
+                            marginLeft: 'auto',
+                            padding: '4px 12px',
+                            border: '1px solid #333',
+                            borderRadius: '4px',
+                            whiteSpace: 'nowrap'
+                          }}>
+                            2025年4月1日施行
+                          </span>
+                        </div>
+                        <h5 style={{
+                          fontSize: '16px',
+                          fontWeight: 600,
+                          color: '#1e3a8a',
+                          marginBottom: '12px',
+                          lineHeight: '1.4'
+                        }}>
+                          行動計画策定・変更時の育児休業等取得状況や労働時間の状況の把握・数値目標設定の義務付け
+                        </h5>
+                        <div style={{
+                          marginTop: '16px',
+                          padding: '12px',
+                          backgroundColor: '#fff',
+                          borderRadius: '4px',
+                          borderLeft: '3px solid #4a90e2'
+                        }}>
+                          <p style={{
+                            fontSize: '13px',
+                            lineHeight: '1.7',
+                            color: '#333',
+                            marginBottom: '12px'
+                          }}>
+                            <strong>対象企業：</strong>
+                            従業員数<strong>100人超の企業</strong>は、2025年（令和7年）4月1日以降に行動計画を策定又は変更する場合に、次のことが義務付けられました。
+                            <br />
+                            <span style={{ fontSize: '12px', color: '#666' }}>
+                              （従業員数100人以下の企業は、努力義務）
+                            </span>
+                          </p>
+                          <div style={{
+                            marginTop: '12px',
+                            padding: '12px',
+                            backgroundColor: '#e3f2fd',
+                            borderRadius: '4px'
+                          }}>
+                            <p style={{
+                              fontSize: '13px',
+                              fontWeight: 600,
+                              marginBottom: '8px',
+                              color: '#333'
+                            }}>
+                              義務付けられた内容：
+                            </p>
+                            <ul style={{
+                              margin: 0,
+                              paddingLeft: '20px',
+                              listStyle: 'disc',
+                              fontSize: '13px',
+                              lineHeight: '1.7'
+                            }}>
+                              <li style={{ marginBottom: '6px' }}>
+                                計画策定又は変更時の育児休業等取得状況や労働時間の状況の把握等（PDCAサイクルの実施）
+                              </li>
+                              <li>
+                                育児休業等取得状況や労働時間の状況に関する数値目標の設定
+                              </li>
+                            </ul>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                    <p style={{ marginBottom: '16px', fontSize: '14px' }}>
+                      これらの法改正に対応した申請サポートを可能にしています。
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ marginBottom: '24px' }}>
+                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                    7. 提供価値
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
