@@ -20,7 +20,6 @@ export default function OverviewPage() {
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
   const { concept, loading } = useConcept();
-  const { showContainers } = useContainerVisibility();
 
   // コンポーネント化されたページを使用するかチェック
   // conceptIdが-componentizedを含む、または特定のconceptIdの場合はComponentizedOverviewを使用
@@ -28,6 +27,9 @@ export default function OverviewPage() {
       (serviceId === 'component-test' && conceptId === 'test-concept')) {
     return <ComponentizedOverview />;
   }
+
+  // コンポーネント化されていない場合のみuseContainerVisibilityを使用
+  const { showContainers } = useContainerVisibility();
 
   const keyVisualUrl = concept?.keyVisualUrl || '';
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25);

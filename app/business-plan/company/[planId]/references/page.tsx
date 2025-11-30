@@ -4,6 +4,14 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
+import { usePlan } from '../layout';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 interface Reference {
   id: string;
@@ -13,6 +21,14 @@ interface Reference {
 }
 
 export default function ReferencesPage() {
+  const { plan } = usePlan();
+  
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+  
   const params = useParams();
   const planId = params.planId as string;
   const [references, setReferences] = useState<Reference[]>([]);

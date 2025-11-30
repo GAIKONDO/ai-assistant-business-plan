@@ -2,6 +2,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import Script from 'next/script';
+import { usePlan } from '../layout';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 declare global {
   interface Window {
@@ -376,6 +384,9 @@ const GROUP_COMPANIES: GroupCompany[] = [
 ];
 
 export default function ItochuSynergyPage() {
+  const { plan } = usePlan();
+  
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
   const [expandedQuantitative, setExpandedQuantitative] = useState<boolean>(false);
@@ -765,6 +776,12 @@ export default function ItochuSynergyPage() {
       }
     };
   }, []);
+
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
 
   return (
     <>

@@ -2,6 +2,14 @@
 
 import { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
+import { usePlan } from '../layout';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 declare global {
   interface Window {
@@ -27,6 +35,9 @@ const GROUP_COMPANIES_BY_SERVICE: { [key: string]: string[] } = {
 type ServiceId = 'own-service' | 'education-training' | 'consulting' | 'ai-dx';
 
 export default function BusinessModelPage() {
+  const { plan } = usePlan();
+  
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [selectedService, setSelectedService] = useState<ServiceId>('own-service');
   const [isDetailed, setIsDetailed] = useState(false);
   const diagramRef = useRef<HTMLDivElement>(null);
@@ -726,6 +737,12 @@ export default function BusinessModelPage() {
       window.removeEventListener('mermaidloaded', checkMermaidLoaded);
     };
   }, []);
+
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
 
   const serviceInfo = getServiceDescription(selectedService);
 

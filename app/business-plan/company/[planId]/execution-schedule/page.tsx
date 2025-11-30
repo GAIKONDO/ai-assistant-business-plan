@@ -2,6 +2,14 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
+import { usePlan } from '../layout';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 declare global {
   interface Window {
@@ -268,6 +276,9 @@ const SCHEDULE_DATA: ScheduleItem[] = [
 ];
 
 export default function ExecutionSchedulePage() {
+  const { plan } = usePlan();
+  
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const diagramRef = useRef<HTMLDivElement>(null);
   const detailedDiagramRef = useRef<HTMLDivElement>(null);
@@ -569,6 +580,12 @@ export default function ExecutionSchedulePage() {
       }
     }
   }, [isDetailed]);
+
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
 
   // 年ごとのスケジュールを整理
   const scheduleByYear: { [year: number]: ScheduleItem[] } = {};

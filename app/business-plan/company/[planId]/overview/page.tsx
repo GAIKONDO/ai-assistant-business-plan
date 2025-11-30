@@ -7,6 +7,13 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import ScatterBubbleChart, { ScatterBubbleData } from '@/components/ScatterBubbleChart';
+import dynamic from 'next/dynamic';
+
+// コンポーネント化されたページのコンポーネント（条件付きインポート）
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 declare global {
   interface Window {
@@ -16,11 +23,25 @@ declare global {
 
 export default function OverviewPage() {
   const { plan, loading } = usePlan();
-  const { showContainers } = useContainerVisibility();
   const params = useParams();
   const router = useRouter();
   const planId = params.planId as string;
-  
+
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
+  const { showContainers } = useContainerVisibility();
+  const aiFactoryCanvasRef = useRef<HTMLDivElement>(null);
+  const cycleDiagramRef = useRef<HTMLDivElement>(null);
+  const cycleDiagramRef2 = useRef<HTMLDivElement>(null);
+  const p5Loaded = useRef(false);
+  const aiFactoryP5Instance = useRef<any>(null);
+  const cycleP5Instance = useRef<any>(null);
+  const cycleP5Instance2 = useRef<any>(null);
+  const cycleCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const cycleTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const aiFactoryTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
+  const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25); // デフォルトは16:9のアスペクト比
+  const [showSizeControl, setShowSizeControl] = useState(false);
+
   // キービジュアルの高さを読み込む
   useEffect(() => {
     if (plan?.keyVisualHeight !== undefined) {
@@ -42,18 +63,58 @@ export default function OverviewPage() {
       console.error('キービジュアルサイズの保存エラー:', error);
     }
   }, [auth?.currentUser, db, planId]);
-  const aiFactoryCanvasRef = useRef<HTMLDivElement>(null);
-  const cycleDiagramRef = useRef<HTMLDivElement>(null);
-  const cycleDiagramRef2 = useRef<HTMLDivElement>(null);
-  const p5Loaded = useRef(false);
-  const aiFactoryP5Instance = useRef<any>(null);
-  const cycleP5Instance = useRef<any>(null);
-  const cycleP5Instance2 = useRef<any>(null);
-  const cycleCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
-  const cycleTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
-  const aiFactoryTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
-  const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25); // デフォルトは16:9のアスペクト比
-  const [showSizeControl, setShowSizeControl] = useState(false);
+
+  // AI-driven Self-reinforcing Business Loopの画像をダウンロード
+  const handleDownloadCycleDiagram = useCallback(() => {
+    if (!cycleDiagramRef.current) return;
+    
+    // p5.jsのキャンバス要素を取得
+    const canvas = cycleDiagramRef.current.querySelector('canvas');
+    if (!canvas) {
+      alert('画像を取得できませんでした。');
+      return;
+    }
+    
+    try {
+      // キャンバスを画像データに変換
+      const imageData = canvas.toDataURL('image/png');
+      
+      // ダウンロードリンクを作成
+      const link = document.createElement('a');
+      link.download = 'AI-driven-Self-reinforcing-Business-Loop.png';
+      link.href = imageData;
+      link.click();
+    } catch (error) {
+      console.error('画像のダウンロードエラー:', error);
+      alert('画像のダウンロードに失敗しました。');
+    }
+  }, []);
+
+  // AI-driven Self-reinforcing Business Loopの画像をダウンロード（2つ目）
+  const handleDownloadCycleDiagram2 = useCallback(() => {
+    if (!cycleDiagramRef2.current) return;
+    
+    // p5.jsのキャンバス要素を取得
+    const canvas = cycleDiagramRef2.current.querySelector('canvas');
+    if (!canvas) {
+      alert('画像を取得できませんでした。');
+      return;
+    }
+    
+    try {
+      // キャンバスを画像データに変換
+      const imageData = canvas.toDataURL('image/png');
+      
+      // ダウンロードリンクを作成
+      const link = document.createElement('a');
+      link.download = 'AI-driven-Self-reinforcing-Business-Loop-2.png';
+      link.href = imageData;
+      link.click();
+    } catch (error) {
+      console.error('画像のダウンロードエラー:', error);
+      alert('画像のダウンロードに失敗しました。');
+    }
+  }, []);
 
   // AIの真価：2軸マトリクス用データ
   const aiValueMatrixData = useMemo<ScatterBubbleData[]>(() => [
@@ -931,6 +992,12 @@ export default function OverviewPage() {
     }
   }, []);
 
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+
   return (
     <>
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
@@ -947,10 +1014,14 @@ export default function OverviewPage() {
           overflow: 'hidden', 
           position: 'relative',
           ...(showContainers ? {
-            border: '2px dashed var(--color-primary)',
+            border: '4px dashed #000000',
             borderRadius: '8px',
             pageBreakInside: 'avoid',
             breakInside: 'avoid',
+            backgroundColor: 'transparent',
+            position: 'relative',
+            zIndex: 1,
+            boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
           } : {}),
         }}
       >
@@ -1142,12 +1213,16 @@ export default function OverviewPage() {
               data-page-container="1"
               style={{
                 ...(showContainers ? {
-                  border: '2px dashed var(--color-primary)',
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                   marginBottom: '24px',
                   pageBreakInside: 'avoid',
                   breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                  position: 'relative',
+                  zIndex: 1,
                 } : {
                   marginBottom: '24px',
                 }),
@@ -1228,16 +1303,46 @@ export default function OverviewPage() {
                   }}>
                     <div ref={cycleDiagramRef} style={{ width: '100%', maxWidth: '400px' }} />
                   </div>
-                  <p style={{ 
-                    fontSize: '13px', 
-                    color: 'var(--color-text)', 
-                    marginTop: '16px', 
-                    fontWeight: 500,
-                    textAlign: 'center',
-                    letterSpacing: '0.5px'
-                  }}>
-                    AI-driven Self-reinforcing Business Loop
-                  </p>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '16px' }}>
+                    <p style={{ 
+                      fontSize: '13px', 
+                      color: 'var(--color-text)', 
+                      margin: 0,
+                      fontWeight: 500,
+                      textAlign: 'center',
+                      letterSpacing: '0.5px'
+                    }}>
+                      AI-driven Self-reinforcing Business Loop
+                    </p>
+                    <button
+                      onClick={handleDownloadCycleDiagram}
+                      style={{
+                        padding: '2px 8px',
+                        backgroundColor: 'transparent',
+                        color: '#9CA3AF',
+                        border: '1px solid #E5E7EB',
+                        borderRadius: '4px',
+                        cursor: 'pointer',
+                        fontSize: '10px',
+                        fontWeight: 400,
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        opacity: 0.7,
+                        transition: 'opacity 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.opacity = '1';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.opacity = '0.7';
+                      }}
+                      title="画像をダウンロード"
+                    >
+                      <span style={{ fontSize: '10px' }}>⬇</span>
+                      <span>ダウンロード</span>
+                    </button>
+                  </div>
                   <p style={{ fontSize: '10px', color: 'var(--color-text-light)', marginTop: '12px', fontStyle: 'italic', textAlign: 'center' }}>
                     出典: マルコ・イアンシティ; カリム・R・ラカーニ; 吉田素文、AIファースト・カンパニー: アルゴリズムとネットワークが経済を支配する新時代の経営戦略(p.234). 英治出版株式会社.
                   </p>
@@ -1251,11 +1356,14 @@ export default function OverviewPage() {
           style={{
             marginBottom: '24px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
               breakInside: 'avoid',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
             } : {}),
           }}
         >
@@ -1367,11 +1475,15 @@ export default function OverviewPage() {
               style={{
                 marginBottom: '24px',
                 ...(showContainers ? {
-                  border: '2px dashed var(--color-primary)',
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                   pageBreakInside: 'avoid',
                   breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                  position: 'relative',
+                  zIndex: 1,
                 } : {}),
               }}
             >
@@ -1405,16 +1517,46 @@ export default function OverviewPage() {
                   {/* 左側：キービジュアル（循環図） */}
                   <div style={{ flex: '0 0 400px', display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
                     <div ref={cycleDiagramRef2} style={{ width: '100%', maxWidth: '400px', minHeight: '420px' }} />
-                    <p style={{ 
-                      fontSize: '13px', 
-                      color: 'var(--color-text)', 
-                      marginTop: '16px', 
-                      fontWeight: 500,
-                      textAlign: 'center',
-                      letterSpacing: '0.5px'
-                    }}>
-                      AI-driven Self-reinforcing Business Loop
-                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '12px', marginTop: '16px' }}>
+                      <p style={{ 
+                        fontSize: '13px', 
+                        color: 'var(--color-text)', 
+                        margin: 0,
+                        fontWeight: 500,
+                        textAlign: 'center',
+                        letterSpacing: '0.5px'
+                      }}>
+                        AI-driven Self-reinforcing Business Loop
+                      </p>
+                      <button
+                        onClick={handleDownloadCycleDiagram2}
+                        style={{
+                          padding: '2px 8px',
+                          backgroundColor: 'transparent',
+                          color: '#9CA3AF',
+                          border: '1px solid #E5E7EB',
+                          borderRadius: '4px',
+                          cursor: 'pointer',
+                          fontSize: '10px',
+                          fontWeight: 400,
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                          opacity: 0.7,
+                          transition: 'opacity 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.opacity = '1';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.opacity = '0.7';
+                        }}
+                        title="画像をダウンロード"
+                      >
+                        <span style={{ fontSize: '10px' }}>⬇</span>
+                        <span>ダウンロード</span>
+                      </button>
+                    </div>
                   </div>
                   
                   {/* 右側：解説 */}
@@ -1474,11 +1616,15 @@ export default function OverviewPage() {
               style={{
                 marginBottom: '24px',
                 ...(showContainers ? {
-                  border: '2px dashed var(--color-primary)',
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                   pageBreakInside: 'avoid',
                   breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                  position: 'relative',
+                  zIndex: 1,
                 } : {}),
               }}
             >
@@ -1783,11 +1929,15 @@ export default function OverviewPage() {
               style={{
                 marginBottom: '24px',
                 ...(showContainers ? {
-                  border: '2px dashed var(--color-primary)',
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
                   borderRadius: '8px',
                   padding: '16px',
                   pageBreakInside: 'avoid',
                   breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                  position: 'relative',
+                  zIndex: 1,
                 } : {}),
               }}
             >

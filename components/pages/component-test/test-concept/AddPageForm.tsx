@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { collection, query, where, getDocs, doc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
 
@@ -25,17 +25,120 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 });
 
 interface AddPageFormProps {
-  serviceId: string;
-  conceptId: string;
+  serviceId?: string;
+  conceptId?: string;
+  planId?: string; // 会社本体の事業計画用
   subMenuId: string;
   onClose: () => void;
   onPageAdded: () => void;
 }
 
-export default function AddPageForm({ serviceId, conceptId, subMenuId, onClose, onPageAdded }: AddPageFormProps) {
+export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, onClose, onPageAdded }: AddPageFormProps) {
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
   const [saving, setSaving] = useState(false);
+  
+  // 会社本体の事業計画かどうかを判定
+  const isCompanyPlan = !!planId && !serviceId && !conceptId;
+
+  const handleCompanyPlanAddPage = async (planId: string) => {
+    if (!auth?.currentUser || !db) return;
+    
+    try {
+      // 事業計画ドキュメントを取得
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+      
+      if (!planDoc.exists()) {
+        alert('事業計画が見つかりませんでした。');
+        setSaving(false);
+        return;
+      }
+
+      const planData = planDoc.data();
+      
+      // サブメニューごとのページデータを取得
+      const pagesBySubMenu = planData.pagesBySubMenu as { [key: string]: Array<{
+        id: string;
+        pageNumber: number;
+        title: string;
+        content: string;
+      }> } | undefined || {};
+      
+      const pageOrderBySubMenu = planData.pageOrderBySubMenu as { [key: string]: string[] } | undefined || {};
+      
+      // 現在のサブメニューのページデータを取得
+      const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+      
+      // 新しいページIDを生成
+      const newPageId = `page-${Date.now()}`;
+      const pageNumber = currentSubMenuPages.length;
+      
+      // 新しいページを追加
+      const newPage = {
+        id: newPageId,
+        pageNumber: pageNumber,
+        title: title.trim(),
+        content: content.trim() || '<p>コンテンツを入力してください。</p>',
+        createdAt: new Date().toISOString(),
+      };
+      
+      const updatedPages = [...currentSubMenuPages, newPage];
+      
+      // ページ順序にも追加
+      let currentSubMenuPageOrder = pageOrderBySubMenu[subMenuId] || [];
+      
+      // overviewの場合は、固定ページ（page-0）が存在する場合は最初に配置
+      if (subMenuId === 'overview') {
+        // 固定ページ（page-0）が順序に含まれていない場合は追加
+        if (!currentSubMenuPageOrder.includes('page-0')) {
+          currentSubMenuPageOrder = ['page-0', ...currentSubMenuPageOrder];
+        }
+      }
+      
+      const updatedPageOrder = [...currentSubMenuPageOrder, newPageId];
+      
+      // 更新データを準備
+      const updatedPagesBySubMenu = {
+        ...pagesBySubMenu,
+        [subMenuId]: updatedPages,
+      };
+      
+      const updatedPageOrderBySubMenu = {
+        ...pageOrderBySubMenu,
+        [subMenuId]: updatedPageOrder,
+      };
+      
+      // Firestoreに保存
+      await setDoc(
+        doc(db, 'companyBusinessPlan', planId),
+        {
+          ...planData,
+          pagesBySubMenu: updatedPagesBySubMenu,
+          pageOrderBySubMenu: updatedPageOrderBySubMenu,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      
+      console.log('ページを追加しました:', newPageId);
+      console.log('サブメニューID:', subMenuId);
+      console.log('更新されたページ順序:', updatedPageOrder);
+      console.log('更新されたページデータ:', updatedPages);
+      
+      // 少し待ってからページをリフレッシュ（Firestoreの反映を待つ）
+      setTimeout(() => {
+        onPageAdded();
+      }, 300);
+      
+      onClose();
+      setSaving(false);
+    } catch (error: any) {
+      console.error('ページ追加エラー:', error);
+      const errorMessage = error?.message || '不明なエラーが発生しました';
+      alert(`ページの追加に失敗しました: ${errorMessage}`);
+      setSaving(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -47,6 +150,19 @@ export default function AddPageForm({ serviceId, conceptId, subMenuId, onClose, 
 
     try {
       setSaving(true);
+
+      // 会社本体の事業計画の場合の処理
+      if (isCompanyPlan && planId) {
+        await handleCompanyPlanAddPage(planId);
+        return;
+      }
+
+      // 事業企画の場合の処理
+      if (!serviceId || !conceptId) {
+        alert('必要な情報が不足しています。');
+        setSaving(false);
+        return;
+      }
 
       // 構想ドキュメントを検索
       const conceptsQuery = query(

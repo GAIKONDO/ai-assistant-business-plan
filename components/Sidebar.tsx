@@ -605,53 +605,103 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                     読み込み中...
                   </div>
                 ) : (
-                  contentItems.map((item) => (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavigation(item.path)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '8px 24px',
-                        width: '100%',
-                        color: 'var(--color-text-light)',
-                        textDecoration: 'none',
-                        transition: 'all 0.2s ease',
-                        backgroundColor: 'transparent',
-                        fontSize: '13px',
-                        fontWeight: 400,
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                        borderLeft: '2px solid transparent',
-                      }}
-                      onMouseEnter={(e) => {
-                        e.currentTarget.style.backgroundColor = 'var(--color-background)';
-                        e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
-                      }}
-                      onMouseLeave={(e) => {
-                        e.currentTarget.style.backgroundColor = 'transparent';
-                        e.currentTarget.style.borderLeftColor = 'transparent';
-                      }}
-                    >
-                      <span style={{ 
-                        marginRight: '8px', 
-                        fontSize: '10px',
-                        color: item.type === 'company-plan' ? '#3B82F6' : item.type === 'project' ? '#10B981' : '#8B5CF6',
-                        fontWeight: 500,
-                      }}>
-                        {item.type === 'company-plan' ? '🏢' : item.type === 'project' ? '📋' : '💡'}
-                      </span>
-                      <span style={{ 
-                        overflow: 'hidden',
-                        textOverflow: 'ellipsis',
-                        whiteSpace: 'nowrap',
-                        flex: 1,
-                      }}>
-                        {item.title}
-                      </span>
-                    </button>
-                  ))
+                  contentItems.map((item) => {
+                    // 現在のパスと一致するかチェック
+                    let isActive = false;
+                    
+                    if (pathname === item.path) {
+                      // 完全一致
+                      isActive = true;
+                    } else if (item.type === 'company-plan') {
+                      // 会社事業計画の場合: /business-plan/company/[planId] で始まるかチェック
+                      const planIdMatch = item.path.match(/\/business-plan\/company\/([^\/]+)/);
+                      if (planIdMatch) {
+                        const planId = planIdMatch[1];
+                        isActive = pathname.startsWith(`/business-plan/company/${planId}/`);
+                      }
+                    } else if (item.type === 'concept') {
+                      // 構想の場合: /business-plan/services/[serviceId]/[conceptId] で始まるかチェック
+                      const conceptMatch = item.path.match(/\/business-plan\/services\/([^\/]+)\/([^\/]+)/);
+                      if (conceptMatch) {
+                        const serviceId = conceptMatch[1];
+                        const conceptId = conceptMatch[2];
+                        isActive = pathname.startsWith(`/business-plan/services/${serviceId}/${conceptId}/`);
+                      }
+                    } else if (item.type === 'project') {
+                      // 事業企画の場合: /business-plan/project/[projectId] または /business-plan/services/[serviceId] で始まるかチェック
+                      if (item.path.startsWith('/business-plan/project/')) {
+                        const projectIdMatch = item.path.match(/\/business-plan\/project\/([^\/]+)/);
+                        if (projectIdMatch) {
+                          const projectId = projectIdMatch[1];
+                          isActive = pathname.startsWith(`/business-plan/project/${projectId}`);
+                        }
+                      } else if (item.path.startsWith('/business-plan/services/')) {
+                        const serviceIdMatch = item.path.match(/\/business-plan\/services\/([^\/]+)$/);
+                        if (serviceIdMatch) {
+                          const serviceId = serviceIdMatch[1];
+                          isActive = pathname.startsWith(`/business-plan/services/${serviceId}/`) && 
+                                     !pathname.match(/\/business-plan\/services\/[^\/]+\/[^\/]+/); // 構想ページではない
+                        }
+                      }
+                    }
+                    
+                    return (
+                      <button
+                        key={item.id}
+                        onClick={() => handleNavigation(item.path)}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '8px 24px',
+                          width: '100%',
+                          color: isActive ? '#fff' : 'var(--color-text-light)',
+                          textDecoration: 'none',
+                          transition: 'all 0.2s ease',
+                          backgroundColor: isActive ? 'rgba(59, 130, 246, 0.2)' : 'transparent',
+                          fontSize: '13px',
+                          fontWeight: isActive ? 600 : 400,
+                          border: 'none',
+                          cursor: 'pointer',
+                          textAlign: 'left',
+                          borderLeft: isActive ? '2px solid #3B82F6' : '2px solid transparent',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.backgroundColor = 'var(--color-background)';
+                            e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isActive) {
+                            e.currentTarget.style.backgroundColor = 'transparent';
+                            e.currentTarget.style.borderLeftColor = 'transparent';
+                          } else {
+                            e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
+                            e.currentTarget.style.borderLeftColor = '#3B82F6';
+                          }
+                        }}
+                      >
+                        <span style={{ 
+                          marginRight: '8px', 
+                          fontSize: '10px',
+                          color: isActive 
+                            ? '#fff' 
+                            : (item.type === 'company-plan' ? '#3B82F6' : item.type === 'project' ? '#10B981' : '#8B5CF6'),
+                          fontWeight: 500,
+                        }}>
+                          {item.type === 'company-plan' ? '🏢' : item.type === 'project' ? '📋' : '💡'}
+                        </span>
+                        <span style={{ 
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                          whiteSpace: 'nowrap',
+                          flex: 1,
+                        }}>
+                          {item.title}
+                        </span>
+                      </button>
+                    );
+                  })
                 )}
               </div>
             </>

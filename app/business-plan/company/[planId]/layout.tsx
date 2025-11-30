@@ -13,7 +13,7 @@ import { BusinessPlanData } from '@/components/BusinessPlanForm';
 import { PresentationModeProvider, usePresentationMode } from '@/components/PresentationModeContext';
 import PageBreakEditor from '@/components/PageBreakEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
-import { ComponentizedCompanyPlanPageProvider, useComponentizedCompanyPlanPage } from '@/components/pages/component-test/test-concept/ComponentizedCompanyPlanPageContext';
+import { ComponentizedCompanyPlanPageProvider, useComponentizedCompanyPlanPageOptional } from '@/components/pages/component-test/test-concept/ComponentizedCompanyPlanPageContext';
 
 declare global {
   interface Window {
@@ -230,12 +230,7 @@ function CompanyPlanLayoutContent({
     Object.values(plan.pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
   
   // コンポーネント化されたページのコンテキストを取得（オプショナル）
-  let componentizedPageContext: ReturnType<typeof useComponentizedCompanyPlanPage> | null = null;
-  try {
-    componentizedPageContext = useComponentizedCompanyPlanPage();
-  } catch {
-    // コンテキストが存在しない場合は無視（固定ページ形式の場合）
-  }
+  const componentizedPageContext = useComponentizedCompanyPlanPageOptional();
   
   // 固定ページ形式に戻す処理
   const handleRevertToFixedPage = useCallback(async () => {

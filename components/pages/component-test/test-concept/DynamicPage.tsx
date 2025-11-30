@@ -1,6 +1,5 @@
 'use client';
 
-import { useContainerVisibility } from '@/app/business-plan/services/[serviceId]/[conceptId]/layout';
 import { useEffect, useRef, useMemo } from 'react';
 import './pageStyles.css';
 import MermaidDiagram from './MermaidDiagram';
@@ -18,8 +17,41 @@ interface ContentPart {
   mermaidId?: string;
 }
 
+// オプショナルなuseContainerVisibilityをモジュールレベルでインポート
+let useContainerVisibilityHook: any = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const companyLayout = require('@/app/business-plan/company/[planId]/layout');
+  useContainerVisibilityHook = companyLayout.useContainerVisibility;
+} catch {
+  // インポートに失敗した場合は無視
+}
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const serviceLayout = require('@/app/business-plan/services/[serviceId]/[conceptId]/layout');
+  if (!useContainerVisibilityHook) {
+    useContainerVisibilityHook = serviceLayout.useContainerVisibility;
+  }
+} catch {
+  // インポートに失敗した場合は無視
+}
+
 export default function DynamicPage({ pageId, pageNumber, title, content }: DynamicPageProps) {
-  const { showContainers } = useContainerVisibility();
+  // useContainerVisibilityを取得（コンテキストが存在する場合）
+  // コンテキストが存在しない場合はデフォルト値を使用
+  let showContainers = false;
+  
+  if (useContainerVisibilityHook) {
+    try {
+      const containerVisibility = useContainerVisibilityHook();
+      showContainers = containerVisibility.showContainers;
+    } catch {
+      // コンテキストが存在しない場合はデフォルト値を使用
+    }
+  }
+  
   const contentRef = useRef<HTMLDivElement>(null);
 
   // HTMLコンテンツをパースして、Mermaid図の部分を検出
@@ -331,11 +363,15 @@ export default function DynamicPage({ pageId, pageNumber, title, content }: Dyna
       style={{
         marginBottom: '40px',
         ...(showContainers ? {
-          border: '2px dashed var(--color-primary)',
+          border: '4px dashed #000000',
           borderRadius: '8px',
           padding: '16px',
           pageBreakInside: 'avoid',
           breakInside: 'avoid',
+          backgroundColor: 'transparent',
+          position: 'relative',
+          zIndex: 1,
+          boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
         } : {}),
       }}
     >

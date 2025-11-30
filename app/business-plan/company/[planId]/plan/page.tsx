@@ -1,11 +1,27 @@
 'use client';
 
 import { useState } from 'react';
-import { useContainerVisibility } from '../layout';
+import { usePlan } from '../layout';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 export default function PlanPage() {
+  const { plan } = usePlan();
+  
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if ((plan as any)?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+  
+  // コンポーネント化されていない場合のみuseContainerVisibilityを使用
+  const { showContainers } = require('../layout').useContainerVisibility();
   const [viewMode, setViewMode] = useState<'separate' | 'combined'>('separate');
-  const { showContainers } = useContainerVisibility();
 
   return (
     <>
@@ -78,11 +94,14 @@ export default function PlanPage() {
             style={{
               marginBottom: '24px',
               ...(showContainers ? {
-                border: '2px dashed var(--color-primary)',
+                border: '3px dashed #1F2933',
                 borderRadius: '8px',
                 padding: '16px',
                 pageBreakInside: 'avoid',
                 breakInside: 'avoid',
+                backgroundColor: 'transparent',
+                position: 'relative',
+                zIndex: 1,
               } : {}),
             }}
           >

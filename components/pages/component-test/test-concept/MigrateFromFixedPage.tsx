@@ -2,15 +2,17 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { collection, query, where, getDocs, doc, setDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '@/lib/firebase';
 import { SUB_MENU_ITEMS } from '@/components/ConceptSubMenu';
 
 interface MigrateFromFixedPageProps {
-  serviceId: string;
-  conceptId: string;
+  serviceId?: string;
+  conceptId?: string;
+  planId?: string; // 会社本体の事業計画用
   subMenuId: string;
-  onMigrated: (newConceptId?: string) => void;
+  onMigrated: (newId?: string, targetSubMenuId?: string) => void; // newConceptIdまたはnewPlanId, 追加先のサブメニューID
   onClose: () => void;
 }
 
@@ -25,10 +27,13 @@ interface MigrateFromFixedPageProps {
 export default function MigrateFromFixedPage({
   serviceId,
   conceptId,
+  planId,
   subMenuId,
   onMigrated,
   onClose,
 }: MigrateFromFixedPageProps) {
+  // 会社本体の事業計画かどうかを判定
+  const isCompanyPlan = !!planId && !serviceId && !conceptId;
   const [migrating, setMigrating] = useState(false);
   const [progress, setProgress] = useState('');
   const [extractedPages, setExtractedPages] = useState<Array<{
@@ -41,12 +46,16 @@ export default function MigrateFromFixedPage({
   const [selectedPageIds, setSelectedPageIds] = useState<Set<string>>(new Set());
   const [existingConcept, setExistingConcept] = useState<{ id: string; name: string; pageCount: number; conceptId: string } | null>(null);
   const [existingConcepts, setExistingConcepts] = useState<Array<{ id: string; name: string; pageCount: number; conceptId: string }>>([]);
+  const [totalExistingPlansCount, setTotalExistingPlansCount] = useState<number>(0);
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [showConceptSelector, setShowConceptSelector] = useState(false);
   const [showSubMenuSelector, setShowSubMenuSelector] = useState(false);
   const [selectedConceptId, setSelectedConceptId] = useState<string | null>(null);
   const [selectedSubMenuId, setSelectedSubMenuId] = useState<string>(subMenuId); // デフォルトは現在のサブメニュー
   const [migrationMode, setMigrationMode] = useState<'overwrite' | 'append' | 'new' | null>(null);
+  const [useBulkMigration, setUseBulkMigration] = useState(false); // 全ページ一括移行モード
+  const [pagesBySubMenu, setPagesBySubMenu] = useState<{ [key: string]: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }> }>({});
+  const [bulkMigrationPageCount, setBulkMigrationPageCount] = useState<{ total: number; bySubMenu: { [key: string]: number } }>({ total: 0, bySubMenu: {} });
 
   /**
    * HTMLを整形してインデントと改行を追加（元の構造を保持）
@@ -107,10 +116,572 @@ export default function MigrateFromFixedPage({
   };
 
   /**
-   * 固定ページのコンテンツを抽出
+   * 指定されたサブメニューのページを抽出
+   * @param subMenuId サブメニューID（省略時は現在のページ）
+   * @param htmlContent HTMLコンテンツ（省略時は現在のDOMから取得）
+   */
+  const extractPagesFromHTML = (htmlContent?: string, subMenuId?: string) => {
+    const pages: Array<{
+      id: string;
+      title: string;
+      content: string;
+      pageNumber: number;
+      pageId: string;
+      subMenuId?: string; // サブメニューIDを追加
+    }> = [];
+
+    // HTMLコンテンツが提供されている場合はそれを使用、なければ現在のDOMから取得
+    const container = htmlContent 
+      ? (() => {
+          const parser = new DOMParser();
+          const doc = parser.parseFromString(htmlContent, 'text/html');
+          return doc;
+        })()
+      : document;
+
+    // data-page-container属性を持つ要素を取得
+    const containers = container.querySelectorAll('[data-page-container]');
+    
+    containers.forEach((containerEl, index) => {
+      const pageId = (containerEl as HTMLElement).getAttribute('data-page-container') || `page-${index}`;
+      
+      // タイトルを抽出
+      let title = '';
+      const titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title');
+      if (titleElement) {
+        title = titleElement.textContent?.trim() || '';
+      } else {
+        const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+        title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+      }
+      
+      // コンテンツを抽出
+      const rawHTML = (containerEl as HTMLElement).innerHTML;
+      const content = formatHTML(rawHTML);
+      
+      pages.push({
+        id: `migrated-${pageId}-${Date.now()}-${index}`,
+        title: title || `ページ ${index + 1}`,
+        content: content,
+        pageNumber: index,
+        pageId: pageId,
+        subMenuId: subMenuId,
+      });
+    });
+
+    // Page0（キービジュアル）を最初に配置
+    const page0Index = pages.findIndex(p => p.pageId === '0' || p.pageId === 'page-0');
+    if (page0Index > 0) {
+      const page0 = pages.splice(page0Index, 1)[0];
+      pages.unshift(page0);
+    }
+
+    return pages;
+  };
+
+  /**
+   * すべてのサブメニューのページを一括で取得
+   */
+  const extractAllPagesFromAllSubMenus = async () => {
+    if (!planId) {
+      console.error('extractAllPagesFromAllSubMenus: planIdが設定されていません');
+      return {};
+    }
+    
+    const allPagesBySubMenu: { [key: string]: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }> } = {};
+    
+    setProgress('すべてのサブメニューからページを取得中...');
+    
+    console.log('extractAllPagesFromAllSubMenus: 開始, planId:', planId);
+    
+    // 各サブメニューのページを取得（iframeを使用してDOMから直接読み取る）
+    for (const subMenuItem of SUB_MENU_ITEMS) {
+      try {
+        const url = `/business-plan/company/${planId}/${subMenuItem.path}`;
+        console.log(`extractAllPagesFromAllSubMenus: ${subMenuItem.label} (${subMenuItem.id}) から取得中: ${url}`);
+        
+        // iframeを作成してページを読み込む
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        document.body.appendChild(iframe);
+        
+        // iframeが読み込まれるまで待つ
+        await new Promise<void>((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            reject(new Error(`タイムアウト: ${subMenuItem.label}`));
+          }, 10000); // 10秒でタイムアウト
+          
+          iframe.onload = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          iframe.onerror = () => {
+            clearTimeout(timeout);
+            reject(new Error(`読み込みエラー: ${subMenuItem.label}`));
+          };
+          
+          iframe.src = url;
+        });
+        
+        // iframe内のDOMからコンテナを取得
+        const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+        if (!iframeDoc) {
+          console.warn(`サブメニュー「${subMenuItem.label}」のiframeドキュメントにアクセスできません`);
+          document.body.removeChild(iframe);
+          continue;
+        }
+        
+        // ページが完全にレンダリングされるまで少し待つ
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const containers = iframeDoc.querySelectorAll('[data-page-container]');
+        
+        console.log(`extractAllPagesFromAllSubMenus: ${subMenuItem.label} で ${containers.length} 個のコンテナを発見`);
+        
+        if (containers.length > 0) {
+          const pages: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }> = [];
+          
+          // 非同期処理のため、Promise.allを使用
+          const pagePromises = Array.from(containers).map(async (containerEl, index) => {
+            const pageId = (containerEl as HTMLElement).getAttribute('data-page-container') || `page-${index}`;
+            
+            // タイトルを抽出
+            let title = '';
+            const titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title');
+            if (titleElement) {
+              title = titleElement.textContent?.trim() || '';
+            } else {
+              const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+              title = firstText.substring(0, 50) || `${subMenuItem.label} - ページ ${index + 1}`;
+            }
+            
+            // 図形を画像化（canvas、Mermaid図など）
+            let rawHTML = (containerEl as HTMLElement).innerHTML;
+            try {
+              rawHTML = await convertDiagramsToImages(containerEl as HTMLElement, `${subMenuItem.id}-${pageId}`);
+            } catch (error) {
+              console.error(`ページ ${subMenuItem.label}-${pageId} の図形画像化エラー:`, error);
+              // エラーが発生しても元のHTMLを使用して続行
+            }
+            
+            // コンテンツを抽出
+            const content = formatHTML(rawHTML);
+            
+            return {
+              id: `migrated-${subMenuItem.id}-${pageId}-${Date.now()}-${index}`,
+              title: title || `${subMenuItem.label} - ページ ${index + 1}`,
+              content: content,
+              pageNumber: index,
+              pageId: pageId,
+            };
+          });
+          
+          const resolvedPages = await Promise.all(pagePromises);
+          pages.push(...resolvedPages);
+          
+          // Page0（キービジュアル）を最初に配置
+          const page0Index = pages.findIndex(p => p.pageId === '0' || p.pageId === 'page-0');
+          if (page0Index > 0) {
+            const page0 = pages.splice(page0Index, 1)[0];
+            pages.unshift(page0);
+          }
+          
+          if (pages.length > 0) {
+            allPagesBySubMenu[subMenuItem.id] = pages;
+            console.log(`extractAllPagesFromAllSubMenus: ${subMenuItem.label} に ${pages.length} ページを追加`);
+          }
+        }
+        
+        // iframeを削除
+        document.body.removeChild(iframe);
+      } catch (error) {
+        console.error(`サブメニュー「${subMenuItem.label}」のページ取得に失敗:`, error);
+      }
+    }
+    
+    const totalPages = Object.values(allPagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0);
+    console.log('extractAllPagesFromAllSubMenus: 完了', {
+      totalPages,
+      subMenuCount: Object.keys(allPagesBySubMenu).length,
+      subMenus: Object.keys(allPagesBySubMenu),
+    });
+    
+    return allPagesBySubMenu;
+  };
+
+  /**
+   * 図形要素（canvas、Mermaid図など）を画像化してFirebase Storageに保存
+   * @param containerEl コンテナ要素
+   * @param pageId ページID（ファイル名に使用）
+   * @returns 更新されたHTMLコンテンツ
+   */
+  const convertDiagramsToImages = async (containerEl: HTMLElement, pageId: string): Promise<string> => {
+    if (!auth?.currentUser || !storage) {
+      console.warn('Firebase Storageが利用できません。図形の画像化をスキップします。');
+      return containerEl.innerHTML;
+    }
+
+    let updatedHTML = containerEl.innerHTML;
+    
+    // 1. canvas要素（p5.jsなど）を検出して画像化
+    // 実際のDOM要素から検出（tempDivではなく、containerElから直接検出）
+    const canvases = containerEl.querySelectorAll('canvas');
+    const canvasReplacements: Array<{ original: string; replacement: string }> = [];
+    
+    for (let i = 0; i < canvases.length; i++) {
+      const canvas = canvases[i] as HTMLCanvasElement;
+      try {
+        // canvasを画像データに変換
+        const imageData = canvas.toDataURL('image/png', 1.0);
+        
+        // Base64データをBlobに変換
+        const response = await fetch(imageData);
+        const blob = await response.blob();
+        
+        // Firebase Storageにアップロード
+        const fileName = `diagram-${pageId}-canvas-${i}-${Date.now()}.png`;
+        let storagePath: string;
+        if (planId) {
+          storagePath = `companyBusinessPlan/${planId}/${fileName}`;
+        } else if (serviceId && conceptId) {
+          storagePath = `concepts/${serviceId}/${conceptId}/${fileName}`;
+        } else {
+          console.warn('ストレージパスを決定できません。スキップします。');
+          continue;
+        }
+        
+        const storageRef = ref(storage, storagePath);
+        await uploadBytes(storageRef, blob);
+        const downloadURL = await getDownloadURL(storageRef);
+        
+        console.log(`Canvas画像をアップロード: ${downloadURL}`);
+        
+        // canvas要素をimgタグに置き換え（後で一括置換するため、配列に保存）
+        const imgTag = `<img src="${downloadURL}" alt="図形" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
+        canvasReplacements.push({
+          original: canvas.outerHTML,
+          replacement: imgTag,
+        });
+      } catch (error) {
+        console.error('Canvas画像化エラー:', error);
+        // エラーが発生しても処理を続行
+      }
+    }
+    
+    // canvas要素を一括置換
+    for (const replacement of canvasReplacements) {
+      updatedHTML = updatedHTML.replace(replacement.original, replacement.replacement);
+    }
+
+    // 2. Mermaid図を検出して画像化
+    // 実際のDOM要素から検出（containerElから直接検出）
+    const mermaidContainers = containerEl.querySelectorAll('.mermaid-diagram-container');
+    const mermaidElements = containerEl.querySelectorAll('.mermaid, [data-mermaid-diagram]');
+    const mermaidReplacements: Array<{ original: string; replacement: string }> = [];
+    
+    if (mermaidContainers.length > 0 || mermaidElements.length > 0) {
+      // html2canvasを動的にインポート
+      try {
+        const html2canvas = (await import('html2canvas')).default;
+        
+        // 親要素がある場合は親要素を画像化（推奨）
+        for (let i = 0; i < mermaidContainers.length; i++) {
+          const containerEl = mermaidContainers[i] as HTMLElement;
+          try {
+            // Mermaid図が完全にレンダリングされるまで少し待つ
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Mermaid図のコンテナ全体を画像化
+            const canvas = await html2canvas(containerEl, {
+              scale: 2,
+              backgroundColor: '#ffffff',
+              useCORS: true,
+              logging: false,
+              allowTaint: true,
+            });
+            
+            const imageData = canvas.toDataURL('image/png', 1.0);
+            
+            // Base64データをBlobに変換
+            const response = await fetch(imageData);
+            const blob = await response.blob();
+            
+            // Firebase Storageにアップロード
+            const fileName = `diagram-${pageId}-mermaid-${i}-${Date.now()}.png`;
+            let storagePath: string;
+            if (planId) {
+              storagePath = `companyBusinessPlan/${planId}/${fileName}`;
+            } else if (serviceId && conceptId) {
+              storagePath = `concepts/${serviceId}/${conceptId}/${fileName}`;
+            } else {
+              console.warn('ストレージパスを決定できません。スキップします。');
+              continue;
+            }
+            
+            const storageRef = ref(storage, storagePath);
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+            
+            console.log(`Mermaid図を画像化: ${downloadURL}`);
+            
+            // Mermaidコンテナ要素をimgタグに置き換え（後で一括置換するため、配列に保存）
+            const imgTag = `<img src="${downloadURL}" alt="Mermaid図" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
+            mermaidReplacements.push({
+              original: containerEl.outerHTML,
+              replacement: imgTag,
+            });
+          } catch (error) {
+            console.error('Mermaid図画像化エラー:', error);
+            // エラーが発生しても処理を続行
+          }
+        }
+        
+        // 親要素がない場合、直接Mermaid要素を画像化
+        for (let i = 0; i < mermaidElements.length; i++) {
+          const mermaidEl = mermaidElements[i] as HTMLElement;
+          // 親要素が既に処理されている場合はスキップ
+          if (mermaidEl.closest('.mermaid-diagram-container')) {
+            continue;
+          }
+          
+          try {
+            // Mermaid図が完全にレンダリングされるまで少し待つ
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // Mermaid図を画像化
+            const canvas = await html2canvas(mermaidEl, {
+              scale: 2,
+              backgroundColor: '#ffffff',
+              useCORS: true,
+              logging: false,
+              allowTaint: true,
+            });
+            
+            const imageData = canvas.toDataURL('image/png', 1.0);
+            
+            // Base64データをBlobに変換
+            const response = await fetch(imageData);
+            const blob = await response.blob();
+            
+            // Firebase Storageにアップロード
+            const fileName = `diagram-${pageId}-mermaid-${i}-${Date.now()}.png`;
+            let storagePath: string;
+            if (planId) {
+              storagePath = `companyBusinessPlan/${planId}/${fileName}`;
+            } else if (serviceId && conceptId) {
+              storagePath = `concepts/${serviceId}/${conceptId}/${fileName}`;
+            } else {
+              console.warn('ストレージパスを決定できません。スキップします。');
+              continue;
+            }
+            
+            const storageRef = ref(storage, storagePath);
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+            
+            console.log(`Mermaid図を画像化: ${downloadURL}`);
+            
+            // Mermaid要素をimgタグに置き換え（後で一括置換するため、配列に保存）
+            const imgTag = `<img src="${downloadURL}" alt="Mermaid図" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
+            mermaidReplacements.push({
+              original: mermaidEl.outerHTML,
+              replacement: imgTag,
+            });
+          } catch (error) {
+            console.error('Mermaid図画像化エラー:', error);
+            // エラーが発生しても処理を続行
+          }
+        }
+        
+        // Mermaid要素を一括置換
+        for (const replacement of mermaidReplacements) {
+          updatedHTML = updatedHTML.replace(replacement.original, replacement.replacement);
+        }
+      } catch (error) {
+        console.error('html2canvasのインポートエラー:', error);
+        // html2canvasが利用できない場合はスキップ
+      }
+    }
+
+    // 3. SVG要素を検出して画像化（大きなSVG要素のみ対象）
+    const svgElements = Array.from(containerEl.querySelectorAll('svg')).filter((svg) => {
+      const svgEl = svg as SVGSVGElement;
+      const width = svgEl.getAttribute('width');
+      const height = svgEl.getAttribute('height');
+      const viewBox = svgEl.getAttribute('viewBox');
+      
+      // widthまたはheightが100px以上のSVG、またはviewBoxの幅が200以上のSVGを対象とする
+      if (width && width !== '100%') {
+        const widthNum = parseFloat(width);
+        if (!isNaN(widthNum) && widthNum >= 100) return true;
+      }
+      if (height && height !== '100%') {
+        const heightNum = parseFloat(height);
+        if (!isNaN(heightNum) && heightNum >= 100) return true;
+      }
+      if (viewBox) {
+        const viewBoxValues = viewBox.split(' ');
+        if (viewBoxValues.length >= 3) {
+          const viewBoxWidth = parseFloat(viewBoxValues[2]);
+          if (!isNaN(viewBoxWidth) && viewBoxWidth >= 200) return true;
+        }
+      }
+      
+      // デフォルトで、サイズが大きいと判断されるSVGも対象（width="100%"など）
+      const computedStyle = window.getComputedStyle(svgEl);
+      const computedWidth = parseFloat(computedStyle.width);
+      const computedHeight = parseFloat(computedStyle.height);
+      if (!isNaN(computedWidth) && computedWidth >= 200) return true;
+      if (!isNaN(computedHeight) && computedHeight >= 200) return true;
+      
+      return false;
+    });
+    
+    const svgReplacements: Array<{ original: string; replacement: string }> = [];
+    
+    if (svgElements.length > 0) {
+      console.log(`SVG要素を${svgElements.length}個検出しました。画像化を開始します。`);
+      // html2canvasを動的にインポート
+      try {
+        const html2canvas = (await import('html2canvas')).default;
+        
+        for (let i = 0; i < svgElements.length; i++) {
+          const svgEl = svgElements[i] as SVGSVGElement;
+          try {
+            console.log(`SVG要素 ${i + 1}/${svgElements.length} を画像化中...`);
+            
+            // SVG要素が完全にレンダリングされるまで少し待つ
+            await new Promise(resolve => setTimeout(resolve, 500));
+            
+            // SVG要素を画像化
+            const canvas = await html2canvas(svgEl as unknown as HTMLElement, {
+              scale: 2,
+              backgroundColor: '#ffffff',
+              useCORS: true,
+              logging: false,
+              allowTaint: true,
+            });
+            
+            const imageData = canvas.toDataURL('image/png', 1.0);
+            
+            // Base64データをBlobに変換
+            const response = await fetch(imageData);
+            const blob = await response.blob();
+            
+            // Firebase Storageにアップロード
+            const fileName = `diagram-${pageId}-svg-${i}-${Date.now()}.png`;
+            let storagePath: string;
+            if (planId) {
+              storagePath = `companyBusinessPlan/${planId}/${fileName}`;
+            } else if (serviceId && conceptId) {
+              storagePath = `concepts/${serviceId}/${conceptId}/${fileName}`;
+            } else {
+              console.warn('ストレージパスを決定できません。スキップします。');
+              continue;
+            }
+            
+            const storageRef = ref(storage, storagePath);
+            await uploadBytes(storageRef, blob);
+            const downloadURL = await getDownloadURL(storageRef);
+            
+            console.log(`SVG画像をアップロード: ${downloadURL}`);
+            
+            // SVG要素のスタイルを保持してimgタグに置き換え
+            const svgStyle = window.getComputedStyle(svgEl);
+            const svgWidth = svgEl.getAttribute('width') || svgStyle.width || 'auto';
+            const svgHeight = svgEl.getAttribute('height') || svgStyle.height || 'auto';
+            const maxWidth = svgStyle.maxWidth || '100%';
+            const display = svgStyle.display || 'block';
+            
+            // 左からの距離を計算（中央揃えではなく、実際の位置を保持）
+            const svgRect = svgEl.getBoundingClientRect();
+            const parentRect = svgEl.parentElement?.getBoundingClientRect();
+            let marginLeft = '0px';
+            
+            if (parentRect) {
+              // 親要素からの相対位置を計算
+              const leftOffset = svgRect.left - parentRect.left;
+              if (leftOffset > 0) {
+                marginLeft = `${leftOffset}px`;
+              }
+            } else {
+              // 親要素がない場合は、元のmarginLeftを保持
+              marginLeft = svgStyle.marginLeft || '0px';
+            }
+            
+            // margin: 0px auto を削除して、左からの距離で配置
+            const imgTag = `<img src="${downloadURL}" alt="図形" style="width: ${svgWidth}; height: ${svgHeight}; max-width: ${maxWidth}; margin-left: ${marginLeft}; margin-top: ${svgStyle.marginTop || '0px'}; margin-right: ${svgStyle.marginRight || '0px'}; margin-bottom: ${svgStyle.marginBottom || '0px'}; display: ${display};" />`;
+            
+            // outerHTMLをエスケープして正確に置換
+            const svgOuterHTML = svgEl.outerHTML;
+            svgReplacements.push({
+              original: svgOuterHTML,
+              replacement: imgTag,
+            });
+          } catch (error) {
+            console.error(`SVG要素 ${i + 1} の画像化エラー:`, error);
+            // エラーが発生しても処理を続行
+          }
+        }
+        
+        // SVG要素を一括置換（正規表現を使用してより確実に）
+        for (const replacement of svgReplacements) {
+          // HTMLエスケープを考慮して置換
+          const escapedOriginal = replacement.original.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+          updatedHTML = updatedHTML.replace(new RegExp(escapedOriginal, 'g'), replacement.replacement);
+        }
+        
+        console.log(`SVG要素を${svgReplacements.length}個画像化しました。`);
+      } catch (error) {
+        console.error('html2canvasのインポートエラー（SVG用）:', error);
+        // html2canvasが利用できない場合はスキップ
+      }
+    }
+
+    // 4. ダウンロードボタンを削除
+    // HTMLをパースしてダウンロードボタンを検出・削除
+    try {
+      const parser = new DOMParser();
+      const doc = parser.parseFromString(updatedHTML, 'text/html');
+      
+      // 「ダウンロード」というテキストを含むボタン要素を検索
+      const allElements = doc.querySelectorAll('*');
+      const elementsToRemove: Element[] = [];
+      
+      allElements.forEach((element) => {
+        const textContent = element.textContent || '';
+        // 「ダウンロード」というテキストを含む要素を検出
+        if (textContent.includes('ダウンロード')) {
+          // ボタン要素、またはボタンを含む親要素を削除対象に追加
+          if (element.tagName === 'BUTTON' || element.querySelector('button')) {
+            elementsToRemove.push(element);
+          }
+        }
+      });
+      
+      // 削除対象の要素を削除
+      elementsToRemove.forEach((element) => {
+        element.remove();
+      });
+      
+      // 更新されたHTMLを取得
+      updatedHTML = doc.body.innerHTML;
+    } catch (error) {
+      console.error('ダウンロードボタン削除エラー:', error);
+      // エラーが発生しても処理を続行
+    }
+
+    return updatedHTML;
+  };
+
+  /**
+   * 固定ページのコンテンツを抽出（現在のページのみ）
    * data-page-container属性を持つ要素からページを抽出
    */
-  const extractPagesFromDOM = () => {
+  const extractPagesFromDOM = async () => {
     const pages: Array<{
       id: string;
       title: string;
@@ -122,7 +693,8 @@ export default function MigrateFromFixedPage({
     // data-page-container属性を持つ要素を取得
     const containers = document.querySelectorAll('[data-page-container]');
     
-    containers.forEach((container, index) => {
+    // 非同期処理のため、Promise.allを使用
+    const pagePromises = Array.from(containers).map(async (container, index) => {
       const containerEl = container as HTMLElement;
       const pageId = containerEl.getAttribute('data-page-container') || `page-${index}`;
       
@@ -137,18 +709,29 @@ export default function MigrateFromFixedPage({
         title = firstText.substring(0, 50) || `ページ ${index + 1}`;
       }
       
+      // 図形を画像化（canvas、Mermaid図など）
+      let rawHTML = containerEl.innerHTML;
+      try {
+        rawHTML = await convertDiagramsToImages(containerEl, pageId);
+      } catch (error) {
+        console.error(`ページ ${pageId} の図形画像化エラー:`, error);
+        // エラーが発生しても元のHTMLを使用して続行
+      }
+      
       // コンテンツを抽出（HTMLを整形して取得）
-      const rawHTML = containerEl.innerHTML;
       const content = formatHTML(rawHTML);
       
-      pages.push({
-        id: `migrated-${pageId}-${Date.now()}`,
+      return {
+        id: `migrated-${pageId}-${Date.now()}-${index}`,
         title: title || `ページ ${index + 1}`,
         content: content,
         pageNumber: index,
         pageId: pageId, // data-page-containerの値を保持
-      });
+      };
     });
+
+    const resolvedPages = await Promise.all(pagePromises);
+    pages.push(...resolvedPages);
 
     // Page0（キービジュアル）を最初に配置
     const page0Index = pages.findIndex(p => p.pageId === '0' || p.pageId === 'page-0');
@@ -166,6 +749,42 @@ export default function MigrateFromFixedPage({
   const getAllExistingConcepts = async () => {
     if (!auth?.currentUser || !db) return [];
 
+    if (isCompanyPlan) {
+      // 会社本体の事業計画の場合は、companyBusinessPlanコレクションから取得
+      // -componentizedで終わるplanIdを持つ事業計画を取得
+      const plansQuery = query(
+        collection(db, 'companyBusinessPlan'),
+        where('userId', '==', auth.currentUser.uid)
+      );
+      
+      const plansSnapshot = await getDocs(plansQuery);
+      const concepts: Array<{ id: string; name: string; pageCount: number; conceptId: string }> = [];
+      
+      plansSnapshot.docs.forEach((doc) => {
+        const data = doc.data();
+        const planIdValue = doc.id;
+        
+        // -componentizedで終わるplanIdのみを対象、またはpagesBySubMenuが存在するもの
+        const hasPagesBySubMenu = data.pagesBySubMenu && Object.keys(data.pagesBySubMenu).length > 0;
+        if (planIdValue.includes('-componentized') || hasPagesBySubMenu) {
+          const pagesBySubMenu = data.pagesBySubMenu || {};
+          const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+          
+          concepts.push({
+            id: doc.id,
+            name: data.title || planIdValue,
+            pageCount: currentSubMenuPages.length,
+            conceptId: planIdValue,
+          });
+        }
+      });
+      
+      return concepts;
+    }
+
+    // 事業企画の場合は、conceptsコレクションから取得
+    if (!serviceId) return [];
+    
     // -componentizedで終わるすべての構想を取得
     const conceptsQuery = query(
       collection(db, 'concepts'),
@@ -201,12 +820,484 @@ export default function MigrateFromFixedPage({
    * 既存のコンポーネント化された構想をチェック（標準の-componentized構想）
    */
   const checkExistingConcept = async () => {
+    if (isCompanyPlan) {
+      // 会社本体の事業計画の場合は、すべてのコンポーネント化された事業計画を取得
+      try {
+        const allPlans = await getAllExistingConcepts();
+        
+        // 既存のコンポーネント化された事業計画がある場合は、最初のものを返す
+        // （「既存に追加」ボタンで全件を選択できるようにする）
+        if (allPlans.length > 0) {
+          return allPlans[0]; // 最初の事業計画を返す（既存に追加で全件選択可能）
+        }
+        
+        // 現在のplanIdのドキュメントもチェック（既にコンポーネント化されている場合）
+        if (planId && db) {
+          const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+          if (planDoc.exists()) {
+            const planData = planDoc.data();
+            const hasPagesBySubMenu = planData.pagesBySubMenu && Object.keys(planData.pagesBySubMenu).length > 0;
+            if (hasPagesBySubMenu) {
+              return {
+                id: planDoc.id,
+                name: planData.title || '事業計画',
+                pageCount: (planData.pagesBySubMenu[subMenuId] || []).length,
+                conceptId: planDoc.id,
+              };
+            }
+          }
+        }
+      } catch (error) {
+        console.warn('会社本体の事業計画のチェックエラー:', error);
+      }
+      return null;
+    }
+
     const allConcepts = await getAllExistingConcepts();
     
     // 標準の-componentized構想を探す（タイムスタンプなし）
     const standardConcept = allConcepts.find(c => c.conceptId === `${conceptId}-componentized`);
     
     return standardConcept || null;
+  };
+
+  /**
+   * 会社本体の事業計画の全ページ一括追加処理（既存に追加モード）
+   */
+  const handleCompanyPlanBulkAppend = async (
+    allPagesBySubMenu: { [key: string]: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }> },
+    targetPlanId: string
+  ) => {
+    if (!targetPlanId || !auth?.currentUser || !db) {
+      alert('必要な情報が不足しています。');
+      setMigrating(false);
+      return;
+    }
+
+    const migrationTimestamp = Date.now();
+    
+    // 既存の事業計画データを取得
+    const planDoc = await getDoc(doc(db, 'companyBusinessPlan', targetPlanId));
+    if (!planDoc.exists()) {
+      alert('事業計画が見つかりませんでした。');
+      setMigrating(false);
+      return;
+    }
+
+    const planData = planDoc.data();
+    const existingPagesBySubMenu = planData.pagesBySubMenu || {};
+    const existingPageOrderBySubMenu = planData.pageOrderBySubMenu || {};
+    
+    const updatedPagesBySubMenu: any = { ...existingPagesBySubMenu };
+    const updatedPageOrderBySubMenu: any = { ...existingPageOrderBySubMenu };
+    
+    // 各サブメニューのページを処理
+    for (const [subMenuId, pages] of Object.entries(allPagesBySubMenu)) {
+      if (Array.isArray(pages) && pages.length > 0) {
+        // 移行するページデータを準備
+        const migratedPages = pages.map((page, index) => {
+          const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
+          return {
+            id: pageId,
+            pageNumber: index,
+            title: page.title,
+            content: page.content,
+            pageId: page.pageId,
+            createdAt: new Date().toISOString(),
+            migrated: true,
+            migratedAt: new Date().toISOString(),
+          };
+        });
+        
+        // Page0（キービジュアル）を最初に配置
+        const page0Index = migratedPages.findIndex((p) => 
+          p.pageId === '0' || p.pageId === 'page-0'
+        );
+        const page0 = page0Index >= 0 ? migratedPages[page0Index] : null;
+        const otherMigratedPages = page0Index >= 0 
+          ? migratedPages.filter((_, idx) => idx !== page0Index)
+          : migratedPages;
+        
+        // 既存のページに追加
+        const existingPages = existingPagesBySubMenu[subMenuId] || [];
+        const existingPageOrder = existingPageOrderBySubMenu[subMenuId] || [];
+        
+        if (page0) {
+          // Page0が既に存在する場合は追加しない（キービジュアルは1つだけ）
+          const hasPage0 = existingPages.some((p: any) => p.pageId === '0' || p.pageId === 'page-0');
+          if (!hasPage0) {
+            updatedPagesBySubMenu[subMenuId] = [page0, ...existingPages, ...otherMigratedPages];
+            updatedPageOrderBySubMenu[subMenuId] = [page0.id, ...existingPageOrder, ...otherMigratedPages.map(p => p.id)];
+          } else {
+            updatedPagesBySubMenu[subMenuId] = [...existingPages, ...otherMigratedPages];
+            updatedPageOrderBySubMenu[subMenuId] = [...existingPageOrder, ...otherMigratedPages.map(p => p.id)];
+          }
+        } else {
+          updatedPagesBySubMenu[subMenuId] = [...existingPages, ...otherMigratedPages];
+          updatedPageOrderBySubMenu[subMenuId] = [...existingPageOrder, ...otherMigratedPages.map(p => p.id)];
+        }
+      }
+    }
+    
+    // Firestoreに更新
+    await updateDoc(doc(db, 'companyBusinessPlan', targetPlanId), {
+      pagesBySubMenu: updatedPagesBySubMenu,
+      pageOrderBySubMenu: updatedPageOrderBySubMenu,
+      updatedAt: serverTimestamp(),
+    });
+    
+    const totalPages = Object.values(allPagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0);
+    const subMenuCount = Object.keys(allPagesBySubMenu).length;
+
+    console.log('✅ 全ページ一括追加完了:', {
+      targetPlanId,
+      planName: planData.title,
+      totalPages,
+      subMenuCount,
+      subMenus: Object.keys(allPagesBySubMenu),
+    });
+
+    setProgress(`✅ ${totalPages}件のページを${subMenuCount}個のサブメニューに追加しました！`);
+    setTimeout(() => {
+      onMigrated(targetPlanId, SUB_MENU_ITEMS[0].id); // 最初のサブメニューにリダイレクト
+      onClose();
+    }, 1500);
+  };
+
+  /**
+   * 会社本体の事業計画の全ページ一括移行処理
+   */
+  const handleCompanyPlanBulkMigration = async (
+    allPagesBySubMenu: { [key: string]: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }> },
+    targetPlanId: string
+  ) => {
+    if (!targetPlanId || !auth?.currentUser || !db) {
+      alert('必要な情報が不足しています。');
+      setMigrating(false);
+      return;
+    }
+
+    const migrationTimestamp = Date.now();
+    
+    // 既存の事業計画データを取得（キービジュアル設定を引き継ぐため）
+    let planData: any = {};
+    let keyVisualSettings: {
+      keyVisualUrl?: string;
+      keyVisualHeight?: number;
+      keyVisualScale?: number;
+      keyVisualLogoUrl?: string;
+      keyVisualMetadata?: any;
+    } = {};
+    
+    if (planId) {
+      try {
+        const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+        if (planDoc.exists()) {
+          planData = planDoc.data();
+          if (planData.keyVisualUrl !== undefined) {
+            keyVisualSettings.keyVisualUrl = planData.keyVisualUrl;
+          }
+          if (planData.keyVisualHeight !== undefined) {
+            keyVisualSettings.keyVisualHeight = planData.keyVisualHeight;
+          }
+          if (planData.keyVisualScale !== undefined) {
+            keyVisualSettings.keyVisualScale = planData.keyVisualScale;
+          }
+          if (planData.keyVisualLogoUrl !== undefined) {
+            keyVisualSettings.keyVisualLogoUrl = planData.keyVisualLogoUrl;
+          }
+          if (planData.keyVisualMetadata !== undefined) {
+            keyVisualSettings.keyVisualMetadata = planData.keyVisualMetadata;
+          }
+        }
+      } catch (error) {
+        console.warn('キービジュアル設定の取得に失敗:', error);
+      }
+    }
+    
+    const planName = `${planData.title || '事業計画'}（コンポーネント化版 ${new Date(migrationTimestamp).toLocaleDateString('ja-JP')}）`;
+    
+    const newPagesBySubMenu: any = {};
+    const newPageOrderBySubMenu: any = {};
+    
+    // 各サブメニューのページを処理
+    for (const [subMenuId, pages] of Object.entries(allPagesBySubMenu)) {
+      if (Array.isArray(pages) && pages.length > 0) {
+        // 移行するページデータを準備
+        const migratedPages = pages.map((page, index) => {
+          const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
+          return {
+            id: pageId,
+            pageNumber: index,
+            title: page.title,
+            content: page.content,
+            pageId: page.pageId,
+            createdAt: new Date().toISOString(),
+            migrated: true,
+            migratedAt: new Date().toISOString(),
+          };
+        });
+        
+        // Page0（キービジュアル）を最初に配置
+        const page0Index = migratedPages.findIndex((p) => 
+          p.pageId === '0' || p.pageId === 'page-0'
+        );
+        const page0 = page0Index >= 0 ? migratedPages[page0Index] : null;
+        const otherMigratedPages = page0Index >= 0 
+          ? migratedPages.filter((_, idx) => idx !== page0Index)
+          : migratedPages;
+        
+        if (page0) {
+          newPagesBySubMenu[subMenuId] = [page0, ...otherMigratedPages];
+          newPageOrderBySubMenu[subMenuId] = [page0.id, ...otherMigratedPages.map(p => p.id)];
+        } else {
+          newPagesBySubMenu[subMenuId] = [...otherMigratedPages];
+          newPageOrderBySubMenu[subMenuId] = [...otherMigratedPages.map(p => p.id)];
+        }
+      }
+    }
+    
+    // 新規事業計画を作成
+    const newDocRef = await addDoc(collection(db, 'companyBusinessPlan'), {
+      title: planName,
+      description: planData.description || '',
+      userId: auth.currentUser.uid,
+      ...keyVisualSettings,
+      pagesBySubMenu: newPagesBySubMenu,
+      pageOrderBySubMenu: newPageOrderBySubMenu,
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
+    });
+
+    const actualNewPlanId = newDocRef.id;
+    
+    const totalPages = Object.values(allPagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0);
+    const subMenuCount = Object.keys(allPagesBySubMenu).length;
+
+    console.log('✅ 全ページ一括移行完了:', {
+      newPlanId: actualNewPlanId,
+      planName,
+      totalPages,
+      subMenuCount,
+      subMenus: Object.keys(allPagesBySubMenu),
+    });
+
+    setProgress(`✅ ${totalPages}件のページを${subMenuCount}個のサブメニューから新しい事業計画として作成しました！`);
+    setTimeout(() => {
+      onMigrated(actualNewPlanId, 'overview');
+      setMigrating(false);
+    }, 1000);
+  };
+
+  /**
+   * 会社本体の事業計画の移行処理
+   */
+  const handleCompanyPlanMigration = async (
+    selectedPages: Array<{ id: string; title: string; content: string; pageNumber: number; pageId: string }>,
+    mode: 'overwrite' | 'append' | 'new',
+    targetSubMenuId?: string,
+    targetPlanId?: string // 「既存に追加」の場合の対象事業計画ID
+  ) => {
+    // 「既存に追加」の場合はtargetPlanIdを使用、それ以外はplanIdを使用
+    const finalPlanId = (mode === 'append' && targetPlanId) ? targetPlanId : planId;
+    
+    if (!finalPlanId || !auth?.currentUser || !db) {
+      alert('必要な情報が不足しています。');
+      setMigrating(false);
+      return;
+    }
+
+    const targetSubMenu: string = targetSubMenuId || subMenuId;
+    if (!targetSubMenu) {
+      alert('サブメニューIDが指定されていません。');
+      setMigrating(false);
+      return;
+    }
+    const migrationTimestamp = Date.now();
+
+    // 移行するページデータを準備
+    const migratedPages = selectedPages.map((page, index) => {
+      const pageId = `page-migrated-${migrationTimestamp}-${index}`;
+      return {
+        id: pageId,
+        pageNumber: index,
+        title: page.title,
+        content: page.content,
+        pageId: page.pageId,
+        createdAt: new Date().toISOString(),
+        migrated: true,
+        migratedAt: new Date().toISOString(),
+      };
+    });
+
+    // Page0（キービジュアル）を最初に配置
+    const page0Index = migratedPages.findIndex((p) => 
+      p.pageId === '0' || p.pageId === 'page-0'
+    );
+    const page0 = page0Index >= 0 ? migratedPages[page0Index] : null;
+    const otherMigratedPages = page0Index >= 0 
+      ? migratedPages.filter((_, idx) => idx !== page0Index)
+      : migratedPages;
+
+    // 既存の事業計画データを取得
+    const planDoc = await getDoc(doc(db, 'companyBusinessPlan', finalPlanId));
+    if (!planDoc.exists()) {
+      alert('事業計画が見つかりませんでした。');
+      setMigrating(false);
+      return;
+    }
+
+    const planData = planDoc.data();
+    const currentSubMenuPages = (planData.pagesBySubMenu?.[targetSubMenu] || []) as any[];
+    const currentSubMenuPageOrder = (planData.pageOrderBySubMenu?.[targetSubMenu] || []) as string[];
+    
+    // 元の事業計画からキービジュアル設定を取得
+    const keyVisualSettings: {
+      keyVisualUrl?: string;
+      keyVisualHeight?: number;
+      keyVisualScale?: number;
+      keyVisualLogoUrl?: string;
+      keyVisualMetadata?: any;
+    } = {};
+    
+    // undefinedの値を除外して設定（Firestoreはundefinedをサポートしていない）
+    if (planData.keyVisualUrl !== undefined) {
+      keyVisualSettings.keyVisualUrl = planData.keyVisualUrl;
+    }
+    if (planData.keyVisualHeight !== undefined) {
+      keyVisualSettings.keyVisualHeight = planData.keyVisualHeight;
+    }
+    if (planData.keyVisualScale !== undefined) {
+      keyVisualSettings.keyVisualScale = planData.keyVisualScale;
+    }
+    if (planData.keyVisualLogoUrl !== undefined) {
+      keyVisualSettings.keyVisualLogoUrl = planData.keyVisualLogoUrl;
+    }
+    if (planData.keyVisualMetadata !== undefined) {
+      keyVisualSettings.keyVisualMetadata = planData.keyVisualMetadata;
+    }
+
+    let updatedPages: any[];
+    let updatedPageOrder: string[];
+
+    if (mode === 'new') {
+      // 新規作成モード：新しい事業計画を作成（タイムスタンプ付き）
+      const planName = `${planData.title || '事業計画'}（コンポーネント化版 ${new Date(migrationTimestamp).toLocaleDateString('ja-JP')}）`;
+      
+      const newPagesBySubMenu: any = {};
+      const newPageOrderBySubMenu: any = {};
+      
+      if (page0) {
+        newPagesBySubMenu[targetSubMenu] = [page0, ...otherMigratedPages];
+        newPageOrderBySubMenu[targetSubMenu] = [page0.id, ...otherMigratedPages.map(p => p.id)];
+      } else {
+        newPagesBySubMenu[targetSubMenu] = [...otherMigratedPages];
+        newPageOrderBySubMenu[targetSubMenu] = [...otherMigratedPages.map(p => p.id)];
+      }
+
+      // addDocの戻り値から実際のドキュメントIDを取得
+      const newDocRef = await addDoc(collection(db, 'companyBusinessPlan'), {
+        title: planName,
+        description: planData.description || '',
+        userId: auth.currentUser.uid,
+        // キービジュアル設定を引き継ぐ
+        ...keyVisualSettings,
+        pagesBySubMenu: newPagesBySubMenu,
+        pageOrderBySubMenu: newPageOrderBySubMenu,
+        createdAt: serverTimestamp(),
+        updatedAt: serverTimestamp(),
+      });
+
+      const actualNewPlanId = newDocRef.id; // 実際のFirestoreドキュメントID
+
+      console.log('✅ 新規事業計画作成完了:', {
+        newPlanId: actualNewPlanId,
+        planName,
+        targetSubMenu,
+        pagesCount: selectedPages.length,
+      });
+
+      setProgress(`✅ ${selectedPages.length}件のページを新しい事業計画として作成しました！`);
+      setTimeout(() => {
+        onMigrated(actualNewPlanId, targetSubMenu);
+        setMigrating(false);
+      }, 1000);
+      return;
+    } else if (mode === 'overwrite') {
+      // 上書きモード
+      updatedPages = page0 ? [page0, ...otherMigratedPages] : otherMigratedPages;
+      updatedPageOrder = page0 ? [page0.id, ...otherMigratedPages.map(p => p.id)] : otherMigratedPages.map(p => p.id);
+    } else {
+      // 追加モード
+      updatedPages = page0 
+        ? [...currentSubMenuPages, page0, ...otherMigratedPages]
+        : [...currentSubMenuPages, ...otherMigratedPages];
+      updatedPageOrder = page0
+        ? [...currentSubMenuPageOrder, page0.id, ...otherMigratedPages.map(p => p.id)]
+        : [...currentSubMenuPageOrder, ...otherMigratedPages.map(p => p.id)];
+    }
+
+    // Firestoreに保存
+    const updatedPagesBySubMenu = {
+      ...(planData.pagesBySubMenu || {}),
+      [targetSubMenu]: updatedPages,
+    };
+    const updatedPageOrderBySubMenu = {
+      ...(planData.pageOrderBySubMenu || {}),
+      [targetSubMenu]: updatedPageOrder,
+    };
+
+    // すべてのモードでsetDocを使用して全体を更新（merge: trueで既存データを保持）
+    console.log('handleCompanyPlanMigration - 保存前のデータ:');
+    console.log('  planId:', planId);
+    console.log('  targetSubMenu:', targetSubMenu);
+    console.log('  updatedPages:', updatedPages);
+    console.log('  updatedPageOrder:', updatedPageOrder);
+    console.log('  updatedPagesBySubMenu:', updatedPagesBySubMenu);
+    console.log('  updatedPageOrderBySubMenu:', updatedPageOrderBySubMenu);
+    console.log('  keyVisualSettings:', keyVisualSettings);
+    
+    // 更新データを準備（キービジュアル設定も含める）
+    const updateData: any = {
+      ...planData,
+      pagesBySubMenu: updatedPagesBySubMenu,
+      pageOrderBySubMenu: updatedPageOrderBySubMenu,
+      updatedAt: serverTimestamp(),
+    };
+    
+    // キービジュアル設定を追加（既存の設定がない場合、または上書きモードの場合）
+    if (mode === 'overwrite' || Object.keys(keyVisualSettings).length > 0) {
+      // 既存のキービジュアル設定がない場合、または上書きモードの場合は設定を追加
+      if (mode === 'overwrite' || !planData.keyVisualUrl) {
+        Object.assign(updateData, keyVisualSettings);
+      }
+    }
+    
+    await setDoc(
+      doc(db, 'companyBusinessPlan', finalPlanId),
+      updateData,
+      { merge: true }
+    );
+
+    // 保存後に確認
+    const savedDoc = await getDoc(doc(db, 'companyBusinessPlan', finalPlanId));
+    if (savedDoc.exists()) {
+      const savedData = savedDoc.data();
+      console.log('handleCompanyPlanMigration - 保存後のデータ:');
+      console.log('  savedData.pagesBySubMenu:', savedData.pagesBySubMenu);
+      console.log('  savedData.pageOrderBySubMenu:', savedData.pageOrderBySubMenu);
+      if (targetSubMenu) {
+        console.log('  savedData.pagesBySubMenu[targetSubMenu]:', savedData.pagesBySubMenu?.[targetSubMenu]);
+        console.log('  savedData.pageOrderBySubMenu[targetSubMenu]:', savedData.pageOrderBySubMenu?.[targetSubMenu]);
+      }
+    }
+
+    setProgress(`✅ ${selectedPages.length}件のページを${mode === 'overwrite' ? '上書き' : '追加'}しました！`);
+    setTimeout(() => {
+      // appendモードの場合は、追加先のサブメニューIDも渡す
+      onMigrated(finalPlanId, mode === 'append' ? targetSubMenu : undefined);
+      setMigrating(false);
+    }, 1000);
   };
 
   /**
@@ -220,14 +1311,14 @@ export default function MigrateFromFixedPage({
 
     try {
       setMigrating(true);
-      setProgress('ページを抽出中...');
-
+      
       // 既に抽出されたページがある場合はそれを使用、ない場合は新しく抽出
-      let pages = extractedPages.length > 0 ? extractedPages : extractPagesFromDOM();
+      let pages = extractedPages.length > 0 ? extractedPages : await extractPagesFromDOM();
       
       if (pages.length === 0) {
         alert('移行するページが見つかりませんでした。data-page-container属性を持つ要素を確認してください。');
         setMigrating(false);
+        setProgress('');
         return;
       }
 
@@ -236,6 +1327,8 @@ export default function MigrateFromFixedPage({
         setExtractedPages(pages);
         // デフォルトですべて選択
         setSelectedPageIds(new Set(pages.map(p => p.id)));
+        // ページ抽出中メッセージを表示
+        setProgress('ページを抽出中...');
       }
 
       // 選択されたページのみをフィルタリング
@@ -244,10 +1337,48 @@ export default function MigrateFromFixedPage({
       if (selectedPages.length === 0) {
         alert('移行するページを1つ以上選択してください。');
         setMigrating(false);
+        setProgress('');
         return;
       }
 
-      setProgress(`${selectedPages.length}件のページを移行中...`);
+      // 既に抽出済みの場合は、進捗メッセージを更新
+      if (extractedPages.length > 0) {
+        setProgress(`${selectedPages.length}件のページを移行中...`);
+      } else {
+        // 新しく抽出した場合は、抽出完了後に移行中メッセージを表示
+        setProgress(`${selectedPages.length}件のページを移行中...`);
+      }
+
+      // 会社本体の事業計画の場合の処理
+      if (isCompanyPlan) {
+        // 「既存に追加」モードの場合は、targetConceptIdをplanIdとして使用
+        const targetPlanId = (mode === 'append' && targetConceptId) ? targetConceptId : planId;
+        
+        if (!targetPlanId) {
+          alert('事業計画IDが見つかりませんでした。');
+          setMigrating(false);
+          setProgress('');
+          return;
+        }
+        
+        // 全ページ一括移行モードの場合、pagesBySubMenu stateを使用
+        if (useBulkMigration && Object.keys(pagesBySubMenu).length > 0) {
+          if (mode === 'new') {
+            // 新規作成：すべてのサブメニューのページを移行
+            await handleCompanyPlanBulkMigration(pagesBySubMenu, targetPlanId);
+          } else if (mode === 'append') {
+            // 既存に追加：すべてのサブメニューのページを追加
+            await handleCompanyPlanBulkAppend(pagesBySubMenu, targetPlanId);
+          } else {
+            // 上書きモードは全ページ一括移行ではサポートしない（通常モードを使用）
+            await handleCompanyPlanMigration(selectedPages, mode, targetSubMenuId, targetPlanId);
+          }
+        } else {
+          // 通常モード：会社本体の事業計画の場合は、companyBusinessPlanコレクションに保存
+          await handleCompanyPlanMigration(selectedPages, mode, targetSubMenuId, targetPlanId);
+        }
+        return;
+      }
 
       // モードに応じて構想IDを決定
       let componentizedConceptId: string;
@@ -321,7 +1452,7 @@ export default function MigrateFromFixedPage({
             'sme-ai-education': '中小企業向けAI導入支援・教育',
           },
         };
-        const originalConceptName = fixedConcepts[serviceId]?.[conceptId] || conceptId;
+        const originalConceptName = (serviceId && conceptId) ? (fixedConcepts[serviceId]?.[conceptId] || conceptId) : conceptId || '';
         const conceptName = `${originalConceptName}（コンポーネント化版 ${new Date(timestamp).toLocaleDateString('ja-JP')}）`;
         
         // テンプレート構想（template-componentized）のページデータを取得
@@ -484,7 +1615,7 @@ export default function MigrateFromFixedPage({
               'sme-ai-education': '中小企業向けAI導入支援・教育',
             },
           };
-          const originalConceptName = fixedConcepts[serviceId]?.[conceptId] || conceptId;
+          const originalConceptName = (serviceId && conceptId) ? (fixedConcepts[serviceId]?.[conceptId] || conceptId) : conceptId || '';
           const conceptName = `${originalConceptName}（コンポーネント化版）`;
           
           const newDocRef = await addDoc(collection(db, 'concepts'), {
@@ -504,7 +1635,7 @@ export default function MigrateFromFixedPage({
       }
 
       // 既存のページデータを取得
-      const pagesBySubMenu = conceptData.pagesBySubMenu || {};
+      const existingPagesBySubMenu = conceptData.pagesBySubMenu || {};
       const pageOrderBySubMenu = conceptData.pageOrderBySubMenu || {};
       
       // 追加先のサブメニューIDを決定（指定されていない場合は現在のサブメニュー）
@@ -516,12 +1647,12 @@ export default function MigrateFromFixedPage({
         targetSubMenuId,
         targetSubMenu,
         currentSubMenuId: subMenuId,
-        pagesBySubMenuKeys: Object.keys(pagesBySubMenu),
+        pagesBySubMenuKeys: Object.keys(existingPagesBySubMenu),
         conceptData: conceptData,
       });
       
-      const currentSubMenuPages = pagesBySubMenu[targetSubMenu] || [];
-      const currentSubMenuPageOrder = pageOrderBySubMenu[targetSubMenu] || [];
+      const currentSubMenuPages = targetSubMenu ? (existingPagesBySubMenu[targetSubMenu] || []) : [];
+      const currentSubMenuPageOrder = targetSubMenu ? (pageOrderBySubMenu[targetSubMenu] || []) : [];
       
       // selectedPagesは242行目で既に定義されているので、ここでは使用するだけ
       console.log('📄 既存ページ情報:', {
@@ -583,7 +1714,7 @@ export default function MigrateFromFixedPage({
             updatedPageOrder = [
               templatePage0.id, 
               migratedPage0.id, 
-              ...currentSubMenuPageOrder.filter(id => id !== templatePage0.id),
+              ...currentSubMenuPageOrder.filter((id: string) => id !== templatePage0.id),
               ...migratedPages.map(p => p.id)
             ];
           } else {
@@ -591,7 +1722,7 @@ export default function MigrateFromFixedPage({
             updatedPages = [templatePage0, ...otherTemplatePages, ...migratedPages];
             updatedPageOrder = [
               templatePage0.id,
-              ...currentSubMenuPageOrder.filter(id => id !== templatePage0.id),
+              ...currentSubMenuPageOrder.filter((id: string) => id !== templatePage0.id),
               ...migratedPages.map(p => p.id)
             ];
           }
@@ -736,9 +1867,9 @@ export default function MigrateFromFixedPage({
       if (mode === 'overwrite') {
         progressMessage = `✅ ${selectedPages.length}件のページを上書きしました！`;
       } else if (mode === 'append') {
-        progressMessage = `✅ ${selectedPages.length}件のページを既存の構想に追加しました！`;
+        progressMessage = `✅ ${selectedPages.length}件のページを既存の${isCompanyPlan ? '事業計画' : '構想'}に追加しました！`;
       } else {
-        progressMessage = `✅ ${selectedPages.length}件のページを新しい構想として作成しました！`;
+        progressMessage = `✅ ${selectedPages.length}件のページを新しい${isCompanyPlan ? '事業計画' : '構想'}として作成しました！`;
       }
       setProgress(progressMessage);
       
@@ -747,8 +1878,15 @@ export default function MigrateFromFixedPage({
         // appendモードの場合は、追加先のサブメニューにリダイレクト
         if (mode === 'append' && targetSubMenuId) {
           // サブメニューIDも含めてリダイレクトするために、URLを構築
-          const targetUrl = `/business-plan/services/${serviceId}/${componentizedConceptId}/${targetSubMenuId}`;
-          window.location.href = targetUrl;
+          if (isCompanyPlan && planId) {
+            const targetUrl = `/business-plan/company/${planId}/${targetSubMenuId}`;
+            window.location.href = targetUrl;
+          } else if (serviceId && componentizedConceptId) {
+            const targetUrl = `/business-plan/services/${serviceId}/${componentizedConceptId}/${targetSubMenuId}`;
+            window.location.href = targetUrl;
+          } else {
+            onMigrated(componentizedConceptId);
+          }
         } else {
           onMigrated(componentizedConceptId);
         }
@@ -772,27 +1910,77 @@ export default function MigrateFromFixedPage({
       return;
     }
 
-    // DOMからページを抽出
-    const pages = extractPagesFromDOM();
+    // 進捗メッセージをクリア
+    setProgress('');
+    
+    // DOMが準備されるまで少し待機（モーダルが開かれた直後はDOMがまだ更新されていない可能性がある）
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 図形のレンダリングを待つ（p5.jsやMermaid図が描画されるまで待機）
+    setProgress('図形を検出中...');
+    await new Promise(resolve => setTimeout(resolve, 2000)); // 2秒待機して図形の描画を待つ
+    
+    // DOMからページを抽出（図形を画像化しながら）
+    setProgress('ページを抽出中...');
+    const pages = await extractPagesFromDOM();
+    
+    // デバッグログ
+    console.log('extractPagesFromDOM - 検出されたコンテナ数:', document.querySelectorAll('[data-page-container]').length);
+    console.log('extractPagesFromDOM - 抽出されたページ数:', pages.length);
     
     if (pages.length === 0) {
-      alert('移行するページが見つかりませんでした。data-page-container属性を持つ要素を確認してください。');
+      const containerCount = document.querySelectorAll('[data-page-container]').length;
+      alert(`移行するページが見つかりませんでした。\n\n検出されたdata-page-container要素: ${containerCount}件\n\n現在のページにdata-page-container属性を持つ要素が存在するか確認してください。`);
+      setProgress('');
       return;
     }
 
     setExtractedPages(pages);
     // デフォルトですべて選択
     setSelectedPageIds(new Set(pages.map(p => p.id)));
+    
+    // 進捗メッセージをクリア（ページ抽出完了）
+    setProgress('');
 
     // 既存のコンポーネント化された構想をチェック
     const existing = await checkExistingConcept();
     
-    if (existing) {
-      setExistingConcept(existing);
-      setShowConfirmDialog(true);
+    // 会社事業計画の場合は、すべての既存事業計画を取得して「既存に追加」を有効にする
+    if (isCompanyPlan) {
+      const allPlans = await getAllExistingConcepts();
+      setTotalExistingPlansCount(allPlans.length);
+      
+      if (allPlans.length > 0) {
+        // 既存のコンポーネント化された事業計画がある場合
+        // 最初のものをexistingConceptとして設定（「既存に追加」で全件選択可能）
+        setExistingConcept(allPlans[0]);
+        setShowConfirmDialog(true);
+      } else {
+        // 既存の事業計画がない場合
+        setExistingConcept({
+          id: '',
+          name: '新規事業計画を作成',
+          pageCount: 0,
+          conceptId: '',
+        });
+        setShowConfirmDialog(true);
+      }
     } else {
-      // 既存の構想がない場合は直接移行
-      handleMigrate('overwrite');
+      // 事業企画の場合
+      if (existing) {
+        setExistingConcept(existing);
+        setShowConfirmDialog(true);
+      } else {
+        // 既存の構想がない場合でも、選択UIを表示
+        // ダミーの既存構想オブジェクトを作成（新規作成のみ選択可能）
+        setExistingConcept({
+          id: '',
+          name: '新規構想を作成',
+          pageCount: 0,
+          conceptId: '',
+        });
+        setShowConfirmDialog(true);
+      }
     }
   };
 
@@ -1031,33 +2219,63 @@ export default function MigrateFromFixedPage({
               margin: 0,
               color: '#111827',
             }}>
-              既存のコンポーネント化された構想が見つかりました
+              {existingConcept && existingConcept.id 
+                ? (isCompanyPlan ? '既存のコンポーネント化された事業計画が見つかりました' : '既存のコンポーネント化された構想が見つかりました')
+                : (isCompanyPlan ? 'ページを移行します' : 'ページを移行します')}
             </h4>
           </div>
           
-          <div style={{
-            backgroundColor: '#F9FAFB',
-            borderRadius: '8px',
-            padding: '16px',
-            marginBottom: '20px',
-          }}>
+          {existingConcept && existingConcept.id && (
             <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'auto 1fr',
-              gap: '12px 16px',
-              fontSize: '14px',
-              color: '#374151',
+              backgroundColor: '#F9FAFB',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px',
             }}>
-              <div style={{ fontWeight: 600, color: '#6B7280' }}>構想名:</div>
-              <div style={{ fontWeight: 500 }}>{existingConcept.name}</div>
-              
-              <div style={{ fontWeight: 600, color: '#6B7280' }}>既存のページ数:</div>
-              <div style={{ fontWeight: 500 }}>{existingConcept.pageCount}件</div>
-              
-              <div style={{ fontWeight: 600, color: '#6B7280' }}>移行するページ数:</div>
-              <div style={{ fontWeight: 500, color: '#3B82F6' }}>{extractedPages.length}件</div>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr',
+                gap: '12px 16px',
+                fontSize: '14px',
+                color: '#374151',
+              }}>
+                {isCompanyPlan && (
+                  <>
+                    <div style={{ fontWeight: 600, color: '#6B7280' }}>既存のコンポーネント化された事業計画:</div>
+                    <div style={{ fontWeight: 500, color: '#3B82F6' }}>{totalExistingPlansCount}件</div>
+                  </>
+                )}
+                <div style={{ fontWeight: 600, color: '#6B7280' }}>{isCompanyPlan ? '事業計画名:' : '構想名:'}</div>
+                <div style={{ fontWeight: 500 }}>{existingConcept.name}</div>
+                
+                <div style={{ fontWeight: 600, color: '#6B7280' }}>既存のページ数:</div>
+                <div style={{ fontWeight: 500 }}>{existingConcept.pageCount}件</div>
+                
+                <div style={{ fontWeight: 600, color: '#6B7280' }}>移行するページ数:</div>
+                <div style={{ fontWeight: 500, color: '#3B82F6' }}>{extractedPages.length}件</div>
+              </div>
             </div>
-          </div>
+          )}
+          
+          {!existingConcept || !existingConcept.id ? (
+            <div style={{
+              backgroundColor: '#F0F9FF',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px',
+            }}>
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: 'auto 1fr',
+                gap: '12px 16px',
+                fontSize: '14px',
+                color: '#374151',
+              }}>
+                <div style={{ fontWeight: 600, color: '#6B7280' }}>移行するページ数:</div>
+                <div style={{ fontWeight: 500, color: '#3B82F6' }}>{extractedPages.length}件</div>
+              </div>
+            </div>
+          ) : null}
           
           <p style={{
             fontSize: '14px',
@@ -1065,102 +2283,298 @@ export default function MigrateFromFixedPage({
             marginBottom: '20px',
             lineHeight: '1.6',
           }}>
-            どのように処理しますか？
+            {existingConcept && existingConcept.id 
+              ? (isCompanyPlan 
+                  ? `既存のコンポーネント化された事業計画が${totalExistingPlansCount}件見つかりました。どのように処理しますか？`
+                  : 'どのように処理しますか？')
+              : '新規のコンポーネント化された' + (isCompanyPlan ? '事業計画' : '構想') + 'を作成しますか？'}
           </p>
+          
+          {existingConcept && existingConcept.id && isCompanyPlan && (
+            <div style={{
+              backgroundColor: '#EFF6FF',
+              borderRadius: '8px',
+              padding: '12px 16px',
+              marginBottom: '20px',
+              border: '1px solid #BFDBFE',
+            }}>
+              <div style={{
+                fontSize: '13px',
+                color: '#1E40AF',
+                lineHeight: '1.6',
+              }}>
+                <div style={{ fontWeight: 600, marginBottom: '4px' }}>💡 「既存に追加」について</div>
+                <div>別のコンポーネント化された事業計画にページを追加します。移行前の固定ページ形式には追加されません。</div>
+              </div>
+            </div>
+          )}
+          
+          {/* 新規事業計画作成時の全ページ一括移行オプション（常に表示） */}
+          {isCompanyPlan && (
+            <div style={{
+              backgroundColor: '#F0FDF4',
+              borderRadius: '8px',
+              padding: '16px',
+              marginBottom: '20px',
+              border: '1px solid #86EFAC',
+            }}>
+              <label style={{
+                display: 'flex',
+                alignItems: 'flex-start',
+                gap: '12px',
+                cursor: 'pointer',
+                fontSize: '14px',
+                color: '#166534',
+              }}>
+                <input
+                  type="checkbox"
+                  checked={useBulkMigration}
+                  onChange={async (e) => {
+                    const checked = e.target.checked;
+                    setUseBulkMigration(checked);
+                    
+                    // チェックされた場合、すべてのサブメニューからページを取得して件数を表示
+                    if (checked && isCompanyPlan && planId) {
+                      try {
+                        setProgress('すべてのサブメニューからページを取得中...');
+                        const allPages = await extractAllPagesFromAllSubMenus();
+                        setPagesBySubMenu(allPages);
+                        
+                        // 件数を計算
+                        const total = Object.values(allPages).reduce((sum, pages) => sum + pages.length, 0);
+                        const bySubMenu: { [key: string]: number } = {};
+                        Object.entries(allPages).forEach(([subMenuId, pages]) => {
+                          bySubMenu[subMenuId] = pages.length;
+                        });
+                        
+                        setBulkMigrationPageCount({ total, bySubMenu });
+                        setProgress('');
+                      } catch (error) {
+                        console.error('ページ取得エラー:', error);
+                        setProgress('');
+                      }
+                    } else {
+                      // チェックが外された場合、件数をリセット
+                      setBulkMigrationPageCount({ total: 0, bySubMenu: {} });
+                      setPagesBySubMenu({});
+                    }
+                  }}
+                  style={{
+                    width: '20px',
+                    height: '20px',
+                    cursor: 'pointer',
+                    marginTop: '2px',
+                    flexShrink: 0,
+                  }}
+                />
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: 600, marginBottom: '6px' }}>🚀 全ページ一括移行</div>
+                  <div style={{ fontSize: '13px', color: '#15803D', lineHeight: '1.6', marginBottom: '8px' }}>
+                    概要・コンセプト、成長戦略、ビジネスモデル、市場規模、事業計画、シミュレーション、実行スケジュール、伊藤忠シナジー、補助金・助成金、ケーススタディ、リスク評価、スナップショット比較、参考文献のすべてのサブメニューからページを一括で移行します。
+                  </div>
+                  {useBulkMigration && bulkMigrationPageCount.total > 0 && (
+                    <div style={{
+                      marginTop: '8px',
+                      padding: '8px 12px',
+                      backgroundColor: '#D1FAE5',
+                      borderRadius: '6px',
+                      fontSize: '13px',
+                      color: '#065F46',
+                    }}>
+                      <div style={{ fontWeight: 600, marginBottom: '4px' }}>
+                        移行予定: 合計 {bulkMigrationPageCount.total}件
+                      </div>
+                      <div style={{ fontSize: '12px', lineHeight: '1.6' }}>
+                        {Object.entries(bulkMigrationPageCount.bySubMenu).map(([subMenuId, count]) => {
+                          const subMenuItem = SUB_MENU_ITEMS.find(item => item.id === subMenuId);
+                          return subMenuItem ? (
+                            <div key={subMenuId}>
+                              {subMenuItem.label}: {count}件
+                            </div>
+                          ) : null;
+                        })}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </label>
+            </div>
+          )}
           
           <div style={{
             display: 'grid',
             gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))',
             gap: '12px',
           }}>
-            <button
-              onClick={() => {
-                setMigrationMode('overwrite');
-                setShowConfirmDialog(false);
-                handleMigrate('overwrite');
-              }}
-              disabled={migrating}
-              style={{
-                padding: '12px 20px',
-                backgroundColor: migrating ? '#FCA5A5' : '#EF4444',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: migrating ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 600,
-                transition: 'all 0.2s',
-                boxShadow: migrating ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-              }}
-              onMouseEnter={(e) => {
-                if (!migrating) {
-                  e.currentTarget.style.backgroundColor = '#DC2626';
-                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!migrating) {
-                  e.currentTarget.style.backgroundColor = '#EF4444';
-                  e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
-                }
-              }}
-            >
-              上書き
-            </button>
+            {/* 既存のコンポーネント化された事業計画/構想がある場合のみ「上書き」と「既存に追加」を表示 */}
+            {existingConcept && existingConcept.id && (
+              <>
+                <button
+                  onClick={() => {
+                    setMigrationMode('overwrite');
+                    setShowConfirmDialog(false);
+                    handleMigrate('overwrite');
+                  }}
+                  disabled={migrating}
+                  style={{
+                    padding: '12px 20px',
+                    backgroundColor: migrating ? '#FCA5A5' : '#EF4444',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: migrating ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    boxShadow: migrating ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!migrating) {
+                      e.currentTarget.style.backgroundColor = '#DC2626';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!migrating) {
+                      e.currentTarget.style.backgroundColor = '#EF4444';
+                      e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                    }
+                  }}
+                >
+                  上書き
+                </button>
+                <button
+                  onClick={async () => {
+                    // 全ページ一括移行モードの場合
+                    if (isCompanyPlan && useBulkMigration && planId && Object.keys(pagesBySubMenu).length > 0) {
+                      // すべての既存構想を取得
+                      const allConcepts = await getAllExistingConcepts();
+                      
+                      if (allConcepts.length === 0) {
+                        alert('既存のコンポーネント化された事業計画が見つかりませんでした。');
+                        return;
+                      } else if (allConcepts.length === 1) {
+                        // 1つだけの場合は直接追加
+                        setMigrationMode('append');
+                        setShowConfirmDialog(false);
+                        
+                        try {
+                          setMigrating(true);
+                          setProgress('すべてのサブメニューにページを追加中...');
+                          await handleMigrate('append', allConcepts[0].id);
+                        } catch (error: any) {
+                          console.error('全ページ一括追加エラー:', error);
+                          alert(`全ページ一括追加に失敗しました: ${error.message || '不明なエラー'}`);
+                          setMigrating(false);
+                          setProgress('');
+                        }
+                        return;
+                      } else {
+                        // 複数ある場合は選択UIを表示
+                        setShowConceptSelector(true);
+                        setMigrationMode('append');
+                        return;
+                      }
+                    }
+                    
+                    // 通常モード：すべての既存構想を取得
+                    const allConcepts = await getAllExistingConcepts();
+                    
+                    if (allConcepts.length === 0) {
+                      alert(isCompanyPlan ? '既存のコンポーネント化された事業計画が見つかりませんでした。' : '既存のコンポーネント化された構想が見つかりませんでした。');
+                      return;
+                    } else if (allConcepts.length === 1) {
+                      // 1つだけの場合はサブメニュー選択へ
+                      setExistingConcept(allConcepts[0]);
+                      setSelectedConceptId(allConcepts[0].conceptId);
+                      setShowConfirmDialog(false);
+                      setShowSubMenuSelector(true);
+                    } else {
+                      // 複数ある場合は選択UIを表示
+                      setExistingConcepts(allConcepts);
+                      setShowConceptSelector(true);
+                      setShowConfirmDialog(false);
+                    }
+                  }}
+                  disabled={migrating}
+                  style={{
+                    padding: '12px 20px',
+                    backgroundColor: migrating ? '#86EFAC' : '#10B981',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '8px',
+                    cursor: migrating ? 'not-allowed' : 'pointer',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    transition: 'all 0.2s',
+                    boxShadow: migrating ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!migrating) {
+                      e.currentTarget.style.backgroundColor = '#059669';
+                      e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!migrating) {
+                      e.currentTarget.style.backgroundColor = '#10B981';
+                      e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
+                    }
+                  }}
+                >
+                  既存に追加
+                </button>
+              </>
+            )}
             <button
               onClick={async () => {
-                // すべての既存構想を取得
-                const allConcepts = await getAllExistingConcepts();
-                
-                if (allConcepts.length === 0) {
-                  alert('既存のコンポーネント化された構想が見つかりませんでした。');
-                  return;
-                } else if (allConcepts.length === 1) {
-                  // 1つだけの場合はサブメニュー選択へ
-                  setExistingConcept(allConcepts[0]);
-                  setSelectedConceptId(allConcepts[0].conceptId);
-                  setShowConfirmDialog(false);
-                  setShowSubMenuSelector(true);
-                } else {
-                  // 複数ある場合は選択UIを表示
-                  setExistingConcepts(allConcepts);
-                  setShowConceptSelector(true);
-                  setShowConfirmDialog(false);
-                }
-              }}
-              disabled={migrating}
-              style={{
-                padding: '12px 20px',
-                backgroundColor: migrating ? '#86EFAC' : '#10B981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '8px',
-                cursor: migrating ? 'not-allowed' : 'pointer',
-                fontSize: '14px',
-                fontWeight: 600,
-                transition: 'all 0.2s',
-                boxShadow: migrating ? 'none' : '0 1px 2px 0 rgba(0, 0, 0, 0.05)',
-              }}
-              onMouseEnter={(e) => {
-                if (!migrating) {
-                  e.currentTarget.style.backgroundColor = '#059669';
-                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!migrating) {
-                  e.currentTarget.style.backgroundColor = '#10B981';
-                  e.currentTarget.style.boxShadow = '0 1px 2px 0 rgba(0, 0, 0, 0.05)';
-                }
-              }}
-            >
-              既存に追加
-            </button>
-            <button
-              onClick={() => {
                 setMigrationMode('new');
                 setShowConfirmDialog(false);
-                handleMigrate('new');
+                
+                // 全ページ一括移行モードの場合、すべてのサブメニューからページを取得
+                if (isCompanyPlan && useBulkMigration && planId) {
+                  try {
+                    setMigrating(true);
+                    setProgress('すべてのサブメニューからページを取得中...');
+                    
+                    const allPages = await extractAllPagesFromAllSubMenus();
+                    
+                    // 全ページ数を計算
+                    const totalPages = Object.values(allPages).reduce((sum, pages) => sum + pages.length, 0);
+                    const subMenuCount = Object.keys(allPages).length;
+                    
+                    if (totalPages === 0) {
+                      const checkedSubMenus = SUB_MENU_ITEMS.map(item => item.label).join('、');
+                      alert(`すべてのサブメニューからページが見つかりませんでした。\n\n確認したサブメニュー: ${checkedSubMenus}\n\n各サブメニューのページに\`data-page-container\`属性を持つ要素があるか確認してください。\n\nブラウザのコンソールに詳細なログが表示されています。`);
+                      setMigrating(false);
+                      setProgress('');
+                      return;
+                    }
+                    
+                    console.log('✅ 全ページ一括移行: ページ取得完了', {
+                      totalPages,
+                      subMenuCount,
+                      subMenus: Object.keys(allPages).map(id => {
+                        const item = SUB_MENU_ITEMS.find(i => i.id === id);
+                        return item ? item.label : id;
+                      }),
+                    });
+                    
+                    setPagesBySubMenu(allPages); // stateも更新（表示用）
+                    setProgress(`✅ ${totalPages}件のページを${Object.keys(allPages).length}個のサブメニューから取得しました。移行を開始します...`);
+                    
+                    // すべてのページを直接移行（stateに依存せず、取得したデータを直接使用）
+                    await handleCompanyPlanBulkMigration(allPages, planId);
+                  } catch (error: any) {
+                    console.error('全ページ一括取得エラー:', error);
+                    alert(`全ページ一括取得に失敗しました: ${error.message || '不明なエラー'}`);
+                    setMigrating(false);
+                    setProgress('');
+                  }
+                } else {
+                  // 通常モード
+                  handleMigrate('new');
+                }
               }}
               disabled={migrating}
               style={{
@@ -1188,7 +2602,7 @@ export default function MigrateFromFixedPage({
                 }
               }}
             >
-              新規構想作成
+              {isCompanyPlan ? '新規事業計画作成' : '新規構想作成'}
             </button>
             <button
               onClick={() => {
@@ -1264,7 +2678,7 @@ export default function MigrateFromFixedPage({
                 marginBottom: '4px',
                 color: '#111827',
               }}>
-                追加先の構想を選択してください
+                {isCompanyPlan ? '追加先の事業計画を選択してください' : '追加先の構想を選択してください'}
               </h4>
               <p style={{
                 fontSize: '14px',
@@ -1417,7 +2831,7 @@ export default function MigrateFromFixedPage({
             <button
               onClick={() => {
                 if (!selectedConceptId) {
-                  alert('追加先の構想を選択してください。');
+                  alert(isCompanyPlan ? '追加先の事業計画を選択してください。' : '追加先の構想を選択してください。');
                   return;
                 }
                 const selectedConcept = existingConcepts.find(c => c.conceptId === selectedConceptId);
@@ -1607,14 +3021,30 @@ export default function MigrateFromFixedPage({
               戻る
             </button>
             <button
-              onClick={() => {
+              onClick={async () => {
                 if (!selectedConceptId) {
-                  alert('追加先の構想を選択してください。');
+                  alert(isCompanyPlan ? '追加先の事業計画を選択してください。' : '追加先の構想を選択してください。');
                   return;
                 }
                 setMigrationMode('append');
                 setShowSubMenuSelector(false);
-                handleMigrate('append', selectedConceptId, selectedSubMenuId);
+                
+                // 全ページ一括移行モードの場合
+                if (isCompanyPlan && useBulkMigration && planId && Object.keys(pagesBySubMenu).length > 0 && selectedConceptId) {
+                  try {
+                    setMigrating(true);
+                    setProgress('すべてのサブメニューにページを追加中...');
+                    await handleMigrate('append', selectedConceptId);
+                  } catch (error: any) {
+                    console.error('全ページ一括追加エラー:', error);
+                    alert(`全ページ一括追加に失敗しました: ${error.message || '不明なエラー'}`);
+                    setMigrating(false);
+                    setProgress('');
+                  }
+                } else {
+                  // 通常モード
+                  handleMigrate('append', selectedConceptId, selectedSubMenuId);
+                }
               }}
               disabled={migrating || !selectedSubMenuId}
               style={{

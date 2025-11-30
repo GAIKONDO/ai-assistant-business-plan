@@ -31,6 +31,12 @@ export const useComponentizedPage = () => {
   return context;
 };
 
+// オプショナル版：コンテキストが存在しない場合はnullを返す
+export const useComponentizedPageOptional = (): ReturnType<typeof useComponentizedPage> | null => {
+  const context = useContext(ComponentizedPageContext);
+  return context ?? null;
+};
+
 interface ComponentizedPageProviderProps {
   children: ReactNode;
 }

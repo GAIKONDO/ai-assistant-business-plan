@@ -3,7 +3,15 @@
 import { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
 import { FaMobileAlt, FaGraduationCap, FaChartBar, FaLaptopCode, FaEye } from 'react-icons/fa';
-import { useContainerVisibility } from '../layout';
+import { usePlan } from '../layout';
+import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
 
 declare global {
   interface Window {
@@ -196,6 +204,10 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
 };
 
 export default function FeaturesPage() {
+  const { plan } = usePlan();
+  
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
+  const { showContainers } = require('../layout').useContainerVisibility();
   const diagramRef = useRef<HTMLDivElement>(null);
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const [svgContent, setSvgContent] = useState<string>('');
@@ -205,7 +217,6 @@ export default function FeaturesPage() {
   const [isTableExpanded, setIsTableExpanded] = useState(false); // 表の折りたたみ状態
   const initializedRef = useRef(false);
   const renderedRef = useRef(false);
-  const { showContainers } = useContainerVisibility();
 
   // コンポーネントがマウントされた際に状態をリセット
   useEffect(() => {
@@ -430,6 +441,12 @@ export default function FeaturesPage() {
     };
   }, []);
 
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if ((plan as any)?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+
   return (
     <>
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
@@ -441,7 +458,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '24px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -893,7 +913,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '32px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -1175,7 +1198,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '32px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -1818,7 +1844,7 @@ export default function FeaturesPage() {
                 <strong style={{ fontSize: '8px' }}>7.</strong> Goldman Sachs（2024）：AIネイティブ事業は伝統的事業の2倍〜4倍の投資利回り。
               </span>
               <span style={{ fontSize: '8px', whiteSpace: 'normal' }}>
-                <strong style={{ fontSize: '8px' }}>8.</strong> Sequoia（2023 "AI The New Frontier"）：AIネイティブ企業は「スケール到達までの資本効率が最も高い」。
+                <strong style={{ fontSize: '8px' }}>8.</strong> Sequoia（2023 &quot;AI The New Frontier&quot;）：AIネイティブ企業は「スケール到達までの資本効率が最も高い」。
               </span>
               <span style={{ fontSize: '8px', whiteSpace: 'normal' }}>
                 <strong style={{ fontSize: '8px' }}>40.</strong> 経済産業省（2021）「DX レポート 2.1 (DX レポート2 追補版)」https://www.meti.go.jp/press/2021/08/20210831005/20210831005-2.pdf
@@ -1836,7 +1862,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '32px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -2103,7 +2132,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '24px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -2479,7 +2511,10 @@ export default function FeaturesPage() {
             marginTop: '20px',
             marginBottom: '16px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -2581,7 +2616,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '32px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',
@@ -3024,7 +3062,10 @@ export default function FeaturesPage() {
           style={{
             marginBottom: '32px',
             ...(showContainers ? {
-              border: '2px dashed var(--color-primary)',
+              border: '3px dashed #1F2933',
+              backgroundColor: 'transparent',
+              position: 'relative',
+              zIndex: 1,
               borderRadius: '8px',
               padding: '16px',
               pageBreakInside: 'avoid',

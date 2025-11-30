@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect } from 'react';
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { useState, useEffect, useRef } from 'react';
+import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, serverTimestamp } from 'firebase/firestore';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
 
 // Monaco Editorを動的インポート（SSRを回避）
@@ -25,8 +26,9 @@ const MonacoEditor = dynamic(() => import('@monaco-editor/react'), {
 });
 
 interface EditPageFormProps {
-  serviceId: string;
-  conceptId: string;
+  serviceId?: string;
+  conceptId?: string;
+  planId?: string; // 会社本体の事業計画用
   subMenuId: string;
   pageId: string;
   initialTitle: string;
@@ -37,7 +39,8 @@ interface EditPageFormProps {
 
 export default function EditPageForm({ 
   serviceId, 
-  conceptId, 
+  conceptId,
+  planId,
   subMenuId,
   pageId, 
   initialTitle, 
@@ -50,6 +53,9 @@ export default function EditPageForm({
   const [keyMessage, setKeyMessage] = useState('');
   const [subMessage, setSubMessage] = useState('');
   const [saving, setSaving] = useState(false);
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const imageFileInputRef = useRef<HTMLInputElement>(null);
+  const monacoEditorRef = useRef<any>(null);
 
   // 既存のコンテンツからキーメッセージとサブメッセージを抽出
   useEffect(() => {
@@ -88,6 +94,115 @@ export default function EditPageForm({
     }
   }, [initialTitle, initialContent]);
 
+  // 画像アップロード処理
+  const handleImageUpload = async (file: File) => {
+    if (!auth?.currentUser || !storage) {
+      alert('Firebaseが初期化されていません。');
+      return;
+    }
+
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください。');
+      return;
+    }
+
+    setUploadingImage(true);
+    try {
+      // ファイル名を生成
+      const fileName = `page-image-${Date.now()}-${file.name}`;
+      
+      // ストレージパスを決定
+      let storagePath: string;
+      if (planId) {
+        // 会社本体の事業計画の場合
+        storagePath = `companyBusinessPlan/${planId}/${fileName}`;
+      } else if (serviceId && conceptId) {
+        // サービス事業計画の場合
+        storagePath = `concepts/${serviceId}/${conceptId}/${fileName}`;
+      } else {
+        throw new Error('必要な情報が不足しています。');
+      }
+
+      const storageRef = ref(storage, storagePath);
+      await uploadBytes(storageRef, file);
+      
+      // ダウンロードURLを取得
+      const downloadURL = await getDownloadURL(storageRef);
+      
+      // 画像のHTMLタグを生成
+      const imageHTML = `<img src="${downloadURL}" alt="アップロード画像" style="max-width: 100%; height: auto; display: block; margin: 16px 0;" />`;
+      
+      // Monaco Editorのカーソル位置に画像を挿入
+      if (monacoEditorRef.current) {
+        try {
+          const editor = monacoEditorRef.current;
+          const position = editor.getPosition();
+          const model = editor.getModel();
+          
+          if (model && position) {
+            // カーソル位置に画像を挿入
+            const insertText = '\n' + imageHTML + '\n';
+            const range = {
+              startLineNumber: position.lineNumber,
+              startColumn: position.column,
+              endLineNumber: position.lineNumber,
+              endColumn: position.column,
+            };
+            
+            model.pushEditOperations(
+              [],
+              [{
+                range: range as any,
+                text: insertText,
+              }],
+              () => null
+            );
+            
+            // カーソルを画像の後に移動
+            const newPosition = {
+              lineNumber: position.lineNumber + insertText.split('\n').length - 1,
+              column: 1,
+            };
+            editor.setPosition(newPosition);
+            editor.focus();
+          } else {
+            // フォールバック: コンテンツの末尾に追加
+            const newContent = content + '\n' + imageHTML;
+            setContent(newContent);
+          }
+        } catch (error) {
+          console.error('Monaco Editorへの挿入エラー:', error);
+          // フォールバック: コンテンツの末尾に追加
+          const newContent = content + '\n' + imageHTML;
+          setContent(newContent);
+        }
+      } else {
+        // Monaco Editorが利用できない場合は、コンテンツの末尾に追加
+        const newContent = content + '\n' + imageHTML;
+        setContent(newContent);
+      }
+      
+      alert('画像をアップロードしました。コンテンツに追加されました。');
+    } catch (error) {
+      console.error('画像アップロードエラー:', error);
+      alert(`画像のアップロードに失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setUploadingImage(false);
+    }
+  };
+
+  // 画像ファイル選択ハンドラー
+  const handleImageFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      handleImageUpload(file);
+    }
+    // 同じファイルを再度選択できるようにリセット
+    if (imageFileInputRef.current) {
+      imageFileInputRef.current.value = '';
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!auth?.currentUser || !db) return;
@@ -98,6 +213,103 @@ export default function EditPageForm({
 
     try {
       setSaving(true);
+
+      // 会社本体の事業計画の場合の処理
+      const isCompanyPlan = !!planId && !serviceId && !conceptId;
+      if (isCompanyPlan && planId) {
+        // 事業計画ドキュメントを取得
+        const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+        
+        if (!planDoc.exists()) {
+          alert('事業計画が見つかりませんでした。');
+          setSaving(false);
+          return;
+        }
+
+        const planData = planDoc.data();
+        const pagesBySubMenu = planData.pagesBySubMenu || {};
+        const pageOrderBySubMenu = planData.pageOrderBySubMenu || {};
+        
+        // 現在のサブメニューのページデータを取得
+        const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+        
+        // キーメッセージとサブメッセージをHTMLにフォーマット
+        let formattedContent = content.trim();
+        
+        // キーメッセージまたはサブメッセージが入力されている場合
+        if (keyMessage.trim() || subMessage.trim()) {
+          const keyMessageHTML = `
+  <!-- キーメッセージ - 最大化 -->
+  <div class="key-message-container" style="margin-bottom: ${keyMessage.trim() && subMessage.trim() ? '32px' : '48px'}">
+    ${keyMessage.trim() ? `<h2 class="key-message-title" style="margin: 0 0 ${subMessage.trim() ? '12px' : '16px'} 0; line-height: 1.4">
+      ${keyMessage.trim()}
+    </h2>` : ''}
+    ${subMessage.trim() ? `<p class="key-message-subtitle">
+      ${subMessage.trim()}
+    </p>` : ''}
+  </div>`;
+          
+          // 既存のコンテンツからキーメッセージ部分を削除
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = formattedContent;
+          
+          // key-message-containerを削除
+          const existingKeyMessageContainer = tempDiv.querySelector('.key-message-container');
+          if (existingKeyMessageContainer) {
+            existingKeyMessageContainer.remove();
+          } else {
+            // クラスがない場合、h2とpの組み合わせを削除
+            const h2Element = tempDiv.querySelector('h2');
+            const pElement = tempDiv.querySelector('p');
+            if (h2Element && pElement) {
+              const h2Style = h2Element.getAttribute('style') || '';
+              if (h2Style.includes('linear-gradient') || h2Style.includes('background-clip')) {
+                h2Element.remove();
+                pElement.remove();
+              }
+            }
+          }
+          
+          // キーメッセージを先頭に追加
+          formattedContent = keyMessageHTML + '\n' + tempDiv.innerHTML.trim();
+        }
+        
+        // ページを更新
+        const updatedPages = currentSubMenuPages.map((page: any) => 
+          page.id === pageId 
+            ? { ...page, title: title.trim(), content: formattedContent || '<p>コンテンツを入力してください。</p>' }
+            : page
+        );
+        
+        // 更新データを準備
+        const updatedPagesBySubMenu = {
+          ...pagesBySubMenu,
+          [subMenuId]: updatedPages,
+        };
+        
+        // Firestoreに保存
+        await setDoc(
+          doc(db, 'companyBusinessPlan', planId),
+          {
+            ...planData,
+            pagesBySubMenu: updatedPagesBySubMenu,
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        
+        setSaving(false);
+        onPageUpdated();
+        onClose();
+        return;
+      }
+
+      // 事業企画の場合の処理
+      if (!serviceId || !conceptId) {
+        alert('必要な情報が不足しています。');
+        setSaving(false);
+        return;
+      }
 
       // 構想ドキュメントを検索
       const conceptsQuery = query(
@@ -111,6 +323,7 @@ export default function EditPageForm({
       
       if (conceptsSnapshot.empty) {
         alert('構想ドキュメントが見つかりません');
+        setSaving(false);
         return;
       }
 
@@ -307,9 +520,38 @@ export default function EditPageForm({
           />
         </div>
         <div style={{ marginBottom: '20px' }}>
-          <label htmlFor="editPageContent" style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
-            コンテンツ（HTML形式）
-          </label>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+            <label htmlFor="editPageContent" style={{ fontSize: '14px', fontWeight: 500 }}>
+              コンテンツ（HTML形式）
+            </label>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+              <input
+                ref={imageFileInputRef}
+                type="file"
+                accept="image/*"
+                onChange={handleImageFileSelect}
+                style={{ display: 'none' }}
+                id="imageUploadInput"
+              />
+              <label
+                htmlFor="imageUploadInput"
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#10B981',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '4px',
+                  cursor: uploadingImage ? 'not-allowed' : 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  opacity: uploadingImage ? 0.6 : 1,
+                  display: 'inline-block',
+                }}
+              >
+                {uploadingImage ? 'アップロード中...' : '📷 画像を追加'}
+              </label>
+            </div>
+          </div>
           <div style={{
             border: '1px solid var(--color-border-color)',
             borderRadius: '6px',
@@ -321,6 +563,9 @@ export default function EditPageForm({
               language="html"
               value={content}
               onChange={(value) => setContent(value || '')}
+              onMount={(editor) => {
+                monacoEditorRef.current = editor;
+              }}
               theme="vs"
               options={{
                 minimap: { enabled: false },

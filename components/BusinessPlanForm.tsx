@@ -4,6 +4,20 @@ import { useState, useEffect } from 'react';
 import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 
+export interface KeyVisualPDFMetadata {
+  title: string;
+  signature: string;
+  date: string;
+  position: {
+    x: number; // mm
+    y: number; // mm
+    align: 'left' | 'center' | 'right';
+  };
+  titleFontSize?: number; // pt
+  signatureFontSize?: number; // pt
+  dateFontSize?: number; // pt
+}
+
 export interface BusinessPlanData {
   title: string;
   description: string;
@@ -14,6 +28,9 @@ export interface BusinessPlanData {
   timeline: string;
   keyVisualUrl?: string; // キービジュアル画像のURL
   keyVisualHeight?: number; // キービジュアルの高さ（%）
+  keyVisualScale?: number; // キービジュアルのスケール（%）
+  keyVisualLogoUrl?: string; // PDFロゴのURL
+  keyVisualMetadata?: KeyVisualPDFMetadata; // PDFメタデータ（タイトル、署名、作成日）
 }
 
 interface BusinessPlanFormProps {

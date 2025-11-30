@@ -5,17 +5,90 @@ import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
-import { useContainerVisibility } from '@/app/business-plan/services/[serviceId]/[conceptId]/layout';
-import { useConcept } from '@/app/business-plan/services/[serviceId]/[conceptId]/layout';
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
+
+// オプショナルなuseConceptとusePlanをモジュールレベルでインポート
+let useConceptHook: any = null;
+let usePlanHook: any = null;
+let useContainerVisibilityHook: any = null;
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const serviceLayout = require('@/app/business-plan/services/[serviceId]/[conceptId]/layout');
+  useConceptHook = serviceLayout.useConcept;
+  useContainerVisibilityHook = serviceLayout.useContainerVisibility;
+} catch {
+  // インポートに失敗した場合は無視
+}
+
+try {
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const companyLayout = require('@/app/business-plan/company/[planId]/layout');
+  usePlanHook = companyLayout.usePlan;
+  if (!useContainerVisibilityHook) {
+    useContainerVisibilityHook = companyLayout.useContainerVisibility;
+  }
+} catch {
+  // インポートに失敗した場合は無視
+}
 
 export default function Page0() {
   const params = useParams();
   const router = useRouter();
-  const serviceId = params.serviceId as string;
-  const conceptId = params.conceptId as string;
-  const { showContainers } = useContainerVisibility();
-  const { concept, reloadConcept } = useConcept();
+  const serviceId = params.serviceId as string | undefined;
+  const conceptId = params.conceptId as string | undefined;
+  const planId = params.planId as string | undefined;
+  
+  // useContainerVisibilityはオプショナル（コンテキストが存在しない場合があるため）
+  // デフォルト値を使用
+  let showContainers = false;
+  
+  if (useContainerVisibilityHook) {
+    try {
+      const containerVisibility = useContainerVisibilityHook();
+      showContainers = containerVisibility.showContainers;
+    } catch {
+      // コンテキストが存在しない場合はデフォルト値を使用
+    }
+  }
+  
+  // useConceptもオプショナル
+  // 会社本体の事業計画の場合はusePlanを使用
+  let concept: any = null;
+  let reloadConcept: (() => Promise<void>) | undefined = undefined;
+  
+  // 事業企画の場合
+  if (serviceId && conceptId && useConceptHook) {
+    try {
+      const conceptData = useConceptHook();
+      concept = conceptData.concept;
+      reloadConcept = conceptData.reloadConcept;
+    } catch {
+      // コンテキストが存在しない場合はデフォルト値を使用
+    }
+  } else if (planId && usePlanHook) {
+    // 会社本体の事業計画の場合
+    try {
+      const planData = usePlanHook();
+      // planをconcept形式に変換
+      concept = planData.plan ? {
+        id: planData.plan.id,
+        keyVisualUrl: planData.plan.keyVisualUrl || '',
+        keyVisualHeight: planData.plan.keyVisualHeight || 56.25,
+        keyVisualLogoUrl: planData.plan.keyVisualLogoUrl || null,
+        keyVisualMetadata: planData.plan.keyVisualMetadata || undefined,
+      } : null;
+      reloadConcept = async () => {
+        // planの再読み込みを実行
+        if (planData.reloadPlan) {
+          await planData.reloadPlan();
+        }
+      };
+    } catch {
+      // コンテキストが存在しない場合はデフォルト値を使用
+    }
+  }
+  
   const imgRef = useRef<HTMLImageElement>(null);
 
   const keyVisualUrl = concept?.keyVisualUrl || '';
@@ -77,22 +150,36 @@ export default function Page0() {
   };
 
   const saveScaleChange = async () => {
-    if (concept?.id && db) {
-      try {
+    if (!concept?.id || !db) return;
+    
+    try {
+      // 事業企画の場合はconceptsコレクション、会社本体の事業計画の場合はcompanyBusinessPlanコレクション
+      if (serviceId && conceptId) {
         const conceptRef = doc(db, 'concepts', concept.id);
         await updateDoc(conceptRef, { 
           keyVisualScale: keyVisualScale,
           updatedAt: serverTimestamp() 
         });
-        setShowSizeControl(false);
-      } catch (error) {
-        console.error('キービジュアルのスケール保存エラー:', error);
+      } else if (planId) {
+        const planRef = doc(db, 'companyBusinessPlan', planId);
+        await updateDoc(planRef, { 
+          keyVisualScale: keyVisualScale,
+          updatedAt: serverTimestamp() 
+        });
       }
+      setShowSizeControl(false);
+    } catch (error) {
+      console.error('キービジュアルのスケール保存エラー:', error);
     }
   };
 
   const handleImageChange = () => {
-    router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`);
+    if (serviceId && conceptId) {
+      router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`);
+    } else if (planId) {
+      // 会社本体の事業計画の場合は、画像変更機能を無効化するか、別のページに遷移
+      alert('画像変更機能は現在利用できません。');
+    }
   };
 
   const handleMetadataSave = async (metadata: {
@@ -104,22 +191,33 @@ export default function Page0() {
     signatureFontSize?: number;
     dateFontSize?: number;
   }) => {
-    if (concept?.id && db) {
-      try {
-        console.log('メタデータを保存します:', metadata);
+    if (!concept?.id || !db) return;
+    
+    try {
+      console.log('メタデータを保存します:', metadata);
+      // 事業企画の場合はconceptsコレクション、会社本体の事業計画の場合はcompanyBusinessPlanコレクション
+      if (serviceId && conceptId) {
         const conceptRef = doc(db, 'concepts', concept.id);
         await updateDoc(conceptRef, {
           keyVisualMetadata: metadata,
           updatedAt: serverTimestamp()
         });
-        console.log('Firestoreへの保存が完了しました');
-        // Firestoreに保存後、conceptを再読み込み
-        setShowMetadataEditor(false);
-        await reloadConcept();
-        console.log('conceptの再読み込みが完了しました。keyVisualMetadata:', concept?.keyVisualMetadata);
-      } catch (error) {
-        console.error('キービジュアルメタデータの保存エラー:', error);
+      } else if (planId) {
+        const planRef = doc(db, 'companyBusinessPlan', planId);
+        await updateDoc(planRef, {
+          keyVisualMetadata: metadata,
+          updatedAt: serverTimestamp()
+        });
       }
+      console.log('Firestoreへの保存が完了しました');
+      // Firestoreに保存後、conceptを再読み込み
+      setShowMetadataEditor(false);
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+      console.log('conceptの再読み込みが完了しました。keyVisualMetadata:', concept?.keyVisualMetadata);
+    } catch (error) {
+      console.error('キービジュアルメタデータの保存エラー:', error);
     }
   };
 
@@ -136,7 +234,7 @@ export default function Page0() {
   };
 
   const handleLogoUpload = async (file: File) => {
-    if (!concept?.id || !storage || !auth?.currentUser) {
+    if (!concept?.id || !storage || !auth?.currentUser || !db) {
       alert('Firebaseが初期化されていません。');
       return;
     }
@@ -144,21 +242,39 @@ export default function Page0() {
     setLogoUploading(true);
     try {
       // Firebase Storageにアップロード
-      const storageRef = ref(storage, `concepts/${serviceId}/${conceptId}/logo.png`);
+      let storageRef;
+      if (serviceId && conceptId) {
+        storageRef = ref(storage, `concepts/${serviceId}/${conceptId}/logo.png`);
+      } else if (planId) {
+        storageRef = ref(storage, `companyBusinessPlan/${planId}/logo.png`);
+      } else {
+        throw new Error('必要な情報が不足しています。');
+      }
+      
       await uploadBytes(storageRef, file);
       
       // ダウンロードURLを取得
       const downloadURL = await getDownloadURL(storageRef);
 
       // Firestoreに保存
-      const conceptRef = doc(db, 'concepts', concept.id);
-      await updateDoc(conceptRef, {
-        keyVisualLogoUrl: downloadURL,
-        updatedAt: serverTimestamp()
-      });
+      if (serviceId && conceptId) {
+        const conceptRef = doc(db, 'concepts', concept.id);
+        await updateDoc(conceptRef, {
+          keyVisualLogoUrl: downloadURL,
+          updatedAt: serverTimestamp()
+        });
+      } else if (planId) {
+        const planRef = doc(db, 'companyBusinessPlan', planId);
+        await updateDoc(planRef, {
+          keyVisualLogoUrl: downloadURL,
+          updatedAt: serverTimestamp()
+        });
+      }
 
       // conceptを再読み込み
-      await reloadConcept();
+      if (reloadConcept) {
+        await reloadConcept();
+      }
       setShowLogoEditor(false);
       alert('ロゴのアップロードが完了しました。');
     } catch (error) {
@@ -175,13 +291,24 @@ export default function Page0() {
     if (!confirm('ロゴを削除しますか？')) return;
 
     try {
-      const conceptRef = doc(db, 'concepts', concept.id);
-      await updateDoc(conceptRef, {
-        keyVisualLogoUrl: null,
-        updatedAt: serverTimestamp()
-      });
+      // 事業企画の場合はconceptsコレクション、会社本体の事業計画の場合はcompanyBusinessPlanコレクション
+      if (serviceId && conceptId) {
+        const conceptRef = doc(db, 'concepts', concept.id);
+        await updateDoc(conceptRef, {
+          keyVisualLogoUrl: null,
+          updatedAt: serverTimestamp()
+        });
+      } else if (planId) {
+        const planRef = doc(db, 'companyBusinessPlan', planId);
+        await updateDoc(planRef, {
+          keyVisualLogoUrl: null,
+          updatedAt: serverTimestamp()
+        });
+      }
 
-      await reloadConcept();
+      if (reloadConcept) {
+        await reloadConcept();
+      }
       setShowLogoEditor(false);
       alert('ロゴを削除しました。');
     } catch (error) {
@@ -203,11 +330,15 @@ export default function Page0() {
         marginBottom: '32px',
         position: 'relative',
         ...(showContainers ? {
-          border: '2px dashed var(--color-primary)',
+          border: '4px dashed #000000',
           borderRadius: '8px',
           padding: '16px',
           pageBreakInside: 'avoid',
           breakInside: 'avoid',
+          backgroundColor: 'transparent',
+          position: 'relative',
+          zIndex: 1,
+          boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
         } : {}),
       }}
     >

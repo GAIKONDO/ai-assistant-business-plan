@@ -18,16 +18,18 @@ import {
   useSortable,
 } from '@dnd-kit/sortable';
 import { CSS } from '@dnd-kit/utilities';
-import { collection, query, where, getDocs, doc, setDoc, getDoc, addDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, setDoc, getDoc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import { pageConfigs, PageConfig } from './pageConfig';
 import DynamicPage from './DynamicPage';
 import EditPageForm from './EditPageForm';
-import { useComponentizedPage } from './ComponentizedPageContext';
+import { useComponentizedPageOptional } from './ComponentizedPageContext';
+import { useComponentizedCompanyPlanPageOptional } from './ComponentizedCompanyPlanPageContext';
 
 interface PageOrderManagerProps {
-  serviceId: string;
-  conceptId: string;
+  serviceId?: string;
+  conceptId?: string;
+  planId?: string; // 会社本体の事業計画用
   subMenuId: string;
   onOrderChange?: (orderedConfigs: PageConfig[]) => void;
   onPageDeleted?: () => void;
@@ -384,27 +386,64 @@ function SortablePageItem({
   );
 }
 
-export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOrderChange, onPageDeleted, onPageUpdated }: PageOrderManagerProps) {
-  // ComponentizedPageContextからrefreshPagesを取得
+export default function PageOrderManager({ serviceId, conceptId, planId, subMenuId, onOrderChange, onPageDeleted, onPageUpdated }: PageOrderManagerProps) {
+  // 会社本体の事業計画かどうかを判定
+  const isCompanyPlan = !!planId && !serviceId && !conceptId;
+  
+  // ComponentizedPageContextまたはComponentizedCompanyPlanPageContextからrefreshPagesとorderedConfigsを取得
+  // オプショナル版を使用してReact Hooksのルールに準拠
+  const companyPlanContext = useComponentizedCompanyPlanPageOptional();
+  const servicePlanContext = useComponentizedPageOptional();
+  
   let refreshPages: (() => void) | undefined;
-  try {
-    const context = useComponentizedPage();
-    refreshPages = context.refreshPages;
-  } catch (e) {
-    // ComponentizedPageProviderでラップされていない場合は無視
-    console.warn('ComponentizedPageContextが利用できません:', e);
+  let contextOrderedConfigs: PageConfig[] | undefined;
+  if (isCompanyPlan && companyPlanContext) {
+    refreshPages = companyPlanContext.refreshPages;
+    contextOrderedConfigs = companyPlanContext.orderedConfigs;
+  } else if (!isCompanyPlan && servicePlanContext) {
+    refreshPages = servicePlanContext.refreshPages;
+    contextOrderedConfigs = servicePlanContext.orderedConfigs;
   }
   
-  const [orderedConfigs, setOrderedConfigs] = useState<PageConfig[]>(subMenuId === 'overview' ? pageConfigs : []);
+  // ContextからorderedConfigsを取得できる場合はそれを使用、そうでない場合は独自に読み込む
+  const [orderedConfigs, setOrderedConfigs] = useState<PageConfig[]>(contextOrderedConfigs || (subMenuId === 'overview' ? pageConfigs : []));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [refreshTrigger, setRefreshTrigger] = useState(0);
+  
+  // ContextからorderedConfigsを取得できる場合は、それを優先的に使用
+  useEffect(() => {
+    if (contextOrderedConfigs && contextOrderedConfigs.length > 0) {
+      console.log('PageOrderManager - ContextからorderedConfigsを取得:', contextOrderedConfigs);
+      console.log('PageOrderManager - Contextから取得したページ数:', contextOrderedConfigs.length);
+      setOrderedConfigs(contextOrderedConfigs);
+      setLoading(false);
+    }
+  }, [contextOrderedConfigs]);
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageTitle, setEditingPageTitle] = useState('');
   const [editingPageContent, setEditingPageContent] = useState('');
 
-  // serviceIdまたはconceptIdが存在しない場合はエラーを表示
-  if (!serviceId || !conceptId) {
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
+
+  // serviceId/conceptIdまたはplanIdが存在しない場合はエラーを表示
+  if (!isCompanyPlan && (!serviceId || !conceptId)) {
+    return (
+      <div style={{ textAlign: 'center', padding: '40px' }}>
+        <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
+          ページ情報が正しく読み込まれていません。
+        </p>
+      </div>
+    );
+  }
+  
+  if (isCompanyPlan && !planId) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
         <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
@@ -414,15 +453,20 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
     );
   }
 
-  const sensors = useSensors(
-    useSensor(PointerSensor),
-    useSensor(KeyboardSensor, {
-      coordinateGetter: sortableKeyboardCoordinates,
-    })
-  );
-
   // Firestoreから順序を読み込む
   useEffect(() => {
+    // ContextからorderedConfigsを取得できる場合は、独自の読み込みをスキップ
+    if (contextOrderedConfigs && contextOrderedConfigs.length >= 0) {
+      // Contextから取得した場合は、独自の読み込みは不要
+      return;
+    }
+    
+    // 会社本体の事業計画の場合は、loadCompanyPlanPageOrderを呼ぶ
+    if (isCompanyPlan && planId) {
+      loadCompanyPlanPageOrder(planId);
+      return;
+    }
+    
     // serviceIdまたはconceptIdが存在しない場合はスキップ
     if (!serviceId || !conceptId) {
       setLoading(false);
@@ -557,7 +601,121 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
       }
       setLoading(false);
     });
-  }, [serviceId, conceptId, subMenuId, refreshTrigger]);
+    
+    loadPageOrder();
+  }, [serviceId, conceptId, subMenuId, refreshTrigger, isCompanyPlan, planId]);
+
+  /**
+   * 会社本体の事業計画のページ順序を読み込む
+   */
+  const loadCompanyPlanPageOrder = async (planId: string) => {
+    if (!db || !auth?.currentUser) {
+      setLoading(false);
+      return;
+    }
+
+    try {
+      setLoading(true);
+      
+      // 事業計画ドキュメントを取得
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+      
+      if (!planDoc.exists()) {
+        setOrderedConfigs([]);
+        setLoading(false);
+        return;
+      }
+
+      const planData = planDoc.data();
+      
+      // サブメニューごとのページデータを取得
+      const pagesBySubMenu = planData.pagesBySubMenu as { [key: string]: Array<{
+        id: string;
+        pageNumber: number;
+        title: string;
+        content: string;
+      }> } | undefined;
+      
+      const pageOrderBySubMenu = planData.pageOrderBySubMenu as { [key: string]: string[] } | undefined;
+      
+      // 現在のサブメニューのページデータを取得
+      const currentSubMenuPages = pagesBySubMenu?.[subMenuId] || [];
+      const currentSubMenuPageOrder = pageOrderBySubMenu?.[subMenuId];
+      
+      // デバッグログ
+      console.log('PageOrderManager - loadCompanyPlanPageOrder:');
+      console.log('  planId:', planId);
+      console.log('  subMenuId:', subMenuId);
+      console.log('  currentSubMenuPages:', currentSubMenuPages);
+      console.log('  currentSubMenuPageOrder:', currentSubMenuPageOrder);
+      
+      // 動的ページをPageConfigに変換
+      const dynamicPageConfigs: PageConfig[] = (currentSubMenuPages || []).map((page) => ({
+        id: page.id,
+        pageNumber: page.pageNumber,
+        title: page.title,
+        component: () => (
+          <DynamicPage
+            pageId={page.id}
+            pageNumber={page.pageNumber}
+            title={page.title}
+            content={page.content}
+          />
+        ),
+      }));
+      
+      console.log('PageOrderManager - dynamicPageConfigs:', dynamicPageConfigs);
+      console.log('PageOrderManager - dynamicPageConfigs.length:', dynamicPageConfigs.length);
+      
+      // overviewの場合は固定ページも含める
+      let allConfigs: PageConfig[];
+      if (subMenuId === 'overview') {
+        allConfigs = [...pageConfigs, ...dynamicPageConfigs];
+      } else {
+        allConfigs = dynamicPageConfigs;
+      }
+      
+      console.log('PageOrderManager - allConfigs:', allConfigs);
+      console.log('PageOrderManager - allConfigs.length:', allConfigs.length);
+      
+      let finalOrderedConfigs: PageConfig[];
+      if (currentSubMenuPageOrder && currentSubMenuPageOrder.length > 0) {
+        // 保存された順序に基づいてページを並び替え
+        const ordered = currentSubMenuPageOrder
+          .map((pageId) => allConfigs.find((config) => config.id === pageId))
+          .filter((config): config is PageConfig => config !== undefined);
+        
+        // 保存されていないページを末尾に追加
+        const missingPages = allConfigs.filter(
+          (config) => !currentSubMenuPageOrder.includes(config.id)
+        );
+        
+        finalOrderedConfigs = [...ordered, ...missingPages];
+      } else {
+        // ページ番号でソート
+        finalOrderedConfigs = [...allConfigs].sort((a, b) => a.pageNumber - b.pageNumber);
+      }
+      
+      console.log('PageOrderManager - finalOrderedConfigs:', finalOrderedConfigs);
+      console.log('PageOrderManager - finalOrderedConfigs.length:', finalOrderedConfigs.length);
+      console.log('PageOrderManager - finalOrderedConfigs.map(c => c.id):', finalOrderedConfigs.map(c => c.id));
+      
+      // ページ数のサマリーを表示
+      console.log('=== ページ数サマリー ===');
+      console.log(`固定ページ数: ${subMenuId === 'overview' ? pageConfigs.length : 0}`);
+      console.log(`動的ページ数: ${dynamicPageConfigs.length}`);
+      console.log(`合計ページ数: ${finalOrderedConfigs.length}`);
+      console.log(`保存された順序数: ${currentSubMenuPageOrder?.length || 0}`);
+      console.log('====================');
+      
+      setOrderedConfigs(finalOrderedConfigs);
+    } catch (error) {
+      console.error('ページ順序の読み込みエラー:', error);
+      setOrderedConfigs([]);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   // 定期的にページを再読み込み（ページが追加された可能性があるため）
   useEffect(() => {
@@ -576,6 +734,12 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
 
   // Firestoreに順序を保存
   const savePageOrder = async (newOrder: PageConfig[]) => {
+    // 会社本体の事業計画の場合の処理
+    if (isCompanyPlan && planId) {
+      await saveCompanyPlanPageOrder(planId, newOrder);
+      return;
+    }
+
     if (!db || !auth?.currentUser || !serviceId || !conceptId) {
       console.error('保存に必要な情報が不足しています:', { serviceId, conceptId, hasAuth: !!auth?.currentUser });
       return;
@@ -583,7 +747,7 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
 
     try {
       setSaving(true);
-      
+
       // 構想ドキュメントを検索
       const conceptsQuery = query(
         collection(db, 'concepts'),
@@ -719,8 +883,89 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
     }
   };
 
+  /**
+   * 会社本体の事業計画のページ順序を保存
+   */
+  const saveCompanyPlanPageOrder = async (planId: string, newOrder: PageConfig[]) => {
+    if (!db || !auth?.currentUser) {
+      console.error('保存に必要な情報が不足しています');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // 事業計画ドキュメントを取得
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+      
+      if (!planDoc.exists()) {
+        alert('事業計画が見つかりませんでした。');
+        setSaving(false);
+        return;
+      }
+
+      const planData = planDoc.data();
+      
+      // ページ順序を保存（サブメニューごと）
+      const pageOrder = newOrder.map((config) => config.id);
+      
+      // 既存のデータを取得
+      const pagesBySubMenu = planData.pagesBySubMenu || {};
+      const pageOrderBySubMenu = planData.pageOrderBySubMenu || {};
+      
+      // サブメニューごとのページデータを更新
+      const updatedPagesBySubMenu = {
+        ...pagesBySubMenu,
+        [subMenuId]: newOrder.map((config, index) => {
+          // 既存のページデータを取得
+          const existingPage = (pagesBySubMenu[subMenuId] || []).find((p: any) => p.id === config.id);
+          if (existingPage) {
+            return {
+              ...existingPage,
+              pageNumber: index,
+            };
+          }
+          // 新しいページの場合は、固定ページの設定を使用
+          return {
+            id: config.id,
+            pageNumber: index,
+            title: config.title || `ページ ${index + 1}`,
+            content: '',
+          };
+        }),
+      };
+      
+      const updatedPageOrderBySubMenu = {
+        ...pageOrderBySubMenu,
+        [subMenuId]: pageOrder,
+      };
+      
+      // Firestoreに保存
+      await updateDoc(doc(db, 'companyBusinessPlan', planId), {
+        pagesBySubMenu: updatedPagesBySubMenu,
+        pageOrderBySubMenu: updatedPageOrderBySubMenu,
+        updatedAt: serverTimestamp(),
+      });
+      
+      if (refreshPages) {
+        refreshPages();
+      }
+    } catch (error) {
+      console.error('保存エラー:', error);
+      alert('ページ順序の保存に失敗しました');
+    } finally {
+      setSaving(false);
+    }
+  };
+
   // ページを編集
   const handleEditPage = async (pageId: string) => {
+    // 会社本体の事業計画の場合の処理
+    if (isCompanyPlan && planId) {
+      await handleCompanyPlanEditPage(planId, pageId);
+      return;
+    }
+
     if (!db || !auth?.currentUser || !serviceId || !conceptId) {
       console.error('編集に必要な情報が不足しています');
       return;
@@ -791,6 +1036,117 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
     }
   };
 
+  /**
+   * 会社本体の事業計画のページを編集
+   */
+  const handleCompanyPlanEditPage = async (planId: string, pageId: string) => {
+    if (!db || !auth?.currentUser) {
+      console.error('編集に必要な情報が不足しています');
+      return;
+    }
+
+    try {
+      // 事業計画ドキュメントを取得
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+      
+      if (!planDoc.exists()) {
+        alert('事業計画が見つかりませんでした。');
+        return;
+      }
+
+      const planData = planDoc.data();
+      const pagesBySubMenu = planData.pagesBySubMenu || {};
+      const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+      
+      // 編集するページを検索
+      const pageToEdit = currentSubMenuPages.find((p: any) => p.id === pageId);
+      
+      if (!pageToEdit) {
+        alert('ページが見つかりませんでした。');
+        return;
+      }
+      
+      setEditingPageId(pageId);
+      setEditingPageTitle(pageToEdit.title || '');
+      setEditingPageContent(pageToEdit.content || '');
+    } catch (error) {
+      console.error('ページ編集エラー:', error);
+      alert('ページの編集に失敗しました');
+    }
+  };
+
+  /**
+   * 会社本体の事業計画のページを削除
+   */
+  const handleCompanyPlanDeletePage = async (planId: string, pageId: string) => {
+    if (!db || !auth?.currentUser) {
+      console.error('削除に必要な情報が不足しています');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // 事業計画ドキュメントを取得
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+      
+      if (!planDoc.exists()) {
+        alert('事業計画が見つかりませんでした。');
+        setSaving(false);
+        return;
+      }
+
+      const planData = planDoc.data();
+      const pagesBySubMenu = planData.pagesBySubMenu || {};
+      const pageOrderBySubMenu = planData.pageOrderBySubMenu || {};
+      
+      // 現在のサブメニューのページデータを取得
+      const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+      const currentSubMenuPageOrder = pageOrderBySubMenu[subMenuId] || [];
+      
+      // ページを削除
+      const updatedPages = currentSubMenuPages.filter((page: any) => page.id !== pageId);
+      const updatedPageOrder = currentSubMenuPageOrder.filter((id: string) => id !== pageId);
+      
+      // 更新データを準備
+      const updatedPagesBySubMenu = {
+        ...pagesBySubMenu,
+        [subMenuId]: updatedPages,
+      };
+      
+      const updatedPageOrderBySubMenu = {
+        ...pageOrderBySubMenu,
+        [subMenuId]: updatedPageOrder,
+      };
+      
+      // Firestoreに保存
+      await setDoc(
+        doc(db, 'companyBusinessPlan', planId),
+        {
+          ...planData,
+          pagesBySubMenu: updatedPagesBySubMenu,
+          pageOrderBySubMenu: updatedPageOrderBySubMenu,
+          updatedAt: serverTimestamp(),
+        },
+        { merge: true }
+      );
+      
+      // ローカル状態からも削除
+      setOrderedConfigs(prev => prev.filter(config => config.id !== pageId));
+      
+      setSaving(false);
+      
+      // 親コンポーネントに通知
+      if (onPageDeleted) {
+        onPageDeleted();
+      }
+    } catch (error) {
+      console.error('ページ削除エラー:', error);
+      alert('ページの削除に失敗しました');
+      setSaving(false);
+    }
+  };
+
   const handlePageUpdated = () => {
     setEditingPageId(null);
     if (onPageUpdated) {
@@ -809,6 +1165,12 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
     }
 
     if (!confirm('このページを削除しますか？')) {
+      return;
+    }
+
+    // 会社本体の事業計画の場合の処理
+    if (isCompanyPlan && planId) {
+      await handleCompanyPlanDeletePage(planId, pageId);
       return;
     }
 
@@ -948,6 +1310,7 @@ export default function PageOrderManager({ serviceId, conceptId, subMenuId, onOr
         <EditPageForm
           serviceId={serviceId}
           conceptId={conceptId}
+          planId={planId}
           subMenuId={subMenuId}
           pageId={editingPageId}
           initialTitle={editingPageTitle}
