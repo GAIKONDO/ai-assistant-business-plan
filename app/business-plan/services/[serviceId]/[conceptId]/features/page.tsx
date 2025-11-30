@@ -1,6 +1,43 @@
 'use client';
 
+import { useParams } from 'next/navigation';
+import dynamic from 'next/dynamic';
+
+// コンポーネント化されたページのコンポーネント（条件付きインポート）
+const ComponentizedOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedOverview'),
+  { ssr: false }
+);
+
 export default function FeaturesPage() {
+  const params = useParams();
+  const serviceId = params.serviceId as string;
+  const conceptId = params.conceptId as string;
+
+  // コンポーネント化されたページを使用するかチェック
+  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
+      conceptId.includes('-componentized')) {
+    return <ComponentizedOverview />;
+  }
+
+  // 出産支援パーソナルApp以外の構想の場合は、未実装メッセージを表示
+  if (conceptId !== 'maternity-support' && conceptId !== 'care-support') {
+    return (
+      <>
+        <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
+          提供機能
+        </p>
+        <div className="card">
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
+              この構想の提供機能ページは現在準備中です。
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
@@ -23,7 +60,9 @@ export default function FeaturesPage() {
               lineHeight: '1.3',
               letterSpacing: '-0.5px'
             }}>
-              出産・育児を支える包括的な機能群
+              {conceptId === 'care-support' 
+                ? '介護を支える包括的な機能群'
+                : '出産・育児を支える包括的な機能群'}
             </h2>
             <p style={{ 
               margin: 0, 
@@ -33,7 +72,9 @@ export default function FeaturesPage() {
               letterSpacing: '0.3px',
               lineHeight: '1.6'
             }}>
-              支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供
+              {conceptId === 'care-support'
+                ? '支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供'
+                : '支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供'}
             </p>
           </div>
           <div style={{ paddingLeft: '11px' }}>

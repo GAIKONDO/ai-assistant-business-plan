@@ -19,6 +19,10 @@
   --color-text: var(--color-text-main);
   --color-text-light: var(--color-text-sub);
   --color-border-color: var(--color-border);
+  
+  /* タイトルカラー（ロゴと同じブルー/シアン系） */
+  --color-title-blue: #0066CC;
+  --color-title-cyan: #00BFFF;
 }
 
 * {
@@ -86,8 +90,43 @@ h3 {
   font-size: 18px;
   font-weight: 500;
   line-height: 1.5;
-  margin-bottom: 8px;
-  color: var(--color-text);
+}
+
+/* ============================================
+   ページコンポーネント内のホバーエフェクト
+   ============================================ */
+
+/* アイコンコンテナのホバーエフェクト */
+.challenge-icon-container {
+  transition: transform 0.2s ease, background-color 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.challenge-icon-container:hover {
+  transform: scale(1.1) !important;
+  background-color: #0066CC !important;
+}
+
+/* アイコン全体のコンテナ（アイコン+テキスト）のホバーエフェクト */
+.challenge-item {
+  transition: transform 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.challenge-item:hover {
+  transform: translateY(-4px) !important;
+}
+
+/* 理由カードのホバーエフェクト */
+.reason-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease !important;
+  cursor: pointer !important;
+}
+
+.reason-card:hover {
+  transform: translateY(-4px) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1) !important;
+  border-color: var(--color-primary) !important;
 }
 
 h4 {

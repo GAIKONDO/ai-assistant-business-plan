@@ -1,10 +1,45 @@
 'use client';
 
+import { useParams } from 'next/navigation';
 import { ResponsiveBar } from '@nivo/bar';
 import { ResponsiveLine } from '@nivo/line';
 import { ResponsivePie } from '@nivo/pie';
+import dynamic from 'next/dynamic';
+
+// コンポーネント化されたページのコンポーネント（条件付きインポート）
+const ComponentizedOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedOverview'),
+  { ssr: false }
+);
 
 export default function MarketSizePage() {
+  const params = useParams();
+  const serviceId = params.serviceId as string;
+  const conceptId = params.conceptId as string;
+
+  // コンポーネント化されたページを使用するかチェック
+  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
+      conceptId.includes('-componentized')) {
+    return <ComponentizedOverview />;
+  }
+
+  // 出産支援パーソナルApp以外の構想の場合は、未実装メッセージを表示
+  if (conceptId !== 'maternity-support' && conceptId !== 'care-support') {
+    return (
+      <>
+        <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
+          市場規模
+        </p>
+        <div className="card">
+          <div style={{ textAlign: 'center', padding: '60px' }}>
+            <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
+              この構想の市場規模ページは現在準備中です。
+            </p>
+          </div>
+        </div>
+      </>
+    );
+  }
   // 母の年齢（５歳階級）・出生順位別にみた出生数の年次推移データ（2021-2024年）
   const birthByAgeAndOrderData = [
     { year: 2021, '総数': 811622, '第1子': 372434, '第2子': 294444, '第3子以上': 144744 },

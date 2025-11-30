@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState, useMemo, useCallback } from 'react';
 import Script from 'next/script';
-import { usePlan } from '../layout';
+import { usePlan, useContainerVisibility } from '../layout';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
@@ -16,6 +16,7 @@ declare global {
 
 export default function OverviewPage() {
   const { plan, loading } = usePlan();
+  const { showContainers } = useContainerVisibility();
   const params = useParams();
   const router = useRouter();
   const planId = params.planId as string;
@@ -51,8 +52,6 @@ export default function OverviewPage() {
   const cycleCheckIntervalRef = useRef<NodeJS.Timeout | null>(null);
   const cycleTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
   const aiFactoryTimeoutRefs = useRef<NodeJS.Timeout[]>([]);
-  const [showArchitectureDetails, setShowArchitectureDetails] = useState(false);
-  const [showArchitecturePossibilities, setShowArchitecturePossibilities] = useState(false);
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25); // デフォルトは16:9のアスペクト比
   const [showSizeControl, setShowSizeControl] = useState(false);
 
@@ -606,7 +605,7 @@ export default function OverviewPage() {
         cycleDiagramRef.current.innerHTML = '';
       }
     };
-  }, []);
+  }, [showContainers]);
 
   // p5.jsでデータ循環ループ図を描画（2つ目 - AIネイティブ設計セクション用）
   useEffect(() => {
@@ -939,7 +938,22 @@ export default function OverviewPage() {
       </p>
       
       {/* キービジュアル画像 */}
-      <div className="card" style={{ marginBottom: '24px', padding: 0, overflow: 'hidden', position: 'relative' }}>
+      <div 
+        data-page-container="0"
+        className="card" 
+        style={{
+          marginBottom: '24px', 
+          padding: showContainers ? '16px' : 0, 
+          overflow: 'hidden', 
+          position: 'relative',
+          ...(showContainers ? {
+            border: '2px dashed var(--color-primary)',
+            borderRadius: '8px',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid',
+          } : {}),
+        }}
+      >
         {plan?.keyVisualUrl ? (
           <div style={{ position: 'relative', width: '100%', paddingTop: `${keyVisualHeight}%`, backgroundColor: '#f8f9fa' }}>
             <img
@@ -1124,99 +1138,133 @@ export default function OverviewPage() {
             はじめに
           </h3>
           <div style={{ color: 'var(--color-text)', lineHeight: '1.8', fontSize: '14px' }}>
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                1. AIファーストカンパニーとは
-              </h4>
-              <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
-                人と資産から、アルゴリズム（AI）とネットワークへ。
-              </h2>
-              <h3 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '20px', color: 'var(--color-text-light)', lineHeight: '1.6', textAlign: 'center', fontStyle: 'normal' }}>
-                競争優位は「人と資産」ではなく、「アルゴリズム（AI）とネットワーク」によって決まる時代へ
-              </h3>
-              <p style={{ marginBottom: '16px', paddingLeft: '11px', fontSize: '15px', lineHeight: '1.8', fontWeight: 500 }}>
-                AIファーストカンパニーとは、この変化を最も早く、最も深く実装した組織である。
-              </p>
-              <p style={{ marginBottom: '12px', paddingLeft: '11px', fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
-                中核となるのが「AIファクトリー」であり、データ → アルゴリズム → サービス → 利用 → データという自己強化ループを回し続ける仕組みである。
-              </p>
-            </div>
-            
-          {/* 自己強化の循環系 */}
-          <div style={{ marginTop: '24px', marginBottom: '32px', paddingLeft: '11px' }}>
-            <div style={{ 
-              width: '100%', 
-              maxWidth: '950px',
-              margin: '0 auto',
-              display: 'flex',
-              flexDirection: 'row',
-              gap: '40px',
-              alignItems: 'flex-start',
-            }}>
-              {/* 左側：キャッチコピー */}
-              <div style={{ flex: '0 0 240px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', paddingTop: '30px', alignSelf: 'flex-start' }}>
-                <p style={{ 
-                  fontSize: '14px', 
-                  fontWeight: 500, 
-                  color: 'var(--color-text)', 
-                  lineHeight: '1.7',
-                  fontStyle: 'italic',
-                  borderLeft: '2px solid var(--color-primary)',
-                  paddingLeft: '14px',
-                  marginLeft: '0',
-                  marginBottom: '10px'
-                }}>
-                  This is not digital transformation.<br />
-                  This is an evolution of business itself.
+            <div
+              data-page-container="1"
+              style={{
+                ...(showContainers ? {
+                  border: '2px dashed var(--color-primary)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  marginBottom: '24px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                } : {
+                  marginBottom: '24px',
+                }),
+              }}
+            >
+              <div style={{ marginBottom: '24px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                  <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+                    1. AIファーストカンパニーとは
+                  </h4>
+                  <span id="page-overview-1" style={{ fontSize: '12px', color: '#94A3B8' }}>1</span>
+                </div>
+                <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
+                  人と資産から、アルゴリズム（AI）とネットワークへ。
+                </h2>
+                <h3 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '20px', color: 'var(--color-text-light)', lineHeight: '1.6', textAlign: 'center', fontStyle: 'normal' }}>
+                  競争優位は「人と資産」ではなく「アルゴリズム（AI）とネットワーク」によって決まる時代へ
+                </h3>
+                <p style={{ marginBottom: '16px', paddingLeft: '11px', fontSize: '15px', lineHeight: '1.8', fontWeight: 500 }}>
+                  AIファーストカンパニーとは、この変化を最も早く、最も深く実装した組織である。
                 </p>
-                <p style={{ 
-                  fontSize: '12px', 
-                  fontWeight: 400, 
-                  color: 'var(--color-text-light)', 
-                  lineHeight: '1.7',
-                  paddingLeft: '14px',
-                  marginLeft: '0',
-                  fontStyle: 'normal',
-                  marginTop: '0'
-                }}>
-                  これはデジタル変革ではない。<br />
-                  これはビジネスそのものの進化である。
+                <p style={{ marginBottom: '12px', paddingLeft: '11px', fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                  中核となるのが「AIファクトリー」であり、データ → アルゴリズム → サービス → 利用 → データという自己強化ループを回し続ける仕組みである。
                 </p>
               </div>
               
-              {/* 右側：図と説明 */}
-              <div style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: '0' }}>
-                <div style={{ 
-                  width: '100%', 
-                  maxWidth: '500px',
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'center',
-                  position: 'relative',
-                }}>
-                  <div ref={cycleDiagramRef} style={{ width: '100%', maxWidth: '400px' }} />
+            {/* 自己強化の循環系 */}
+            <div style={{ marginTop: '24px', marginBottom: '32px', paddingLeft: '11px' }}>
+              <div style={{ 
+                width: '100%', 
+                maxWidth: '950px',
+                margin: '0 auto',
+                display: 'flex',
+                flexDirection: 'row',
+                gap: '40px',
+                alignItems: 'flex-start',
+              }}>
+                {/* 左側：キャッチコピー */}
+                <div style={{ flex: '0 0 240px', display: 'flex', flexDirection: 'column', justifyContent: 'flex-start', paddingTop: '30px', alignSelf: 'flex-start' }}>
+                  <p style={{ 
+                    fontSize: '14px', 
+                    fontWeight: 500, 
+                    color: 'var(--color-text)', 
+                    lineHeight: '1.7',
+                    fontStyle: 'italic',
+                    borderLeft: '2px solid var(--color-primary)',
+                    paddingLeft: '14px',
+                    marginLeft: '0',
+                    marginBottom: '10px'
+                  }}>
+                    This is not digital transformation.<br />
+                    This is an evolution of business itself.
+                  </p>
+                  <p style={{ 
+                    fontSize: '12px', 
+                    fontWeight: 400, 
+                    color: 'var(--color-text-light)', 
+                    lineHeight: '1.7',
+                    paddingLeft: '14px',
+                    marginLeft: '0',
+                    fontStyle: 'normal',
+                    marginTop: '0'
+                  }}>
+                    これはデジタル変革ではない。<br />
+                    これはビジネスそのものの進化である。
+                  </p>
                 </div>
-                <p style={{ 
-                  fontSize: '13px', 
-                  color: 'var(--color-text)', 
-                  marginTop: '16px', 
-                  fontWeight: 500,
-                  textAlign: 'center',
-                  letterSpacing: '0.5px'
-                }}>
-                  AI-driven Self-reinforcing Business Loop
-                </p>
-                <p style={{ fontSize: '10px', color: 'var(--color-text-light)', marginTop: '12px', fontStyle: 'italic', textAlign: 'center' }}>
-                  出典: マルコ・イアンシティ; カリム・R・ラカーニ; 吉田素文、AIファースト・カンパニー: アルゴリズムとネットワークが経済を支配する新時代の経営戦略(p.234). 英治出版株式会社.
-                </p>
+                
+                {/* 右側：図と説明 */}
+                <div style={{ flex: '1', display: 'flex', flexDirection: 'column', alignItems: 'center', marginLeft: '0' }}>
+                  <div style={{ 
+                    width: '100%', 
+                    maxWidth: '500px',
+                    display: 'flex',
+                    justifyContent: 'center',
+                    alignItems: 'center',
+                    position: 'relative',
+                  }}>
+                    <div ref={cycleDiagramRef} style={{ width: '100%', maxWidth: '400px' }} />
+                  </div>
+                  <p style={{ 
+                    fontSize: '13px', 
+                    color: 'var(--color-text)', 
+                    marginTop: '16px', 
+                    fontWeight: 500,
+                    textAlign: 'center',
+                    letterSpacing: '0.5px'
+                  }}>
+                    AI-driven Self-reinforcing Business Loop
+                  </p>
+                  <p style={{ fontSize: '10px', color: 'var(--color-text-light)', marginTop: '12px', fontStyle: 'italic', textAlign: 'center' }}>
+                    出典: マルコ・イアンシティ; カリム・R・ラカーニ; 吉田素文、AIファースト・カンパニー: アルゴリズムとネットワークが経済を支配する新時代の経営戦略(p.234). 英治出版株式会社.
+                  </p>
+                </div>
               </div>
             </div>
-          </div>
+            </div>
 
-        <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                2. AIの真価
-              </h4>
+        <div 
+          data-page-container="2"
+          style={{
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+                  2. AIの真価
+                </h4>
+                <span id="page-overview-2" style={{ fontSize: '12px', color: '#94A3B8' }}>2</span>
+              </div>
               <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
                 AIは「不可能だった価値」を可能にする
               </h2>
@@ -1314,10 +1362,25 @@ export default function OverviewPage() {
 
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                3. AIネイティブ設計
-              </h4>
+            <div 
+              data-page-container="3"
+              style={{
+                marginBottom: '24px',
+                ...(showContainers ? {
+                  border: '2px dashed var(--color-primary)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                } : {}),
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+                  3. AIネイティブ設計
+                </h4>
+                <span id="page-overview-3" style={{ fontSize: '12px', color: '#94A3B8' }}>3</span>
+              </div>
               <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
                 ユーザーフレンドリーな設計が好循環の起点
               </h2>
@@ -1406,10 +1469,25 @@ export default function OverviewPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                4. AI活用アーキテクチャ
-              </h4>
+            <div 
+              data-page-container="4"
+              style={{
+                marginBottom: '24px',
+                ...(showContainers ? {
+                  border: '2px dashed var(--color-primary)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                } : {}),
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+                  4. AI活用アーキテクチャ
+                </h4>
+                <span id="page-overview-4" style={{ fontSize: '12px', color: '#94A3B8' }}>4</span>
+              </div>
               <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
                 統合と分散の両立を実現するAI活用システム
               </h2>
@@ -1697,377 +1775,28 @@ export default function OverviewPage() {
                     </text>
                   </svg>
                 </div>
-                
-                {/* 設計概念の詳細（折りたたみ可能） */}
-                <div style={{ marginTop: '24px', width: '100%', maxWidth: '900px' }}>
-                  <button
-                    onClick={() => setShowArchitectureDetails(!showArchitectureDetails)}
-                    style={{
-                      width: '100%',
-                      padding: '14px 20px',
-                      backgroundColor: 'rgba(31, 41, 51, 0.03)',
-                      border: '1px solid var(--color-border-color)',
-                      borderLeft: '3px solid var(--color-primary)',
-                      borderRadius: '0 6px 6px 0',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: 'var(--color-text)',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                      textAlign: 'left',
-                      position: 'relative'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.06)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.06)';
-                      e.currentTarget.style.borderLeftColor = '#4169E1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.03)';
-                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
-                      e.currentTarget.style.borderLeftColor = 'var(--color-primary)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ 
-                        fontSize: '16px',
-                        color: 'var(--color-primary)'
-                      }}>
-                        {showArchitectureDetails ? '▼' : '▶'}
-                      </span>
-                      <span>設計概念の詳細</span>
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px',
-                      color: 'var(--color-text-light)',
-                      fontWeight: 400
-                    }}>
-                      {showArchitectureDetails ? '閉じる' : 'クリックして展開'}
-                    </span>
-                  </button>
-                  
-                  {showArchitectureDetails && (
-                    <div style={{
-                      marginTop: '16px',
-                      padding: '20px',
-                      backgroundColor: '#fff',
-                      borderRadius: '6px',
-                      border: '1px solid var(--color-border-color)'
-                    }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
-                        アーキテクチャ設計の概要
-                      </h4>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        1. 設計コンセプト
-                      </h5>
-                      <p style={{ marginBottom: '16px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        本アーキテクチャは、<strong>「統合と分散の両立」</strong>を実現するAI活用システムをイメージ。会社全体の標準化されたAI活用と、個人・各組織のカスタマイズされたAI活用を、同一の基盤AIモデル上で実現。
-                      </p>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        2. システム構成の特徴
-                      </h5>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>基盤AIモデルの一元管理:</strong> 高性能なLLMを会社として管理し、全ユーザーがAPIを通じてアクセス
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>二層構造のデータ活用:</strong> 全社統合データと個人・組織分散データの両方を効果的に活用
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>AI Agentによる橋渡し:</strong> 基盤AIモデルと各データソースを適切に連携させ、精度の高い成果物を生成
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>参照データ範囲の最適化:</strong> 個人・各組織レベルでのデータ範囲指定により、雑音を排除し関連性の高い成果物を実現
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        3. 活用領域の違い
-                      </h5>
-                      <div style={{ overflowX: 'auto', marginBottom: '16px' }}>
-                        <table style={{ 
-                          width: '100%', 
-                          borderCollapse: 'collapse',
-                          fontSize: '14px'
-                        }}>
-                          <thead>
-                            <tr>
-                              <th style={{ 
-                                padding: '10px', 
-                                border: '1px solid var(--color-border-color)', 
-                                backgroundColor: 'var(--color-bg-secondary)',
-                                textAlign: 'left',
-                                fontWeight: 600
-                              }}>項目</th>
-                              <th style={{ 
-                                padding: '10px', 
-                                border: '1px solid var(--color-border-color)', 
-                                backgroundColor: '#e6f0ff',
-                                textAlign: 'left',
-                                fontWeight: 600
-                              }}>会社としての活用</th>
-                              <th style={{ 
-                                padding: '10px', 
-                                border: '1px solid var(--color-border-color)', 
-                                backgroundColor: '#f0f4ff',
-                                textAlign: 'left',
-                                fontWeight: 600
-                              }}>個人・各組織としての活用</th>
-                            </tr>
-                          </thead>
-                          <tbody>
-                            <tr>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)', fontWeight: 600 }}>データソース</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>全社統合システム（データレイク・データウェアハウス）</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>メール・チャット・ストレージ（分散データ）</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)', fontWeight: 600 }}>成果物</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>全社で使うユースケース</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>現場独自のユースケース</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)', fontWeight: 600 }}>環境</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>オンプレ・クラウド</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>ローカル・クラウド</td>
-                            </tr>
-                            <tr>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)', fontWeight: 600 }}>カスタマイズ</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>標準化されたプロセス</td>
-                              <td style={{ padding: '10px', border: '1px solid var(--color-border-color)' }}>個人・組織の意思に基づくカスタマイズ</td>
-                            </tr>
-                          </tbody>
-                        </table>
-                      </div>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        4. 技術的イノベーション
-                      </h5>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>API統合による効率化:</strong> 同一基盤AIモデルを複数の活用領域で共有
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>データ範囲指定機能:</strong> 個人・各組織が参照データを指定することで、より精度の高い成果物を生成
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>分散データの効果的活用:</strong> 従来活用困難だった個人・組織の分散データをAI活用に統合
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>スケーラブルな設計:</strong> 組織規模に応じた柔軟な拡張が可能
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        5. 期待される事業効果
-                      </h5>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>生産性向上:</strong> 個人・各組織の意思に基づくカスタマイズされたAI活用により、業務効率が大幅に向上
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>競争優位の確立:</strong> 分散データの効果的活用により、他社との差別化を実現
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>組織全体のAI活用能力向上:</strong> 標準化とカスタマイズの両立により、全社的なAI活用レベルを向上
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>コスト効率化:</strong> 基盤AIモデルの共有により、運用コストを削減
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        6. 実装上のポイント
-                      </h5>
-                      <p style={{ marginBottom: '16px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        本アーキテクチャの成功には、<strong>「参照データ範囲の適切な指定」</strong>が鍵。個人・各組織が、どのデータを参照するかを明確に指定することで、雑音を排除し、より関連性の高い成果物を生成。これにより、従来の「すべてのデータを参照する」アプローチでは実現できなかった、精度の高いAI活用が可能にする。
-                      </p>
-                    </div>
-                  )}
-                </div>
-
-                {/* 本アーキテクチャを採用することで実現可能な内容の詳細（折りたたみ可能） */}
-                <div style={{ marginTop: '12px', width: '100%', maxWidth: '900px' }}>
-                  <button
-                    onClick={() => setShowArchitecturePossibilities(!showArchitecturePossibilities)}
-                    style={{
-                      width: '100%',
-                      padding: '14px 20px',
-                      backgroundColor: 'rgba(31, 41, 51, 0.03)',
-                      border: '1px solid var(--color-border-color)',
-                      borderLeft: '3px solid var(--color-primary)',
-                      borderRadius: '0 6px 6px 0',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      fontSize: '15px',
-                      fontWeight: 600,
-                      color: 'var(--color-text)',
-                      transition: 'all 0.2s ease',
-                      boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-                      textAlign: 'left',
-                      position: 'relative'
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.06)';
-                      e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.06)';
-                      e.currentTarget.style.borderLeftColor = '#4169E1';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.03)';
-                      e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
-                      e.currentTarget.style.borderLeftColor = 'var(--color-primary)';
-                    }}
-                  >
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                      <span style={{ 
-                        fontSize: '16px',
-                        color: 'var(--color-primary)'
-                      }}>
-                        {showArchitecturePossibilities ? '▼' : '▶'}
-                      </span>
-                      <span>本アーキテクチャを採用することで実現可能な内容</span>
-                    </div>
-                    <span style={{ 
-                      fontSize: '12px',
-                      color: 'var(--color-text-light)',
-                      fontWeight: 400
-                    }}>
-                      {showArchitecturePossibilities ? '閉じる' : 'クリックして展開'}
-                    </span>
-                  </button>
-                  
-                  {showArchitecturePossibilities && (
-                    <div style={{
-                      marginTop: '16px',
-                      padding: '20px',
-                      backgroundColor: '#fff',
-                      borderRadius: '6px',
-                      border: '1px solid var(--color-border-color)'
-                    }}>
-                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
-                        実現可能な事業・サービス領域
-                      </h4>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        1. 自社開発・自社サービス事業
-                      </h5>
-                      <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        本アーキテクチャを基盤として、<strong>パーソナルデータレイク</strong>を活用した個人向けサービスを構築可能。ユーザー個人のデータ（メール、チャット履歴、ストレージ等）をAI Agentが適切に参照し、パーソナライズされたサービスを提供。
-                      </p>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>出産支援パーソナルApp:</strong> 個人の健康データ、生活パターン、メール・チャット履歴を統合し、妊娠・出産・育児に最適化されたアドバイスとサポートを提供
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>介護支援パーソナルApp:</strong> 介護者・被介護者のデータを統合し、個別の状況に応じた介護計画、医療連携、家族間コミュニケーション支援を実現
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>その他パーソナルサービス:</strong> 個人の分散データを統合し、ライフステージやニーズに応じたカスタマイズされたサービスを提供可能
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        2. AI駆動開発・DX支援SI事業
-                      </h5>
-                      <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        企業のシステム部門向けに、<strong>本アーキテクチャの導入支援</strong>と<strong>カスタマイズ開発</strong>を提供。全社統合データと分散データの両方を活用するAIシステムの構築を支援。
-                      </p>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>医療法人向けDX:</strong> 電子カルテなどの医療データと、各部署の分散データを統合し、AI活用による業務効率化と診療支援システムを構築
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>中小企業向けDX:</strong> 内部データ管理、HP作成、Invoice制度対応など、中小企業の分散データを統合し、AI活用による業務自動化と効率化を実現
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>カスタムAIシステム開発:</strong> 企業の既存データ構造に合わせたAI Agentの開発、データ範囲指定機能の実装、API統合支援を提供
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        3. プロセス可視化・業務コンサル事業
-                      </h5>
-                      <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        業務部門向けに、<strong>分散データの可視化</strong>と<strong>プロセス改善</strong>を支援。メール、チャット、ストレージなどの分散データをAI Agentが分析し、業務フローの最適化を提案。
-                      </p>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>中小企業向け業務プロセス可視化・改善:</strong> 各部署の分散データを統合分析し、業務フローのボトルネックを特定。AI活用による自動化提案と効率化支援を提供
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>医療・介護施設向け業務プロセス可視化・改善:</strong> 記録業務、連絡業務などの分散データを統合し、コンプライアンス対応と業務効率化を両立した改善提案を実現
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>データドリブンな業務改善:</strong> 従来可視化困難だった個人・組織の分散データをAI Agentが分析し、データに基づいた改善提案を提供
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        4. AI導入ルール設計・人材育成・教育事業
-                      </h5>
-                      <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        経営層・人事部門向けに、<strong>本アーキテクチャの導入</strong>と<strong>組織全体のAI活用能力向上</strong>を支援。標準化とカスタマイズの両立を実現するための教育・研修・ルール設計を提供。
-                      </p>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>企業向けAI活用教育・研修:</strong> 本アーキテクチャの活用方法、データ範囲指定の重要性、AI Agentの効果的な使い方を教育
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>AI導入ルール設計・ガバナンス:</strong> 統合と分散の両立を実現するためのルール設計、データアクセス制御、セキュリティポリシーの策定支援
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>組織全体のAI活用能力向上支援:</strong> 標準化された基盤AIモデルの活用と、個人・組織のカスタマイズのバランスを取るためのコンサルティング
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        5. 新規事業・サービス構築の可能性
-                      </h5>
-                      <p style={{ marginBottom: '12px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        本アーキテクチャの柔軟性により、以下のような新規事業・サービスの構築も可能。
-                      </p>
-                      <ul style={{ marginBottom: '16px', paddingLeft: '24px', listStyleType: 'disc' }}>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>業界特化型AIプラットフォーム:</strong> 特定業界（医療、介護、教育等）のデータ構造に最適化したAI活用プラットフォームの構築
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>データ統合・分析サービス:</strong> 企業の分散データを統合し、AI Agentによる分析レポートを提供するサービス
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>カスタムAI Agent開発サービス:</strong> 企業の特定ニーズに応じた専用AI Agentの開発・提供サービス
-                        </li>
-                        <li style={{ marginBottom: '8px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                          <strong>パーソナルデータレイク構築支援:</strong> 個人・組織の分散データを統合管理し、AI活用を可能にするデータレイク構築支援サービス
-                        </li>
-                      </ul>
-                      
-                      <h5 style={{ fontSize: '15px', fontWeight: 600, marginTop: '20px', marginBottom: '12px', color: 'var(--color-text)' }}>
-                        6. 事業企画・構想への展開
-                      </h5>
-                      <p style={{ marginBottom: '16px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        本アーキテクチャは、上記の4つの事業企画すべての基盤技術として機能し、各事業の<strong>差別化要因</strong>となる。特に、従来のAI活用では困難だった<strong>「分散データの効果的活用」</strong>と<strong>「統合と分散の両立」</strong>を実現することで、競合他社との差別化を図ることができる。
-                      </p>
-                      <p style={{ marginBottom: '16px', fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                        また、本アーキテクチャの導入実績とノウハウを活かし、<strong>他社への導入支援</strong>や<strong>コンサルティング</strong>も新たな事業機会として展開可能。自社がAIファーストカンパニーとして実践し、その経験を他社の変革支援に活かすことで、持続的な事業成長を実現する。
-                      </p>
-                    </div>
-                  )}
-                </div>
               </div>
-        </div>
+            </div>
 
-            <div style={{ marginBottom: '24px' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                5. パーソナルDXとパーソナルデータレイクの重要性
-              </h4>
+            <div 
+              data-page-container="5"
+              style={{
+                marginBottom: '24px',
+                ...(showContainers ? {
+                  border: '2px dashed var(--color-primary)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                } : {}),
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+                <h4 style={{ fontSize: '15px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+                  5. パーソナルDXとパーソナルデータレイクの重要性
+                </h4>
+                <span id="page-overview-5" style={{ fontSize: '12px', color: '#94A3B8' }}>5</span>
+              </div>
               <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
                 パーソナルDXとパーソナルデータレイクがAIファクトリーの原動力
               </h2>
@@ -2078,12 +1807,18 @@ export default function OverviewPage() {
                 AI価値の本質と伊藤忠の戦略優位性を踏まえると、<br />
                 次の成長エンジンは<strong>"パーソナルDX × パーソナルデータレイク"</strong>である。これらを実現するためには、ユーザーフレンドリーなUIが欠かせない。
               </p>
-            </div>
 
-        <div style={{ marginTop: '24px', marginBottom: '24px', paddingTop: '16px', borderTop: '1px solid var(--color-border-color)' }}>
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                6. 株式会社AIアシスタントの使命
-              </h4>
+              <div style={{ marginTop: '24px', marginBottom: '24px', paddingTop: '16px', borderTop: '1px solid var(--color-border-color)' }}>
+                <h4 style={{ 
+                  fontSize: '18px', 
+                  fontWeight: 700, 
+                  marginBottom: '12px', 
+                  color: '#1E293B', 
+                  borderLeft: '4px solid #3B82F6', 
+                  paddingLeft: '12px'
+                }}>
+                  株式会社AIアシスタントの使命
+                </h4>
               <div style={{ marginBottom: '12px', paddingLeft: '11px', display: 'flex', gap: '16px', alignItems: 'flex-start' }}>
                 <div style={{ flexShrink: 0 }}>
                   <img 
@@ -2133,7 +1868,7 @@ export default function OverviewPage() {
                     </h5>
                     <div style={{ flex: 1 }}>
                       <p style={{ marginBottom: '0', fontSize: '18px', lineHeight: '1.8', fontWeight: 600 }}>
-                        すべての人に個別最適なAIパートナーを提供する社会構造の実現。
+                        すべての人に個別最適なAIアシスタントを提供する社会構造の実現。
                       </p>
                     </div>
                   </div>
@@ -2163,7 +1898,7 @@ export default function OverviewPage() {
                       </h5>
                       <div style={{ flex: 1 }}>
                         <p style={{ marginBottom: '8px', fontSize: '18px', lineHeight: '1.8', fontWeight: 600 }}>
-                          AIファーストカンパニーへの道を提供する。
+                          すべての企業にAIファーストカンパニーへの道を提供する。
                         </p>
                         <ul style={{ marginBottom: '12px', paddingLeft: '30px', fontSize: '14px', lineHeight: '2.0', listStyleType: 'disc' }}>
                           <li style={{ marginBottom: '8px' }}>AIアプリケーションの開発・運用</li>
@@ -2180,7 +1915,8 @@ export default function OverviewPage() {
               </div>
             </div>
           </div>
-        </div>
+            </div>
+            </div>
           </>
         )}
       </div>

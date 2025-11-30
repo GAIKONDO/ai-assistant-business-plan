@@ -15,6 +15,12 @@ import PageBreakEditor from '@/components/PageBreakEditor';
 
 declare global {
   interface Window {
+    html2pdf?: any;
+  }
+}
+
+declare global {
+  interface Window {
     p5?: any;
     mermaid?: any;
   }
@@ -28,6 +34,21 @@ interface PlanContextType {
 const PlanContext = createContext<PlanContextType>({ plan: null, loading: true });
 
 export const usePlan = () => useContext(PlanContext);
+
+interface ContainerVisibilityContextType {
+  showContainers: boolean;
+  setShowContainers: (show: boolean) => void;
+}
+
+const ContainerVisibilityContext = createContext<ContainerVisibilityContextType | undefined>(undefined);
+
+export const useContainerVisibility = () => {
+  const context = useContext(ContainerVisibilityContext);
+  if (context === undefined) {
+    throw new Error('useContainerVisibility must be used within a ContainerVisibilityProvider');
+  }
+  return context;
+};
 
 export default function CompanyPlanDetailLayout({
   children,
@@ -134,6 +155,18 @@ export default function CompanyPlanDetailLayout({
   );
 }
 
+function ContainerVisibilityProvider({ children, showContainers, setShowContainers }: { 
+  children: React.ReactNode; 
+  showContainers: boolean;
+  setShowContainers: (show: boolean) => void;
+}) {
+  return (
+    <ContainerVisibilityContext.Provider value={{ showContainers, setShowContainers }}>
+      {children}
+    </ContainerVisibilityContext.Provider>
+  );
+}
+
 function CompanyPlanLayoutContent({
   planId,
   planTitle,
@@ -163,6 +196,10 @@ function CompanyPlanLayoutContent({
   const [pageBreakIds, setPageBreakIds] = useState<string[]>([]);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const presentationContainerRef = useRef<HTMLDivElement>(null);
+  const [showContainers, setShowContainers] = useState(false); // コンテナの表示・非表示状態
+  const [isExportingPDF, setIsExportingPDF] = useState(false); // PDF出力中の状態
+  const contentContainerRef = useRef<HTMLDivElement>(null);
+  const [contentAspectRatio, setContentAspectRatio] = useState<number | null>(null);
   
   // 現在のスライドインデックスを取得
   const currentSlideIndex = SUB_MENU_ITEMS.findIndex(item => item.id === currentSubMenu);
@@ -302,6 +339,52 @@ function CompanyPlanLayoutContent({
     }
   }, [totalPages, currentPage]);
   
+  // コンテンツのアスペクト比を検出（プレゼンテーションモード時）
+  useEffect(() => {
+    if (!isPresentationMode || !contentRef.current) {
+      setContentAspectRatio(null);
+      return;
+    }
+
+    const calculateAspectRatio = () => {
+      const container = contentRef.current;
+      if (!container) {
+        setContentAspectRatio(null);
+        return;
+      }
+
+      // コンテンツの実際のサイズを測定
+      const rect = container.getBoundingClientRect();
+      const width = rect.width;
+      const height = rect.height;
+
+      if (width > 0 && height > 0) {
+        const aspectRatio = width / height;
+        setContentAspectRatio(aspectRatio);
+      }
+    };
+
+    // 初回計算
+    calculateAspectRatio();
+
+    // リサイズ時にも再計算
+    const resizeObserver = new ResizeObserver(() => {
+      calculateAspectRatio();
+    });
+
+    if (contentRef.current) {
+      resizeObserver.observe(contentRef.current);
+    }
+
+    // ウィンドウリサイズ時にも再計算
+    window.addEventListener('resize', calculateAspectRatio);
+
+    return () => {
+      resizeObserver.disconnect();
+      window.removeEventListener('resize', calculateAspectRatio);
+    };
+  }, [isPresentationMode, currentSubMenu, currentPage]);
+
   // ページ変更時にスクロール位置を更新（要素IDベースのスクロール方式）
   useEffect(() => {
     if (!isPresentationMode || !contentRef.current) return;
@@ -540,6 +623,299 @@ function CompanyPlanLayoutContent({
     };
   }, [isPresentationMode, goToPreviousPage, goToNextPage, showSlideThumbnails, showStartGuide, exitPresentationMode]);
 
+  // PDF出力機能
+  const handleExportToPDF = useCallback(async () => {
+    if (!showContainers) {
+      alert('コンテナ表示モードでPDF出力してください。');
+      return;
+    }
+
+    if (!contentContainerRef.current) {
+      alert('コンテンツが見つかりません。');
+      return;
+    }
+
+    setIsExportingPDF(true); // 処理開始
+
+    try {
+      // html2canvasとjsPDFを動的にインポート
+      const html2canvas = (await import('html2canvas')).default;
+      const { jsPDF } = await import('jspdf');
+      
+      // コンテナで囲まれた要素を取得
+      const container = contentContainerRef.current;
+      if (!container) {
+        alert('コンテナが見つかりません。');
+        return;
+      }
+
+      // コンテナ内のすべてのコンテナ要素を取得（data-page-container属性を持つ要素）
+      let containers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+      
+      // data-page-container属性がない場合は、border: 2px dashed が含まれる要素を検索
+      if (containers.length === 0) {
+        containers = Array.from(container.querySelectorAll('*')).filter((el: Element) => {
+          const htmlEl = el as HTMLElement;
+          const style = window.getComputedStyle(htmlEl);
+          const inlineStyle = htmlEl.style.border || '';
+          return style.border.includes('dashed') || inlineStyle.includes('dashed');
+        }) as HTMLElement[];
+      }
+      
+      if (containers.length === 0) {
+        alert('コンテナが見つかりません。コンテナ表示モードでPDF出力してください。');
+        return;
+      }
+
+      console.log('PDF出力対象のコンテナ数:', containers.length);
+
+      // パワーポイント形式（16:9）のサイズを計算
+      // パワーポイント標準サイズ: 25.4cm × 14.29cm (10インチ × 5.625インチ)
+      const pdfWidth = 254; // 25.4cm = 254mm
+      const pdfHeight = 143; // 14.29cm ≈ 143mm (16:9のアスペクト比)
+      const margin = 10; // マージン（mm）
+      const contentWidth = pdfWidth - (margin * 2);
+      const contentHeight = pdfHeight - (margin * 2);
+
+      // PDFインスタンスを作成（カスタムサイズ、横長）
+      // 最初のページの向きに応じて後で設定するため、一時的に作成
+      let pdf = new jsPDF({
+        unit: 'mm',
+        format: [pdfWidth, pdfHeight],
+        orientation: 'landscape'
+      });
+
+      // 各コンテナを画像化してPDFに追加
+      for (let i = 0; i < containers.length; i++) {
+        const containerEl = containers[i];
+        
+        // キービジュアルコンテナかどうかを判定（data-page-container="0"）
+        const isKeyVisual = containerEl.getAttribute('data-page-container') === '0';
+        
+        // 元のborderスタイルを保存
+        const originalBorder = containerEl.style.border;
+        
+        // PDF出力時は点線を非表示にする
+        containerEl.style.border = 'none';
+        
+        // コンテナのサイズを取得（レイアウトの再計算を待つ）
+        await new Promise(resolve => setTimeout(resolve, 50));
+        const containerWidth = containerEl.scrollWidth;
+        const containerHeight = containerEl.scrollHeight;
+        const containerAspectRatio = containerWidth / containerHeight;
+        const isPortrait = containerHeight > containerWidth; // 縦長かどうか
+        
+        // ページサイズと向きを決定
+        let pageWidth: number;
+        let pageHeight: number;
+        let orientation: 'landscape' | 'portrait';
+        
+        if (isPortrait) {
+          // 縦長の場合は縦向き（portrait）
+          // コンテナのアスペクト比を維持しつつ、適切なサイズを計算
+          // 基準となる高さを設定（A4縦の高さを基準）
+          const baseHeight = 297; // A4縦の高さ（mm）
+          pageHeight = baseHeight;
+          pageWidth = baseHeight * containerAspectRatio;
+          orientation = 'portrait';
+        } else {
+          // 横長の場合は横向き（landscape）
+          // 16:9の比率を維持
+          pageWidth = 254; // 25.4cm
+          pageHeight = 143; // 14.29cm
+          orientation = 'landscape';
+        }
+        
+        const margin = 10;
+        const contentWidth = pageWidth - (margin * 2);
+        const contentHeight = pageHeight - (margin * 2);
+        
+        // 新しいページを追加（最初のページ以外）
+        if (i > 0) {
+          pdf.addPage([pageWidth, pageHeight], orientation);
+        } else {
+          // 最初のページの場合は、向きに応じてPDFインスタンスを作り直す
+          if (isPortrait) {
+            pdf = new jsPDF({
+              unit: 'mm',
+              format: [pageWidth, pageHeight],
+              orientation: 'portrait'
+            });
+          }
+        }
+
+        // キービジュアルの場合は、画像要素を直接取得してアスペクト比を計算
+        // また、PDF出力時に不要なボタンを非表示にする
+        let targetAspectRatio: number | null = null;
+        const hiddenElements: Array<{ element: HTMLElement; originalDisplay: string }> = [];
+        
+        if (isKeyVisual) {
+          // サイズ調整ボタンと画像変更ボタンを非表示にする
+          const buttons = containerEl.querySelectorAll('button');
+          buttons.forEach((button) => {
+            const buttonEl = button as HTMLElement;
+            const originalDisplay = buttonEl.style.display || window.getComputedStyle(buttonEl).display;
+            hiddenElements.push({ element: buttonEl, originalDisplay });
+            buttonEl.style.display = 'none';
+          });
+          
+          // サイズ調整コントロールパネルも非表示にする
+          const controlPanel = containerEl.querySelector('[style*="backgroundColor"][style*="rgba(0, 0, 0, 0.8)"]') as HTMLElement;
+          if (controlPanel) {
+            const originalDisplay = controlPanel.style.display || window.getComputedStyle(controlPanel).display;
+            hiddenElements.push({ element: controlPanel, originalDisplay });
+            controlPanel.style.display = 'none';
+          }
+          
+          const imgElement = containerEl.querySelector('img') as HTMLImageElement;
+          if (imgElement && imgElement.complete) {
+            // 画像の実際のアスペクト比を取得
+            targetAspectRatio = imgElement.naturalWidth / imgElement.naturalHeight;
+          } else if (imgElement) {
+            // 画像がまだ読み込まれていない場合は、読み込みを待つ
+            await new Promise((resolve) => {
+              if (imgElement.complete) {
+                resolve(null);
+              } else {
+                imgElement.onload = () => resolve(null);
+                imgElement.onerror = () => resolve(null);
+                // タイムアウト（5秒）
+                setTimeout(() => resolve(null), 5000);
+              }
+            });
+            if (imgElement.complete && imgElement.naturalWidth > 0) {
+              targetAspectRatio = imgElement.naturalWidth / imgElement.naturalHeight;
+            }
+          }
+          
+          // 画像のアスペクト比が取得できない場合は、paddingTopから計算
+          if (!targetAspectRatio) {
+            const paddingTopElement = containerEl.querySelector('[style*="padding-top"]') as HTMLElement;
+            if (paddingTopElement) {
+              const paddingTopStyle = window.getComputedStyle(paddingTopElement).paddingTop;
+              const paddingTopPercent = parseFloat(paddingTopStyle);
+              if (!isNaN(paddingTopPercent)) {
+                // paddingTopのパーセンテージからアスペクト比を計算
+                // paddingTop: 56.25% = 16:9のアスペクト比
+                targetAspectRatio = 100 / paddingTopPercent;
+              }
+            }
+          }
+        }
+
+        // SVG要素のレンダリングを待つための遅延を追加
+        await new Promise(resolve => setTimeout(resolve, 100));
+        
+        // SVG要素の位置調整用の情報を事前に取得
+        const svgAdjustments: Array<{
+          svg: SVGSVGElement;
+          parent: HTMLElement;
+          originalParentPaddingTop: string;
+          originalSvgMarginTop: string;
+        }> = [];
+        
+        const svgElements = containerEl.querySelectorAll('svg');
+        svgElements.forEach((svg) => {
+          const svgEl = svg as SVGSVGElement;
+          const computedStyle = window.getComputedStyle(svgEl);
+          const marginTop = computedStyle.marginTop;
+          
+          // 負のマージンがある場合のみ処理対象とする
+          if (marginTop.includes('-')) {
+            const parent = svgEl.parentElement;
+            if (parent) {
+              const parentStyle = window.getComputedStyle(parent);
+              const paddingTop = parseFloat(parentStyle.paddingTop) || 0;
+              const marginTopValue = parseFloat(marginTop) || 0;
+              
+              // 親要素のpaddingTopとSVGのmarginTopを調整
+              if (paddingTop > 0 && marginTopValue < 0) {
+                svgAdjustments.push({
+                  svg: svgEl,
+                  parent: parent as HTMLElement,
+                  originalParentPaddingTop: parentStyle.paddingTop,
+                  originalSvgMarginTop: marginTop,
+                });
+                
+                // 一時的に調整（PDF出力後に復元する）
+                (parent as HTMLElement).style.paddingTop = `${paddingTop + marginTopValue}px`;
+                (svgEl as HTMLElement).style.marginTop = '0';
+              }
+            }
+          }
+        });
+        
+        // コンテナを画像化
+        const canvas = await html2canvas(containerEl, {
+          scale: 2,
+          useCORS: true,
+          logging: false,
+          backgroundColor: '#ffffff',
+          width: containerEl.scrollWidth,
+          height: containerEl.scrollHeight,
+        });
+        
+        // SVGの位置調整を元に戻す
+        svgAdjustments.forEach(({ svg, parent, originalParentPaddingTop, originalSvgMarginTop }) => {
+          parent.style.paddingTop = originalParentPaddingTop;
+          (svg as HTMLElement).style.marginTop = originalSvgMarginTop;
+        });
+        
+        // 元のborderスタイルを復元
+        containerEl.style.border = originalBorder;
+
+        // 画像データを取得
+        const imgData = canvas.toDataURL('image/png', 1.0);
+        
+        // 画像のサイズを計算（パワーポイント形式の16:9に収まるように調整）
+        let imgWidth = canvas.width;
+        let imgHeight = canvas.height;
+        let imgAspectRatio = imgWidth / imgHeight;
+        
+        // キービジュアルの場合は、実際の画像アスペクト比を使用
+        if (isKeyVisual && targetAspectRatio) {
+          imgAspectRatio = targetAspectRatio;
+          // アスペクト比に基づいて高さを再計算
+          imgHeight = imgWidth / imgAspectRatio;
+        }
+        
+        // ページのアスペクト比
+        const pageAspectRatio = pageWidth / pageHeight;
+        
+        let finalWidth = contentWidth;
+        let finalHeight = contentWidth / imgAspectRatio;
+        
+        // 高さがページを超える場合は、高さ基準で調整
+        if (finalHeight > contentHeight) {
+          finalHeight = contentHeight;
+          finalWidth = contentHeight * imgAspectRatio;
+        }
+        
+        // 下揃えのための位置調整
+        const xOffset = (contentWidth - finalWidth) / 2;
+        const yOffset = contentHeight - finalHeight;
+
+        // PDFに画像を追加（下揃え）
+        pdf.addImage(imgData, 'PNG', margin + xOffset, margin + yOffset, finalWidth, finalHeight);
+        
+        // 非表示にした要素を復元
+        hiddenElements.forEach(({ element, originalDisplay }) => {
+          element.style.display = originalDisplay;
+        });
+      }
+
+      // PDFを保存
+      pdf.save(`${planTitle}_${currentSubMenu}_${new Date().toISOString().split('T')[0]}.pdf`);
+
+      console.log('PDF生成が完了しました');
+    } catch (error) {
+      console.error('PDF出力エラー:', error);
+      alert(`PDF出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    } finally {
+      setIsExportingPDF(false); // 処理完了
+    }
+  }, [showContainers, planTitle, currentSubMenu]);
+
   return (
     <Layout>
       <PlanContext.Provider value={{ plan, loading }}>
@@ -597,6 +973,42 @@ function CompanyPlanLayoutContent({
                           onSave={savePageBreakIds}
                         />
                         <button
+                          onClick={() => setShowContainers(!showContainers)}
+                          style={{
+                            padding: '8px 16px',
+                            backgroundColor: showContainers ? 'var(--color-primary)' : '#F3F4F6',
+                            color: showContainers ? '#fff' : 'var(--color-text)',
+                            border: '1px solid var(--color-border-color)',
+                            borderRadius: '6px',
+                            cursor: 'pointer',
+                            fontSize: '14px',
+                            fontWeight: 500,
+                            transition: 'all 0.2s',
+                          }}
+                        >
+                          {showContainers ? 'コンテナ非表示' : 'コンテナ表示'}
+                        </button>
+                        {showContainers && (
+                          <button
+                            onClick={handleExportToPDF}
+                            disabled={isExportingPDF}
+                            style={{
+                              padding: '8px 16px',
+                              backgroundColor: isExportingPDF ? '#94A3B8' : '#10B981',
+                              color: '#fff',
+                              border: 'none',
+                              borderRadius: '6px',
+                              cursor: isExportingPDF ? 'not-allowed' : 'pointer',
+                              fontSize: '14px',
+                              fontWeight: 500,
+                              transition: 'all 0.2s',
+                              opacity: isExportingPDF ? 0.7 : 1,
+                            }}
+                          >
+                            {isExportingPDF ? '処理中...' : 'PDF出力'}
+                          </button>
+                        )}
+                        <button
                           onClick={enterPresentationMode}
                           style={{
                             padding: '8px 16px',
@@ -614,9 +1026,11 @@ function CompanyPlanLayoutContent({
                       </div>
                     </div>
             </div>
-            <div data-content-container>
-              {children}
-            </div>
+            <ContainerVisibilityProvider showContainers={showContainers} setShowContainers={setShowContainers}>
+              <div data-content-container ref={contentContainerRef}>
+                {children}
+              </div>
+            </ContainerVisibilityProvider>
           </div>
         </div>
       )}
@@ -1155,27 +1569,52 @@ function CompanyPlanLayoutContent({
                 ? 'slideInFromLeft 0.3s ease-out'
                 : 'none',
               position: 'relative',
-              overflow: 'visible', // スクロール方式なのでvisibleに変更
+              overflow: isPresentationMode ? 'hidden' : 'visible', // プレゼンテーションモード時はhiddenにして余白部分を見えないようにする
               maxHeight: isPresentationMode ? 'calc(100vh - 200px)' : 'none', // プレゼンテーションモード時のみ高さを制限
+              paddingBottom: isPresentationMode ? '60px' : '0',
               transition: 'margin-left 0.3s ease, width 0.3s ease, max-width 0.3s ease, margin-right 0.3s ease',
+              // PDF出力と同じ比率を維持
+              ...(isPresentationMode && contentAspectRatio ? (() => {
+                const isPortrait = contentAspectRatio < 1;
+                // PDF出力と同じ比率を使用
+                // 縦長: A4縦 (210mm x 297mm) = 約0.707:1
+                // 横長: 16:9 (254mm x 143mm) = 約1.778:1
+                const targetAspectRatio = isPortrait ? 210 / 297 : 254 / 143;
+                
+                // コンテナの高さに基づいて幅を計算
+                const containerHeight = window.innerHeight - 200; // ヘッダーとマージンを考慮
+                const calculatedWidth = containerHeight * targetAspectRatio;
+                const maxAvailableWidth = showTableOfContents 
+                  ? window.innerWidth - 400 
+                  : window.innerWidth - 200;
+                
+                return {
+                  width: `${Math.min(calculatedWidth, maxAvailableWidth)}px`,
+                  maxWidth: `${Math.min(calculatedWidth, maxAvailableWidth)}px`,
+                  aspectRatio: `${targetAspectRatio}`,
+                };
+              })() : {}),
             }}
           >
-            <div
-              ref={contentRef}
-              data-content-container
-              style={{
-                // スクロール方式なので、overflowを設定
-                overflowY: isPresentationMode ? 'auto' : 'visible',
-                height: isPresentationMode ? '100%' : 'auto',
-                maxHeight: isPresentationMode ? 'calc(100vh - 200px)' : 'none',
-                position: 'relative',
-              }}
-            >
-              <h2 style={{ marginBottom: '24px', fontSize: '24px', fontWeight: 600 }}>
-                {planTitle}
-              </h2>
-              {children}
-            </div>
+            <ContainerVisibilityProvider showContainers={false} setShowContainers={() => {}}>
+              <div
+                ref={contentRef}
+                data-content-container
+                style={{
+                  // スクロール方式なので、overflowを設定
+                  overflowY: isPresentationMode ? 'auto' : 'visible',
+                  height: isPresentationMode ? 'calc(100vh - 200px - 60px)' : 'auto',
+                  maxHeight: isPresentationMode ? 'calc(100vh - 200px - 60px)' : 'none',
+                  position: 'relative',
+                  paddingBottom: isPresentationMode ? '60px' : '0',
+                }}
+              >
+                <h2 style={{ marginBottom: '24px', fontSize: '24px', fontWeight: 600 }}>
+                  {planTitle}
+                </h2>
+                {children}
+              </div>
+            </ContainerVisibilityProvider>
           </div>
           
           {/* 目次ボタン */}

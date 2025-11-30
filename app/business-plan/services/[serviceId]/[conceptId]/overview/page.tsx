@@ -4,8 +4,15 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { useConcept } from '../layout';
+import { useConcept, useContainerVisibility } from '../layout';
 import Script from 'next/script';
+import dynamic from 'next/dynamic';
+
+// コンポーネント化されたページのコンポーネント（条件付きインポート）
+const ComponentizedOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedOverview'),
+  { ssr: false }
+);
 
 export default function OverviewPage() {
   const params = useParams();
@@ -13,6 +20,14 @@ export default function OverviewPage() {
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
   const { concept, loading } = useConcept();
+  const { showContainers } = useContainerVisibility();
+
+  // コンポーネント化されたページを使用するかチェック
+  // conceptIdが-componentizedを含む、または特定のconceptIdの場合はComponentizedOverviewを使用
+  if (conceptId.includes('-componentized') || 
+      (serviceId === 'component-test' && conceptId === 'test-concept')) {
+    return <ComponentizedOverview />;
+  }
 
   const keyVisualUrl = concept?.keyVisualUrl || '';
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25);
@@ -410,7 +425,21 @@ export default function OverviewPage() {
       </p>
       
       {/* キービジュアル */}
-      <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
+      <div 
+        data-page-container="0"
+        className="card" 
+        style={{ 
+          padding: 0, 
+          overflow: 'hidden',
+          ...(showContainers ? {
+            border: '2px dashed var(--color-primary)',
+            borderRadius: '8px',
+            padding: '16px',
+            pageBreakInside: 'avoid',
+            breakInside: 'avoid',
+          } : {}),
+        }}
+      >
         {keyVisualUrl ? (
           <div style={{ position: 'relative', width: '100%', paddingTop: `${keyVisualHeight}%`, backgroundColor: '#f8f9fa' }}>
             <img
@@ -588,7 +617,19 @@ export default function OverviewPage() {
           </p>
         ) : (
           <>
-            <div style={{ marginBottom: '32px' }}>
+            <div 
+              data-page-container="1"
+              style={{ 
+                marginBottom: '32px',
+                ...(showContainers ? {
+                  border: '2px dashed var(--color-primary)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                } : {}),
+              }}
+            >
               <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
                 はじめに
               </h4>
@@ -946,41 +987,56 @@ export default function OverviewPage() {
                   </div>
                 </div>
               ) : null}
+            </div>
+            <div style={{ color: 'var(--color-text)', lineHeight: '1.8', fontSize: '14px' }}>
               {conceptId === 'maternity-support' ? (
-                <div style={{ marginBottom: '40px' }}>
-                  <h4 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '32px', color: '#1f2937', borderLeft: '4px solid var(--color-primary)', paddingLeft: '12px', letterSpacing: '0.3px' }}>
-                    1. 出産支援パーソナルアプリケーションとは
-                  </h4>
-                  {/* キーメッセージ - 最大化 */}
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
-                  }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
+                <div 
+                  data-page-container="2"
+                  style={{ 
+                    marginBottom: '40px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
+                  <div style={{ marginBottom: '40px' }}>
+                    <h4 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '32px', color: '#1f2937', borderLeft: '4px solid var(--color-primary)', paddingLeft: '12px', letterSpacing: '0.3px' }}>
+                      1. 出産支援パーソナルアプリケーションとは
+                    </h4>
+                    {/* キーメッセージ - 最大化 */}
+                    <div style={{ 
+                      marginBottom: '32px',
+                      textAlign: 'center'
                     }}>
-                      必要な支援を見逃さない、<wbr />安心の出産・育児を。
-                    </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
-                      妊娠・出産・育児を、もっとスマートに、もっと確実に。
-                    </p>
+                      <h2 style={{ 
+                        margin: '0 0 12px 0', 
+                        fontSize: '32px', 
+                        fontWeight: 700, 
+                        background: 'linear-gradient(135deg, #0066CC 0%, #00BFFF 100%)',
+                        WebkitBackgroundClip: 'text',
+                        WebkitTextFillColor: 'transparent',
+                        backgroundClip: 'text',
+                        lineHeight: '1.3',
+                        letterSpacing: '-0.5px'
+                      }}>
+                        必要な支援を見逃さない、<wbr />安心の出産・育児を。
+                      </h2>
+                      <p style={{ 
+                        margin: 0, 
+                        fontSize: '18px', 
+                        fontWeight: 500,
+                        color: 'var(--color-text)',
+                        letterSpacing: '0.3px',
+                        lineHeight: '1.6'
+                      }}>
+                        妊娠・出産・育児を、もっとスマートに、もっと確実に。
+                      </p>
+                    </div>
                   </div>
-                </div>
-              ) : null}
-              <div style={{ color: 'var(--color-text)', lineHeight: '1.8', fontSize: '14px' }}>
-                {conceptId === 'maternity-support' ? (
                   <>
                     <div style={{ marginBottom: '24px' }}>
                       <p style={{ marginBottom: '16px', paddingLeft: '11px' }}>
@@ -1029,12 +1085,28 @@ export default function OverviewPage() {
                           </div>
                         </div>
                       </div>
+                    </div>
+                  </>
                 </div>
-
-                <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    2. アプリケーションの目的
-                  </h4>
+              ) : null}
+              {conceptId === 'maternity-support' ? (
+                <>
+                  <div 
+                    data-page-container="3"
+                    style={{ 
+                      marginBottom: '24px',
+                      ...(showContainers ? {
+                        border: '2px dashed var(--color-primary)',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        pageBreakInside: 'avoid',
+                        breakInside: 'avoid',
+                      } : {}),
+                    }}
+                  >
+                    <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                      2. アプリケーションの目的
+                    </h4>
                   <div style={{ 
                     marginBottom: '32px',
                     textAlign: 'center'
@@ -1410,6 +1482,30 @@ export default function OverviewPage() {
                       </p>
                     </div>
                   </div>
+
+                  </div>
+
+                  <div 
+                    data-page-container="4"
+                    style={{ 
+                      marginBottom: '24px',
+                      ...(showContainers ? {
+                        border: '2px dashed var(--color-primary)',
+                        borderRadius: '8px',
+                        padding: '16px',
+                        pageBreakInside: 'avoid',
+                        breakInside: 'avoid',
+                      } : {}),
+                    }}
+                  >
+                    <div style={{ marginBottom: '24px' }}>
+                      <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid #000', paddingLeft: '8px' }}>
+                        3. AIネイティブ設計
+                      </h4>
+                    </div>
+
+        
+                  
                   <div style={{ 
                     marginBottom: '32px',
                     textAlign: 'center'
@@ -1651,10 +1747,24 @@ export default function OverviewPage() {
                     </div>
                   </div>
                 </div>
+                  
 
+                <div 
+                  data-page-container="5"
+                  style={{ 
+                    marginBottom: '24px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    3. 対象ユーザー
+                    4. 対象ユーザー
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
@@ -1681,6 +1791,7 @@ export default function OverviewPage() {
                       妊娠・出産・育児を迎える個人から、従業員支援を行う企業、住民サービスを提供する自治体まで
                     </p>
                   </div>
+                  
                   {/* アイコン表示 */}
                   <div style={{ display: 'flex', justifyContent: 'center', gap: '48px', marginBottom: '24px', paddingLeft: '11px', flexWrap: 'wrap' }}>
                     <div style={{ textAlign: 'center' }}>
@@ -1915,10 +2026,24 @@ export default function OverviewPage() {
                     </div>
                   </div>
                 </div>
+                </div>
 
+                <div 
+                  data-page-container="6"
+                  style={{ 
+                    marginBottom: '24px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    4. 主要な提供機能
+                    5. 主要な提供機能
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
@@ -1998,10 +2123,24 @@ export default function OverviewPage() {
                     </table>
                   </div>
                 </div>
+                </div>
 
+                <div 
+                  data-page-container="7"
+                  style={{ 
+                    marginBottom: '24px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    5. ビジネスモデル
+                    6. ビジネスモデル
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
@@ -2045,10 +2184,24 @@ export default function OverviewPage() {
                     />
                   </div>
                 </div>
+                </div>
 
+                <div 
+                  data-page-container="8"
+                  style={{ 
+                    marginBottom: '24px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    6. 法改正に対応
+                    7. 法改正に対応
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
@@ -2298,10 +2451,24 @@ export default function OverviewPage() {
                     </p>
                   </div>
                 </div>
+                </div>
 
+                <div 
+                  data-page-container="9"
+                  style={{ 
+                    marginBottom: '24px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
                 <div style={{ marginBottom: '24px' }}>
                   <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                    7. 提供価値
+                    8. 提供価値
                   </h4>
                   <div style={{ 
                     marginBottom: '32px',
@@ -2373,6 +2540,7 @@ export default function OverviewPage() {
                       </div>
                     </div>
                   </div>
+                </div>
                 </div>
               </>
                 ) : conceptId === 'care-support' ? (
@@ -3199,6 +3367,11 @@ export default function OverviewPage() {
                           </p>
                         </div>
                       </div>
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid #000', paddingLeft: '8px' }}>
+                          3. AIネイティブ設計
+                        </h4>
+                      </div>
                       <div style={{ 
                         marginBottom: '32px',
                         textAlign: 'center'
@@ -3668,7 +3841,7 @@ export default function OverviewPage() {
 
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        4. 主要な提供機能
+                        5. 主要な提供機能
                       </h4>
                       <div style={{ 
                         marginBottom: '32px',
@@ -3739,7 +3912,7 @@ export default function OverviewPage() {
 
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        5. ビジネスモデル
+                        6. ビジネスモデル
                       </h4>
                       <div style={{ 
                         marginBottom: '32px',
@@ -3786,7 +3959,7 @@ export default function OverviewPage() {
 
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                       <div style={{ 
                         marginBottom: '32px',
@@ -5041,7 +5214,7 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
@@ -5074,7 +5247,7 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
@@ -5107,7 +5280,7 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
@@ -5140,7 +5313,7 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
@@ -5173,7 +5346,7 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
@@ -5206,13 +5379,12 @@ export default function OverviewPage() {
                     </div>
                     <div style={{ marginBottom: '24px' }}>
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-                        6. 提供価値
+                        7. 提供価値
                       </h4>
                     </div>
                   </>
                 ) : null}
               </div>
-            </div>
           </>
         )}
       </div>

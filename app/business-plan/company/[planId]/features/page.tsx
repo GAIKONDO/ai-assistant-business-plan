@@ -3,6 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
 import { FaMobileAlt, FaGraduationCap, FaChartBar, FaLaptopCode, FaEye } from 'react-icons/fa';
+import { useContainerVisibility } from '../layout';
 
 declare global {
   interface Window {
@@ -204,6 +205,7 @@ export default function FeaturesPage() {
   const [isTableExpanded, setIsTableExpanded] = useState(false); // 表の折りたたみ状態
   const initializedRef = useRef(false);
   const renderedRef = useRef(false);
+  const { showContainers } = useContainerVisibility();
 
   // コンポーネントがマウントされた際に状態をリセット
   useEffect(() => {
@@ -434,11 +436,26 @@ export default function FeaturesPage() {
         成長戦略
       </p>
       <div className="card">
-        <div style={{ marginBottom: '24px' }}>
+        <div 
+          data-page-container="1"
+          style={{
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
           {/* 全体ロードマップ - ステップ図 */}
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            ロードマップ
-          </h3>
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              ロードマップ
+            </h3>
+            <span id="page-growth-1" style={{ fontSize: '12px', color: '#94A3B8' }}>1</span>
+          </div>
           <div style={{ 
             marginBottom: '32px', 
             padding: '24px 20px', 
@@ -871,10 +888,25 @@ export default function FeaturesPage() {
         </div>
 
         {/* なぜ自社開発APPから始めるのか */}
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            なぜ自社開発APPから始めるのか
-          </h3>
+        <div 
+          data-page-container="2"
+          style={{
+            marginBottom: '32px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              なぜ自社開発APPから始めるのか
+            </h3>
+            <span id="page-growth-2" style={{ fontSize: '12px', color: '#94A3B8' }}>2</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             市場拡大と投資拡大の正のスパイラルの恩恵を享受する
           </h2>
@@ -1138,10 +1170,25 @@ export default function FeaturesPage() {
         </div>
 
         {/* なぜ、新規会社を立てるのか */}
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            なぜ、新規会社を立てるのか
-          </h3>
+        <div 
+          data-page-container="3"
+          style={{
+            marginBottom: '32px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              なぜ、新規会社を立てるのか
+            </h3>
+            <span id="page-growth-3" style={{ fontSize: '12px', color: '#94A3B8' }}>3</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             AIネイティブ事業を新会社として独立させるべき理由
           </h2>
@@ -1784,10 +1831,25 @@ export default function FeaturesPage() {
         </div>
 
         {/* 設立時の資本構成 */}
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            設立時の資本構成
-          </h3>
+        <div 
+          data-page-container="4"
+          style={{
+            marginBottom: '32px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              設立時の資本構成
+            </h3>
+            <span id="page-growth-4" style={{ fontSize: '12px', color: '#94A3B8' }}>4</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             株式会社AIアシスタント 設立計画（共同出資スキーム案）
           </h2>
@@ -2036,19 +2098,32 @@ export default function FeaturesPage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            4つの事業企画
-          </h3>
+        <div 
+          data-page-container="5"
+          style={{
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              4つの事業企画
+            </h3>
+            <span id="page-growth-5" style={{ fontSize: '12px', color: '#94A3B8' }}>5</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             AIファーストカンパニーで4つの事業を立ち上げ
           </h2>
           <h3 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '20px', color: 'var(--color-text-light)', lineHeight: '1.6', textAlign: 'center', fontStyle: 'normal' }}>
             立ち上げ時期、提供範囲、ターゲット、構想、差別化要因、獲得する強み
           </h3>
-        </div>
-
-        <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
+          <div style={{ marginBottom: '24px', padding: '16px', backgroundColor: 'var(--color-bg-secondary)', borderRadius: '8px' }}>
           <div style={{ display: 'flex', gap: '24px', justifyContent: 'space-around', flexWrap: 'wrap' }}>
             {/* 1. 自社開発・自社サービス事業 */}
             <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', flex: '1', minWidth: '250px', maxWidth: '300px' }}>
@@ -2382,7 +2457,7 @@ export default function FeaturesPage() {
               </div>
             </div>
           </div>
-
+        </div>
         </div>
         
         {error && (
@@ -2397,11 +2472,27 @@ export default function FeaturesPage() {
           </div>
         )}
         
-        {/* 事業企画選択ボタン */}
-        <div style={{ marginTop: '20px', marginBottom: '16px' }}>
-          <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-            サービス提供の流れ
-          </h4>
+        {/* サービス提供の流れ */}
+        <div 
+          data-page-container="6"
+          style={{
+            marginTop: '20px',
+            marginBottom: '16px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h4 style={{ fontSize: '14px', fontWeight: 600, margin: 0, color: 'var(--color-text)', borderLeft: '3px solid #000', paddingLeft: '8px' }}>
+              サービス提供の流れ
+            </h4>
+            <span id="page-growth-6" style={{ fontSize: '12px', color: '#94A3B8' }}>6</span>
+          </div>
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
             {Object.entries(SERVICE_NAMES).map(([id, name]) => (
               <button
@@ -2434,61 +2525,76 @@ export default function FeaturesPage() {
               </button>
             ))}
           </div>
-        </div>
-        
-        <div 
-          ref={diagramRef}
-          id="features-diagram"
-          style={{ 
-            width: '100%', 
-            display: 'flex', 
-            justifyContent: 'center', 
-            alignItems: 'center',
-            marginTop: '20px',
-            marginBottom: '20px',
-            minHeight: '800px',
-            padding: '20px',
-            backgroundColor: '#fff',
-            borderRadius: '8px',
-            border: '1px solid var(--color-border-color)',
-            overflow: 'auto'
-          }}
-        >
-          {svgContent ? (
-            <div 
-              style={{ 
-                width: '100%', 
-                maxWidth: '100%',
-                display: 'flex', 
-                justifyContent: 'center',
-                overflow: 'auto'
-              }}
-              dangerouslySetInnerHTML={{ __html: svgContent }} 
-            />
-          ) : error ? (
-            <div style={{ 
-              padding: '40px', 
-              textAlign: 'center', 
-              color: '#c33'
-            }}>
-              エラー: {error}
-            </div>
-          ) : (
-            <div style={{ 
-              padding: '40px', 
-              textAlign: 'center', 
-              color: 'var(--color-text-light)'
-            }}>
-              {isRendering ? '図をレンダリング中...' : 'Mermaidライブラリを読み込み中...'}
-            </div>
-          )}
+          
+          <div 
+            ref={diagramRef}
+            id="features-diagram"
+            style={{ 
+              width: '100%', 
+              display: 'flex', 
+              justifyContent: 'center', 
+              alignItems: 'center',
+              marginTop: '20px',
+              marginBottom: '20px',
+              minHeight: '800px',
+              padding: '20px',
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              border: '1px solid var(--color-border-color)',
+              overflow: 'auto'
+            }}
+          >
+            {svgContent ? (
+              <div 
+                style={{ 
+                  width: '100%', 
+                  maxWidth: '100%',
+                  display: 'flex', 
+                  justifyContent: 'center',
+                  overflow: 'auto'
+                }}
+                dangerouslySetInnerHTML={{ __html: svgContent }} 
+              />
+            ) : error ? (
+              <div style={{ 
+                padding: '40px', 
+                textAlign: 'center', 
+                color: '#c33'
+              }}>
+                エラー: {error}
+              </div>
+            ) : (
+              <div style={{ 
+                padding: '40px', 
+                textAlign: 'center', 
+                color: 'var(--color-text-light)'
+              }}>
+                {isRendering ? '図をレンダリング中...' : 'Mermaidライブラリを読み込み中...'}
+              </div>
+            )}
+          </div>
         </div>
 
-        {/* アプリの構想のターゲット */}
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            アプリの構想のターゲット
-          </h3>
+        {/* 構想のファーストステップ */}
+        <div 
+          data-page-container="7"
+          style={{
+            marginBottom: '32px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              構想のファーストステップ
+            </h3>
+            <span id="page-growth-7" style={{ fontSize: '12px', color: '#94A3B8' }}>7</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             なぜ、出産支援/介護支援パーソナルAppから着手するのか
           </h2>
@@ -2657,97 +2763,6 @@ export default function FeaturesPage() {
               </div>
             </div>
 
-            {/* プラットフォームビジネスにおける競合戦略 */}
-            <div style={{ 
-              padding: '16px', 
-              backgroundColor: '#F9FAFB', 
-              borderRadius: '6px',
-              border: '1px solid #E5E7EB',
-              marginTop: '24px'
-            }}>
-              <h4 style={{ 
-                fontSize: '16px', 
-                fontWeight: 600, 
-                marginBottom: '12px', 
-                color: 'var(--color-text)' 
-              }}>
-                1. プラットフォームビジネスの競合戦略
-              </h4>
-              <p style={{ 
-                fontSize: '14px', 
-                color: 'var(--color-text)', 
-                lineHeight: '1.8',
-                margin: 0,
-                marginBottom: '12px'
-              }}>
-                プラットフォームビジネスにおける競合戦略は、一言でいえばTSM及びMSMにおけるサービス提供者と消費者の「スイッチングコスト」<sup style={{ fontSize: '10px', verticalAlign: 'super' }}>19</sup>の増大。プラットフォームの優位性は先行性によるデファクト・スタンダードの存在をはじめ、取引手数料の低さといった経済的インセンティブ、提供機能の独自性（特許や標準によるソフトウェアチョーキング戦略）等様々な要因で動的かつ複合的に決定されるが、プラットフォーム事業者にとって重要なのは、いかに現在擁しているサービス消費者の数と取引総量を維持・拡大するかということである。そのためには、今プラットフォームを利用しているサービス提供者及び消費者の、他のサービスに切り替える際のコストを最大化することで、その場に留まらせ続ける必要がある、というのがこの戦略の背景<sup style={{ fontSize: '10px', verticalAlign: 'super' }}>20</sup>。
-              </p>
-              
-              {/* 脚注 */}
-              <div style={{ 
-                marginTop: '16px',
-                paddingTop: '16px',
-                borderTop: '1px solid #E5E7EB'
-              }}>
-                <div style={{ 
-                  marginBottom: '12px',
-                  paddingLeft: '16px',
-                  borderLeft: '3px solid #E5E7EB',
-                  fontSize: '12px',
-                  color: 'var(--color-text-light)',
-                  lineHeight: '1.6',
-                  fontStyle: 'italic'
-                }}>
-                  <sup style={{ fontSize: '10px', verticalAlign: 'super' }}>19</sup> スイッチングコストとは、顧客が現在利用している製品・サービスから別の会社の製品・サービスに切り替える際に負担しなければならない金銭的・物理的・心理的なコストのこと。
-                </div>
-                <div style={{ 
-                  paddingLeft: '16px',
-                  borderLeft: '3px solid #E5E7EB',
-                  fontSize: '12px',
-                  color: 'var(--color-text-light)',
-                  lineHeight: '1.6',
-                  fontStyle: 'italic'
-                }}>
-                  <sup style={{ fontSize: '10px', verticalAlign: 'super' }}>20</sup> なお、先行者優位のプラットフォーム市場において、支配的なプラットフォーム事業者がこの競合戦略を行う場合、競争環境上の問題を孕むことに留意する必要がある。
-                </div>
-                
-                {/* 参考文献 */}
-                <div style={{ 
-                  marginTop: '16px',
-                  paddingTop: '16px',
-                  borderTop: '1px solid #E5E7EB'
-                }}>
-                  <p style={{ 
-                    fontSize: '13px', 
-                    color: 'var(--color-text-light)', 
-                    marginBottom: '8px',
-                    fontWeight: 500
-                  }}>
-                    参考文献：
-                  </p>
-                  <a
-                    href="https://www.meti.go.jp/policy/it_policy/statistics/digital_economy_report/digital_economy_report1.pdf"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    style={{
-                      fontSize: '14px',
-                      color: 'var(--color-primary)',
-                      textDecoration: 'none',
-                      display: 'inline-block',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.textDecoration = 'underline';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.textDecoration = 'none';
-                    }}
-                  >
-                    経済産業省 デジタル経済レポート（PDF）
-                  </a>
-                </div>
-              </div>
-            </div>
-
             {/* プラットフォームビジネスの競合戦略の図 */}
             <div style={{ 
               marginTop: '32px'
@@ -2765,11 +2780,11 @@ export default function FeaturesPage() {
               <div style={{ 
                 display: 'flex', 
                 gap: '32px', 
-                flexWrap: 'wrap',
+                flexWrap: 'nowrap',
                 alignItems: 'flex-start'
               }}>
                 {/* 左側：バリューチェーンのグラフ */}
-                <div style={{ flex: '1', minWidth: '300px' }}>
+                <div style={{ flex: '0 0 400px', minWidth: '400px', maxWidth: '400px' }}>
                   <h5 style={{ 
                     fontSize: '14px', 
                     fontWeight: 600, 
@@ -2782,10 +2797,10 @@ export default function FeaturesPage() {
                   
                   {/* SVGグラフ */}
                     <svg 
-                      width="100%" 
+                      width="400" 
                       height="380" 
                       viewBox="0 0 400 380"
-                      style={{ maxWidth: '400px', margin: '0 auto', display: 'block' }}
+                      style={{ margin: '0 auto', display: 'block' }}
                     >
                       {/* グリッド線 */}
                       <defs>
@@ -2849,7 +2864,7 @@ export default function FeaturesPage() {
                 </div>
                 
                 {/* 右側：競合戦略の表 */}
-                <div style={{ flex: '1', minWidth: '400px' }}>
+                <div style={{ flex: '1', minWidth: '400px', maxWidth: '100%' }}>
                   <h5 style={{ 
                     fontSize: '14px', 
                     fontWeight: 600, 
@@ -3001,12 +3016,28 @@ export default function FeaturesPage() {
                 出典: 経済産業省若手新政策プロジェクトPIVOT作成
               </p>
             </div>
+        </div>
 
         {/* 後発事業者の参入の勝機 */}
-        <div style={{ marginBottom: '32px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-            後発事業者の参入の勝機
-          </h3>
+        <div 
+          data-page-container="8"
+          style={{
+            marginBottom: '32px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
+            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
+              後発事業者の参入の勝機
+            </h3>
+            <span id="page-growth-8" style={{ fontSize: '12px', color: '#94A3B8' }}>8</span>
+          </div>
           <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
             後発事業者の参入の勝機
           </h2>
@@ -3302,10 +3333,9 @@ export default function FeaturesPage() {
                   </p>
                 </div>
               </div>
-                </div>
               </div>
             </div>
-        </div>
+          </div>
         </div>
       </div>
     </>

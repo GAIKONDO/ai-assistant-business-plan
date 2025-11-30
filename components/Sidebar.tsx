@@ -1,9 +1,21 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon, VisualizationsIcon } from './Icons';
+import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { onAuthStateChanged } from 'firebase/auth';
+import { db, auth } from '@/lib/firebase';
+
+// 特別なサービス（静的データ）
+const SPECIAL_SERVICES = [
+  { id: 'own-service', name: '自社開発・自社サービス事業', description: '自社開発のサービス事業に関する計画', hasConcepts: true },
+  { id: 'education-training', name: 'AI導入ルール設計・人材育成・教育事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
+  { id: 'consulting', name: 'プロセス可視化・業務コンサル事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
+  { id: 'ai-dx', name: 'AI駆動開発・DX支援SI事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
+  { id: 'component-test', name: '5. コンポーネント化test', description: 'コンポーネント化のテスト用事業企画', hasConcepts: true },
+];
 
 interface SidebarProps {
   isOpen: boolean;
@@ -11,10 +23,44 @@ interface SidebarProps {
   currentPage?: string;
 }
 
+interface ContentItem {
+  id: string;
+  title: string;
+  type: 'company-plan' | 'project' | 'concept';
+  path: string;
+}
+
+// 固定構想の定義
+const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
+  'own-service': [
+    { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
+    { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  ],
+  'ai-dx': [
+    { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },
+    { id: 'sme-dx', name: '中小企業向けDX', description: '内部データ管理やHP作成、Invoice制度の対応など' },
+  ],
+  'consulting': [
+    { id: 'sme-process', name: '中小企業向け業務プロセス可視化・改善', description: '中小企業の業務プロセス可視化、効率化、経営課題の解決支援、助成金活用支援' },
+    { id: 'medical-care-process', name: '医療・介護施設向け業務プロセス可視化・改善', description: '医療・介護施設の業務フロー可視化、記録業務の効率化、コンプライアンス対応支援' },
+  ],
+  'education-training': [
+    { id: 'corporate-ai-training', name: '大企業向けAI人材育成・教育', description: '企業内AI人材の育成、AI活用スキル研修、AI導入教育プログラムの提供' },
+    { id: 'ai-governance', name: 'AI導入ルール設計・ガバナンス支援', description: '企業のAI導入におけるルール設計、ガバナンス構築、コンプライアンス対応支援' },
+    { id: 'sme-ai-education', name: '中小企業向けAI導入支援・教育', description: '中小企業向けのAI導入支援、実践的なAI教育、導入ルール設計支援、助成金活用支援' },
+  ],
+  'component-test': [
+    { id: 'test-concept', name: 'テスト構想', description: 'コンポーネント化のテスト用構想' },
+  ],
+};
+
 export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps) {
   const pathname = usePathname();
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
+  const [contentItems, setContentItems] = useState<ContentItem[]>([]);
+  const [loadingContent, setLoadingContent] = useState(false);
+  const [authReady, setAuthReady] = useState(false);
   
   const menuItems = [
     { icon: DashboardIcon, label: 'ダッシュボード', id: 'dashboard', path: '/' },
@@ -29,18 +75,30 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
   // 現在のページを判定
   const getCurrentPage = () => {
-    if (currentPage) return currentPage;
+    console.log('🔍 getCurrentPage:', { currentPage, pathname });
+    if (currentPage) {
+      console.log('✅ currentPageプロップを使用:', currentPage);
+      return currentPage;
+    }
     if (pathname === '/') return 'dashboard';
+    // /business-plan で始まるパスはすべて 'business-plan' として扱う（最初にチェック）
+    if (pathname.startsWith('/business-plan')) {
+      console.log('✅ /business-planで始まるパスを検出:', pathname);
+      return 'business-plan';
+    }
     // /markdown-demo のようなパスを正しく処理
     const pathWithoutSlash = pathname.replace('/', '');
     if (pathWithoutSlash === 'markdown-demo') return 'markdown-demo';
     if (pathWithoutSlash === 'visualizations') return 'visualizations';
     // /business-plan/company/[planId]/visualizations のようなパスも処理
     if (pathname.includes('/visualizations')) return 'visualizations';
-    return pathWithoutSlash || 'dashboard';
+    const result = pathWithoutSlash || 'dashboard';
+    console.log('⚠️ デフォルト値を使用:', result);
+    return result;
   };
 
   const activePage = getCurrentPage();
+  console.log('🔍 activePage決定:', { activePage, pathname, currentPage });
 
   const handleNavigation = (path: string) => {
     startTransition(() => {
@@ -48,6 +106,320 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
     });
     // サイドメニューの開閉状態は維持する
   };
+
+  // 認証状態の監視
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setAuthReady(true);
+    });
+    return () => unsubscribe();
+  }, []);
+
+  // パスからserviceIdを抽出
+  const getServiceIdFromPath = () => {
+    if (!pathname) return null;
+    const match = pathname.match(/^\/business-plan\/services\/([^\/]+)/);
+    const serviceId = match ? match[1] : null;
+    console.log('🔍 パス解析:', { pathname, serviceId, match });
+    return serviceId;
+  };
+
+  // コンテンツの読み込み
+  useEffect(() => {
+    console.log('🔍 useEffect実行:', {
+      isOpen,
+      authReady,
+      hasAuth: !!auth?.currentUser,
+      hasDb: !!db,
+      activePage,
+      pathname,
+    });
+
+    if (!isOpen || !authReady || !auth?.currentUser || !db) {
+      console.log('⚠️ 条件未満足でスキップ:', {
+        isOpen,
+        authReady,
+        hasAuth: !!auth?.currentUser,
+        hasDb: !!db,
+      });
+      return;
+    }
+
+    const loadContent = async () => {
+      console.log('🔍 loadContent開始:', { activePage, pathname });
+      // activePageが'business-plan'または'business-plan'で始まる場合に処理を続行
+      if (activePage !== 'business-plan' && !activePage.startsWith('business-plan')) {
+        console.log('⚠️ activePageがbusiness-planではない:', activePage);
+        setContentItems([]);
+        return;
+      }
+
+      setLoadingContent(true);
+      try {
+        const serviceId = getServiceIdFromPath();
+        console.log('🔍 コンテンツ読み込み:', { 
+          activePage, 
+          pathname, 
+          serviceId,
+          isOpen,
+          authReady,
+          userId: auth.currentUser.uid,
+        });
+        
+        // 個別の事業企画ページの場合、構想を表示
+        if (serviceId) {
+          console.log('🔍 構想読み込み開始:', { serviceId, pathname });
+          
+          // Firebaseから構想を取得
+          let conceptsSnapshot;
+          try {
+            const conceptsQuery = query(
+              collection(db, 'concepts'),
+              where('userId', '==', auth.currentUser.uid),
+              where('serviceId', '==', serviceId),
+              orderBy('createdAt', 'desc')
+            );
+            conceptsSnapshot = await getDocs(conceptsQuery);
+          } catch (error: any) {
+            if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+              const conceptsQueryWithoutOrder = query(
+                collection(db, 'concepts'),
+                where('userId', '==', auth.currentUser.uid),
+                where('serviceId', '==', serviceId)
+              );
+              conceptsSnapshot = await getDocs(conceptsQueryWithoutOrder);
+            } else {
+              throw error;
+            }
+          }
+
+          const items: ContentItem[] = [];
+          
+          // 固定構想を追加
+          const fixedConcepts = FIXED_CONCEPTS[serviceId] || [];
+          fixedConcepts.forEach((concept) => {
+            items.push({
+              id: concept.id,
+              title: concept.name,
+              type: 'concept',
+              path: `/business-plan/services/${serviceId}/${concept.id}/overview`,
+            });
+          });
+
+          // Firebaseから取得した構想を追加（固定構想と同じconceptIdを持つ構想を除外）
+          const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
+          const concepts: Array<{ id: string; title: string; conceptId: string; createdAt: Date | null }> = [];
+          
+          conceptsSnapshot.forEach((doc) => {
+            const data = doc.data();
+            const conceptId = data.conceptId || '';
+            // 固定構想と同じconceptIdを持つ構想を除外
+            if (!fixedConceptIds.has(conceptId)) {
+              concepts.push({
+                id: doc.id,
+                title: data.name || conceptId,
+                conceptId: conceptId,
+                createdAt: data.createdAt?.toDate() || null,
+              });
+            }
+          });
+
+          // 作成日時でソート（降順）
+          concepts.sort((a, b) => {
+            const aTime = a.createdAt?.getTime() || 0;
+            const bTime = b.createdAt?.getTime() || 0;
+            return bTime - aTime;
+          });
+
+          // アイテムに変換
+          concepts.forEach((concept) => {
+            items.push({
+              id: concept.id,
+              title: concept.title,
+              type: 'concept',
+              path: `/business-plan/services/${serviceId}/${concept.conceptId}/overview`,
+            });
+          });
+
+          console.log('✅ 構想アイテム:', {
+            totalItems: items.length,
+            fixedConcepts: fixedConcepts.length,
+            dynamicConcepts: concepts.length,
+            items: items.map(i => ({ type: i.type, title: i.title })),
+          });
+
+          setContentItems(items);
+          return;
+        }
+
+        // 通常の事業計画ページの場合、会社の事業計画と事業企画を表示
+        // 会社の事業計画を取得
+        let companyPlansSnapshot;
+        try {
+          const companyQuery = query(
+            collection(db, 'companyBusinessPlan'),
+            where('userId', '==', auth.currentUser.uid),
+            orderBy('createdAt', 'desc')
+          );
+          companyPlansSnapshot = await getDocs(companyQuery);
+        } catch (error: any) {
+          if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            const companyQueryWithoutOrder = query(
+              collection(db, 'companyBusinessPlan'),
+              where('userId', '==', auth.currentUser.uid)
+            );
+            companyPlansSnapshot = await getDocs(companyQueryWithoutOrder);
+          } else {
+            throw error;
+          }
+        }
+
+        // 事業企画を取得
+        let projectsSnapshot;
+        try {
+          const projectsQuery = query(
+            collection(db, 'businessProjects'),
+            where('userId', '==', auth.currentUser.uid),
+            orderBy('createdAt', 'desc')
+          );
+          projectsSnapshot = await getDocs(projectsQuery);
+          console.log('📋 事業企画クエリ（orderByあり）:', {
+            size: projectsSnapshot.size,
+            empty: projectsSnapshot.empty,
+          });
+        } catch (error: any) {
+          console.log('⚠️ orderByでエラー、orderByなしで再試行:', error);
+          if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            const projectsQueryWithoutOrder = query(
+              collection(db, 'businessProjects'),
+              where('userId', '==', auth.currentUser.uid)
+            );
+            projectsSnapshot = await getDocs(projectsQueryWithoutOrder);
+            console.log('📋 事業企画クエリ（orderByなし）:', {
+              size: projectsSnapshot.size,
+              empty: projectsSnapshot.empty,
+            });
+          } else {
+            // その他のエラーでもorderByなしで再試行
+            console.log('⚠️ その他のエラー、orderByなしで再試行');
+            const projectsQueryWithoutOrder = query(
+              collection(db, 'businessProjects'),
+              where('userId', '==', auth.currentUser.uid)
+            );
+            projectsSnapshot = await getDocs(projectsQueryWithoutOrder);
+            console.log('📋 事業企画クエリ（orderByなし、エラー後）:', {
+              size: projectsSnapshot.size,
+              empty: projectsSnapshot.empty,
+            });
+          }
+        }
+
+        const items: ContentItem[] = [];
+
+        // 会社の事業計画を追加
+        const companyPlans: Array<{ id: string; title: string; createdAt: Date | null }> = [];
+        companyPlansSnapshot.forEach((doc) => {
+          const data = doc.data();
+          companyPlans.push({
+            id: doc.id,
+            title: data.title || '会社事業計画',
+            createdAt: data.createdAt?.toDate() || null,
+          });
+        });
+
+        // 事業企画を追加
+        const projects: Array<{ id: string; title: string; createdAt: Date | null }> = [];
+        console.log('📋 事業企画取得結果:', {
+          snapshotSize: projectsSnapshot.size,
+          docs: projectsSnapshot.docs.map(doc => ({
+            id: doc.id,
+            data: doc.data(),
+          })),
+        });
+        projectsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          console.log('📋 事業企画データ:', {
+            id: doc.id,
+            name: data.name,
+            title: data.title,
+            allFields: Object.keys(data),
+            rawData: data,
+          });
+          // nameまたはtitleフィールドを使用（BusinessProjectFormではname、BusinessPlanFormではtitle）
+          const projectTitle = data.name || data.title || '事業企画';
+          projects.push({
+            id: doc.id,
+            title: projectTitle,
+            createdAt: data.createdAt?.toDate() || null,
+          });
+        });
+
+        // 作成日時でソート（降順）
+        companyPlans.sort((a, b) => {
+          const aTime = a.createdAt?.getTime() || 0;
+          const bTime = b.createdAt?.getTime() || 0;
+          return bTime - aTime;
+        });
+
+        projects.sort((a, b) => {
+          const aTime = a.createdAt?.getTime() || 0;
+          const bTime = b.createdAt?.getTime() || 0;
+          return bTime - aTime;
+        });
+
+        // アイテムに変換
+        companyPlans.forEach((plan) => {
+          items.push({
+            id: plan.id,
+            title: plan.title,
+            type: 'company-plan',
+            path: `/business-plan/company/${plan.id}/overview`,
+          });
+        });
+
+        projects.forEach((project) => {
+          items.push({
+            id: project.id,
+            title: project.title,
+            type: 'project',
+            path: `/business-plan/project/${project.id}`,
+          });
+        });
+
+        // 特別なサービス（静的データ）も追加
+        SPECIAL_SERVICES.forEach((service) => {
+          items.push({
+            id: service.id,
+            title: service.name,
+            type: 'project',
+            path: `/business-plan/services/${service.id}`,
+          });
+        });
+
+        console.log('✅ 最終的なコンテンツアイテム:', {
+          totalItems: items.length,
+          companyPlans: items.filter(i => i.type === 'company-plan').length,
+          projects: items.filter(i => i.type === 'project').length,
+          staticServices: SPECIAL_SERVICES.length,
+          items: items.map(i => ({ type: i.type, title: i.title })),
+        });
+
+        setContentItems(items);
+      } catch (error) {
+        console.error('❌ コンテンツの読み込みエラー:', error);
+        console.error('エラー詳細:', {
+          error,
+          message: error instanceof Error ? error.message : String(error),
+          stack: error instanceof Error ? error.stack : undefined,
+        });
+        setContentItems([]);
+      } finally {
+        setLoadingContent(false);
+      }
+    };
+
+    loadContent();
+  }, [isOpen, activePage, authReady, auth?.currentUser, pathname]);
 
   return (
     <>
@@ -210,6 +582,80 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
               );
             })}
           </nav>
+
+          {/* コンテンツセクション */}
+          {(() => {
+            console.log('🔍 コンテンツセクション表示チェック:', {
+              contentItemsLength: contentItems.length,
+              loadingContent,
+              contentItems: contentItems.map(i => ({ type: i.type, title: i.title })),
+            });
+            return null;
+          })()}
+          {contentItems.length > 0 && (
+            <>
+              <div style={{ padding: '0 24px', marginTop: '24px', marginBottom: '12px' }}>
+                <h2 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text-light)', marginBottom: '0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                  コンテンツ
+                </h2>
+              </div>
+              <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
+                {loadingContent ? (
+                  <div style={{ padding: '16px 24px', color: 'var(--color-text-light)', fontSize: '14px' }}>
+                    読み込み中...
+                  </div>
+                ) : (
+                  contentItems.map((item) => (
+                    <button
+                      key={item.id}
+                      onClick={() => handleNavigation(item.path)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '8px 24px',
+                        width: '100%',
+                        color: 'var(--color-text-light)',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s ease',
+                        backgroundColor: 'transparent',
+                        fontSize: '13px',
+                        fontWeight: 400,
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        borderLeft: '2px solid transparent',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-background)';
+                        e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                      }}
+                    >
+                      <span style={{ 
+                        marginRight: '8px', 
+                        fontSize: '10px',
+                        color: item.type === 'company-plan' ? '#3B82F6' : item.type === 'project' ? '#10B981' : '#8B5CF6',
+                        fontWeight: 500,
+                      }}>
+                        {item.type === 'company-plan' ? '🏢' : item.type === 'project' ? '📋' : '💡'}
+                      </span>
+                      <span style={{ 
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                      }}>
+                        {item.title}
+                      </span>
+                    </button>
+                  ))
+                )}
+              </div>
+            </>
+          )}
         </div>
       )}
     </>

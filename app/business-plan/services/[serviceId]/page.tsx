@@ -14,13 +14,16 @@ const SERVICE_NAMES: { [key: string]: string } = {
   'education-training': 'AI導入ルール設計・人材育成・教育事業',
   'consulting': 'プロセス可視化・業務コンサル事業',
   'ai-dx': 'AI駆動開発・DX支援SI事業',
+  'component-test': '5. コンポーネント化test',
 };
 
 // 固定構想の定義
+// 注意: -componentized版は動的に作成されるため、固定構想からは除外
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
   'own-service': [
     { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
     { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+    // -componentized版は動的に作成されるため、固定構想からは除外
   ],
   'ai-dx': [
     { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },

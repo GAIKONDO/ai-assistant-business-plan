@@ -8,9 +8,12 @@ import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
 
+// 固定構想の定義
+// 注意: -componentized版は動的に作成されるため、固定構想からは除外
 const FIXED_CONCEPTS = [
   { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
   { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  // -componentized版は動的に作成されるため、固定構想からは除外
 ];
 
 export default function OwnServicePage() {

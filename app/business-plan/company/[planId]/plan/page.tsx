@@ -1,9 +1,11 @@
 'use client';
 
 import { useState } from 'react';
+import { useContainerVisibility } from '../layout';
 
 export default function PlanPage() {
   const [viewMode, setViewMode] = useState<'separate' | 'combined'>('separate');
+  const { showContainers } = useContainerVisibility();
 
   return (
     <>
@@ -68,19 +70,34 @@ export default function PlanPage() {
           </div>
         </div>
         
-        {/* 7年計画の表 */}
-        <div style={{ 
-          overflowX: 'auto',
-          marginBottom: '24px'
-        }}>
-          <table style={{ 
-            width: '100%',
-            borderCollapse: 'collapse',
-            backgroundColor: '#FFFFFF',
-            borderRadius: '8px',
-            overflow: 'hidden',
-            border: '1px solid var(--color-border-color)'
-          }}>
+        {/* 7年計画の表 - 各年ごとにコンテナ化 */}
+        {[1, 2, 3, 4, 5, 6, 7].map((year) => (
+          <div
+            key={year}
+            data-page-container={`plan-${year}`}
+            style={{
+              marginBottom: '24px',
+              ...(showContainers ? {
+                border: '2px dashed var(--color-primary)',
+                borderRadius: '8px',
+                padding: '16px',
+                pageBreakInside: 'avoid',
+                breakInside: 'avoid',
+              } : {}),
+            }}
+          >
+            <div style={{ 
+              overflowX: 'auto',
+              marginBottom: '0'
+            }}>
+              <table style={{ 
+                width: '100%',
+                borderCollapse: 'collapse',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '8px',
+                overflow: 'hidden',
+                border: '1px solid var(--color-border-color)'
+              }}>
             <thead>
               <tr style={{ 
                 backgroundColor: '#F3F4F6',
@@ -878,8 +895,10 @@ export default function PlanPage() {
                 </td>
               </tr>
             </tbody>
-          </table>
-        </div>
+              </table>
+            </div>
+          </div>
+        ))}
       </div>
     </>
   );

@@ -15,6 +15,7 @@ const SPECIAL_SERVICES = [
   { id: 'education-training', name: 'AI導入ルール設計・人材育成・教育事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
   { id: 'consulting', name: 'プロセス可視化・業務コンサル事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
   { id: 'ai-dx', name: 'AI駆動開発・DX支援SI事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
+  { id: 'component-test', name: '5. コンポーネント化test', description: 'コンポーネント化のテスト用事業企画', hasConcepts: true },
 ];
 
 // 固定構想の定義（重複カウントを防ぐため）
@@ -22,6 +23,9 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
   'own-service': [
     { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
     { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
+  ],
+  'component-test': [
+    { id: 'test-concept', name: 'テスト構想', description: 'コンポーネント化のテスト用構想' },
   ],
   'ai-dx': [
     { id: 'medical-dx', name: '医療法人向けDX', description: '助成金を活用したDX：電子カルテなどの導入支援' },
