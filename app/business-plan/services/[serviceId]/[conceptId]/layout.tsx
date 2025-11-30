@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback, useRef, createContext, useContext } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, query, collection, where, getDocs } from 'firebase/firestore';
+import { doc, getDoc, query, collection, where, getDocs, updateDoc, serverTimestamp } from 'firebase/firestore';
 import Script from 'next/script';
 import { auth, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
@@ -32,6 +32,8 @@ interface ConceptData {
     signatureFontSize?: number;
     dateFontSize?: number;
   };
+  pagesBySubMenu?: { [subMenuId: string]: Array<any> }; // サブメニューごとのページ
+  pageOrderBySubMenu?: { [subMenuId: string]: string[] }; // サブメニューごとのページ順序
 }
 
 interface ConceptContextType {
@@ -282,6 +284,7 @@ function ConceptLayoutContent({
   concept: ConceptData | null;
   children: React.ReactNode;
 }) {
+  const { reloadConcept } = useConcept();
   const { isPresentationMode, enterPresentationMode, exitPresentationMode } = usePresentationMode();
   const pathname = usePathname();
   const router = useRouter();
@@ -298,6 +301,8 @@ function ConceptLayoutContent({
   const [isExportingPDF, setIsExportingPDF] = useState(false); // PDF出力中の状態
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const [showKeyVisualMetadataEditor, setShowKeyVisualMetadataEditor] = useState(false);
+  const [showPDFSubMenuSelector, setShowPDFSubMenuSelector] = useState(false); // PDF出力時のサブメニュー選択モーダル
+  const [selectedSubMenusForPDF, setSelectedSubMenusForPDF] = useState<Set<string>>(new Set()); // 選択されたサブメニュー
   const [showMigrateModal, setShowMigrateModal] = useState(false);
   const [keyVisualMetadata, setKeyVisualMetadata] = useState<{
     title: string;
@@ -657,51 +662,628 @@ function ConceptLayoutContent({
     };
   }, [isPresentationMode, goToPreviousPage, goToNextPage, showSlideThumbnails, showStartGuide, showTableOfContents, exitPresentationMode]);
 
-  // PDF出力機能
-  const handleExportToPDF = useCallback(async () => {
+  // サブメニューにページがあるかどうかを確認する関数
+  const checkSubMenuHasPages = useCallback(async (subMenuId: string): Promise<boolean> => {
+    if (concept?.pagesBySubMenu) {
+      // コンポーネント化版の場合
+      const pages = concept.pagesBySubMenu[subMenuId];
+      return Array.isArray(pages) && pages.length > 0;
+    } else {
+      // 固定ページ版の場合
+      try {
+        // 各サブメニューのページをiframeで読み込んで確認
+        const subMenuItem = SUB_MENU_ITEMS.find(item => item.id === subMenuId);
+        if (!subMenuItem) return false;
+        
+        const url = `/business-plan/services/${serviceId}/${conceptId}/${subMenuItem.path}`;
+        const iframe = document.createElement('iframe');
+        iframe.style.display = 'none';
+        iframe.style.width = '0';
+        iframe.style.height = '0';
+        document.body.appendChild(iframe);
+        
+        return new Promise<boolean>((resolve) => {
+          const timeout = setTimeout(() => {
+            document.body.removeChild(iframe);
+            resolve(false);
+          }, 5000);
+          
+          iframe.onload = () => {
+            setTimeout(() => {
+              const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+              if (iframeDoc) {
+                const containers = iframeDoc.querySelectorAll('[data-page-container]');
+                document.body.removeChild(iframe);
+                clearTimeout(timeout);
+                resolve(containers.length > 0);
+              } else {
+                document.body.removeChild(iframe);
+                clearTimeout(timeout);
+                resolve(false);
+              }
+            }, 1000);
+          };
+          
+          iframe.onerror = () => {
+            document.body.removeChild(iframe);
+            clearTimeout(timeout);
+            resolve(false);
+          };
+          
+          iframe.src = url;
+        });
+      } catch (error) {
+        console.error(`サブメニュー ${subMenuId} のページ確認エラー:`, error);
+        return false;
+      }
+    }
+  }, [concept, serviceId, conceptId]);
+
+  // PDF出力機能（サブメニュー選択モーダルを表示）
+  const handleExportToPDFClick = useCallback(async () => {
     if (!showContainers) {
       alert('コンテナ表示モードでPDF出力してください。');
       return;
     }
 
-    if (!contentContainerRef.current) {
-      alert('コンテンツが見つかりません。');
+    const currentSubMenuId = getCurrentSubMenu();
+
+    // 各サブメニューにページがあるかどうかを確認
+    const subMenuPagesStatus: Array<{ id: string; label: string; hasPages: boolean }> = [];
+    for (const item of SUB_MENU_ITEMS) {
+      const hasPages = await checkSubMenuHasPages(item.id);
+      subMenuPagesStatus.push({ id: item.id, label: item.label, hasPages });
+    }
+
+    // 現在のサブメニューをデフォルトで選択
+    setSelectedSubMenusForPDF(new Set([currentSubMenuId]));
+    setShowPDFSubMenuSelector(true);
+  }, [showContainers, checkSubMenuHasPages, pathname]);
+
+  // PDF出力機能（実際のPDF生成）
+  const handleExportToPDF = useCallback(async (selectedSubMenus: Set<string>) => {
+    if (!showContainers) {
+      alert('コンテナ表示モードでPDF出力してください。');
       return;
     }
 
     setIsExportingPDF(true); // 処理開始
+
+    // 一時的なコンテナと追加したスタイルシートを追跡（finallyブロックで削除するため）
+    const tempContainers: HTMLElement[] = [];
+    const addedStyles: HTMLElement[] = [];
 
     try {
       // html2canvasとjsPDFを動的にインポート
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
       
-      // コンテナで囲まれた要素を取得
-      const container = contentContainerRef.current;
-      if (!container) {
-        alert('コンテナが見つかりません。');
-        return;
-      }
-
-      // コンテナ内のすべてのコンテナ要素を取得（data-page-container属性を持つ要素）
-      let containers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+      // 選択したサブメニューのページをすべて取得
+      const allContainers: Array<{ container: HTMLElement; subMenuId: string; subMenuLabel: string }> = [];
+      const currentSubMenuId = getCurrentSubMenu();
       
-      // data-page-container属性がない場合は、border: 2px dashed が含まれる要素を検索
-      if (containers.length === 0) {
-        containers = Array.from(container.querySelectorAll('*')).filter((el: Element) => {
-          const htmlEl = el as HTMLElement;
-          const style = window.getComputedStyle(htmlEl);
-          const inlineStyle = htmlEl.style.border || '';
-          return style.border.includes('dashed') || inlineStyle.includes('dashed');
-        }) as HTMLElement[];
+      for (const subMenuId of selectedSubMenus) {
+        const subMenuItem = SUB_MENU_ITEMS.find(item => item.id === subMenuId);
+        if (!subMenuItem) continue;
+        
+        if (concept?.pagesBySubMenu?.[subMenuId]) {
+          // コンポーネント化版の場合、現在のページからコンテナを取得
+          if (subMenuId === currentSubMenuId) {
+            const container = contentContainerRef.current;
+            if (container) {
+              const containers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+              containers.forEach(c => {
+                allContainers.push({ container: c, subMenuId, subMenuLabel: subMenuItem.label });
+              });
+            }
+          } else {
+            // 他のサブメニューの場合は、iframeで読み込んで取得
+            const url = `/business-plan/services/${serviceId}/${conceptId}/${subMenuItem.path}`;
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            document.body.appendChild(iframe);
+            
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                document.body.removeChild(iframe);
+                resolve();
+              }, 10000);
+              
+              iframe.onload = () => {
+                setTimeout(() => {
+                  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                  if (iframeDoc) {
+                    // iframeのスタイルシートを現在のドキュメントにコピー
+                    const iframeStyles = Array.from(iframeDoc.querySelectorAll('style, link[rel="stylesheet"]'));
+                    iframeStyles.forEach(style => {
+                      if (style.tagName === 'STYLE') {
+                        const newStyle = document.createElement('style');
+                        newStyle.textContent = (style as HTMLStyleElement).textContent;
+                        document.head.appendChild(newStyle);
+                        addedStyles.push(newStyle);
+                      } else if (style.tagName === 'LINK') {
+                        const link = style as HTMLLinkElement;
+                        const newLink = document.createElement('link');
+                        newLink.rel = 'stylesheet';
+                        newLink.href = link.href;
+                        document.head.appendChild(newLink);
+                        addedStyles.push(newLink);
+                      }
+                    });
+                    
+                    // 元のページのコンテナ幅を取得
+                    const originalContainer = iframeDoc.querySelector('[data-content-container]') as HTMLElement;
+                    const originalWidth = originalContainer ? 
+                      (iframeDoc.defaultView?.getComputedStyle(originalContainer).width || '1200px') : '1200px';
+                    
+                    // 一時的なコンテナを作成してレイアウトコンテキストを再現
+                    // html2canvasでキャプチャできるように、visibility: visibleにする
+                    const tempContainer = document.createElement('div');
+                    tempContainer.style.position = 'absolute';
+                    tempContainer.style.left = '0';
+                    tempContainer.style.top = '0';
+                    tempContainer.style.width = originalWidth;
+                    tempContainer.style.visibility = 'visible';
+                    tempContainer.style.opacity = '0';
+                    tempContainer.style.pointerEvents = 'none';
+                    tempContainer.style.zIndex = '-1';
+                    document.body.appendChild(tempContainer);
+                    tempContainers.push(tempContainer);
+                    
+                    const containers = Array.from(iframeDoc.querySelectorAll('[data-page-container]')) as HTMLElement[];
+                    containers.forEach(c => {
+                      // コンテナを現在のドキュメントにクローン
+                      const clonedContainer = c.cloneNode(true) as HTMLElement;
+                      
+                      // 元の要素のcomputed styleを取得して適用
+                      const originalStyle = iframeDoc.defaultView?.getComputedStyle(c);
+                      if (originalStyle) {
+                        clonedContainer.style.width = originalStyle.width;
+                        clonedContainer.style.height = originalStyle.height;
+                        clonedContainer.style.margin = originalStyle.margin;
+                        clonedContainer.style.padding = originalStyle.padding;
+                        clonedContainer.style.display = originalStyle.display;
+                        clonedContainer.style.position = originalStyle.position;
+                        // flexbox関連のスタイルを保持
+                        clonedContainer.style.flex = originalStyle.flex;
+                        clonedContainer.style.flexDirection = originalStyle.flexDirection;
+                        clonedContainer.style.flexWrap = originalStyle.flexWrap;
+                        clonedContainer.style.alignItems = originalStyle.alignItems;
+                        clonedContainer.style.justifyContent = originalStyle.justifyContent;
+                        clonedContainer.style.minWidth = originalStyle.minWidth;
+                        clonedContainer.style.maxWidth = originalStyle.maxWidth;
+                        clonedContainer.style.minHeight = originalStyle.minHeight;
+                        clonedContainer.style.maxHeight = originalStyle.maxHeight;
+                        clonedContainer.style.gap = originalStyle.gap;
+                      }
+                      
+                      // 子要素のスタイルも保持（特にflexboxレイアウト）
+                      const cloneAllElementStyles = (originalEl: HTMLElement, clonedEl: HTMLElement) => {
+                        const originalChildren = originalEl.children;
+                        const clonedChildren = clonedEl.children;
+                        
+                        for (let i = 0; i < originalChildren.length && i < clonedChildren.length; i++) {
+                          const originalChild = originalChildren[i] as HTMLElement;
+                          const clonedChild = clonedChildren[i] as HTMLElement;
+                          const childStyle = iframeDoc.defaultView?.getComputedStyle(originalChild);
+                          
+                          if (childStyle) {
+                            clonedChild.style.width = childStyle.width;
+                            clonedChild.style.height = childStyle.height;
+                            clonedChild.style.margin = childStyle.margin;
+                            clonedChild.style.padding = childStyle.padding;
+                            clonedChild.style.display = childStyle.display;
+                            clonedChild.style.position = childStyle.position;
+                            clonedChild.style.flex = childStyle.flex;
+                            clonedChild.style.flexDirection = childStyle.flexDirection;
+                            clonedChild.style.flexWrap = childStyle.flexWrap;
+                            clonedChild.style.alignItems = childStyle.alignItems;
+                            clonedChild.style.justifyContent = childStyle.justifyContent;
+                            clonedChild.style.minWidth = childStyle.minWidth;
+                            clonedChild.style.maxWidth = childStyle.maxWidth;
+                            clonedChild.style.minHeight = childStyle.minHeight;
+                            clonedChild.style.maxHeight = childStyle.maxHeight;
+                            clonedChild.style.gap = childStyle.gap;
+                            clonedChild.style.textAlign = childStyle.textAlign;
+                            clonedChild.style.verticalAlign = childStyle.verticalAlign;
+                            
+                            // flexプロパティを持つ要素の幅を固定値に変換（PDF出力時の位置ズレを防ぐため）
+                            if (childStyle.flex && childStyle.flex !== 'none' && childStyle.flex !== '0 0 auto') {
+                              const actualWidth = originalChild.offsetWidth || originalChild.scrollWidth;
+                              if (actualWidth > 0) {
+                                clonedChild.style.width = `${actualWidth}px`;
+                                clonedChild.style.flex = '0 0 auto'; // flexを無効化して固定幅にする
+                              }
+                            }
+                          }
+                          
+                          // 再帰的に子要素のスタイルも保持
+                          cloneAllElementStyles(originalChild, clonedChild);
+                        }
+                      };
+                      
+                      cloneAllElementStyles(c, clonedContainer);
+                      
+                      // SVG要素のスタイルも保持
+                      const svgElements = clonedContainer.querySelectorAll('svg');
+                      const originalSvgElements = c.querySelectorAll('svg');
+                      svgElements.forEach((svg, index) => {
+                        if (index < originalSvgElements.length) {
+                          const originalSvg = originalSvgElements[index] as SVGSVGElement;
+                          const svgStyle = iframeDoc.defaultView?.getComputedStyle(originalSvg);
+                          if (svgStyle) {
+                            const svgEl = svg as unknown as HTMLElement;
+                            svgEl.style.width = svgStyle.width;
+                            svgEl.style.height = svgStyle.height;
+                            svgEl.style.maxWidth = svgStyle.maxWidth;
+                            svgEl.style.maxHeight = svgStyle.maxHeight;
+                            svgEl.style.margin = svgStyle.margin;
+                            svgEl.style.display = svgStyle.display;
+                            svgEl.style.position = svgStyle.position;
+                            
+                            // SVGのwidth属性が"100%"の場合は、実際の幅を計算して固定値に変換
+                            const widthAttr = originalSvg.getAttribute('width');
+                            const heightAttr = originalSvg.getAttribute('height');
+                            const viewBox = originalSvg.getAttribute('viewBox');
+                            
+                            if (widthAttr === '100%' && svgStyle.width && svgStyle.width !== 'auto') {
+                              // 実際の幅を取得して固定値に変換
+                              const actualWidth = parseFloat(svgStyle.width);
+                              if (!isNaN(actualWidth) && actualWidth > 0) {
+                                svg.setAttribute('width', `${actualWidth}px`);
+                              } else if (viewBox) {
+                                // viewBoxから幅を取得
+                                const viewBoxValues = viewBox.split(' ');
+                                if (viewBoxValues.length >= 3) {
+                                  const viewBoxWidth = parseFloat(viewBoxValues[2]);
+                                  if (!isNaN(viewBoxWidth) && viewBoxWidth > 0) {
+                                    svg.setAttribute('width', `${viewBoxWidth}px`);
+                                  }
+                                }
+                              }
+                            } else if (widthAttr) {
+                              svg.setAttribute('width', widthAttr);
+                            }
+                            
+                            if (heightAttr) {
+                              svg.setAttribute('height', heightAttr);
+                            }
+                            
+                            // viewBoxとpreserveAspectRatioも保持
+                            if (viewBox) {
+                              svg.setAttribute('viewBox', viewBox);
+                            }
+                            const preserveAspectRatio = originalSvg.getAttribute('preserveAspectRatio');
+                            if (preserveAspectRatio) {
+                              svg.setAttribute('preserveAspectRatio', preserveAspectRatio);
+                            }
+                          }
+                        }
+                      });
+                      
+                      // 画像のパスを絶対パスに変換
+                      const images = clonedContainer.querySelectorAll('img');
+                      images.forEach(img => {
+                        const imgSrc = img.getAttribute('src') || img.src;
+                        if (imgSrc && !imgSrc.startsWith('http') && !imgSrc.startsWith('data:')) {
+                          try {
+                            // 相対パスの場合は現在のページのベースURLを使用
+                            const baseUrl = window.location.origin + url.replace(/\/[^/]*$/, '/');
+                            const absoluteUrl = new URL(imgSrc, baseUrl);
+                            img.src = absoluteUrl.href;
+                          } catch (e) {
+                            // エラーの場合は元のsrcをそのまま使用
+                            console.warn('画像パスの変換に失敗:', imgSrc, e);
+                          }
+                        }
+                      });
+                      
+                      tempContainer.appendChild(clonedContainer);
+                      allContainers.push({ container: clonedContainer, subMenuId, subMenuLabel: subMenuItem.label });
+                    });
+                  }
+                  document.body.removeChild(iframe);
+                  clearTimeout(timeout);
+                  resolve();
+                }, 2000);
+              };
+              
+              iframe.onerror = () => {
+                document.body.removeChild(iframe);
+                clearTimeout(timeout);
+                resolve();
+              };
+              
+              iframe.src = url;
+            });
+          }
+        } else {
+          // 固定ページ版の場合
+          if (subMenuId === currentSubMenuId) {
+            const container = contentContainerRef.current;
+            if (container) {
+              let containers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+              if (containers.length === 0) {
+                containers = Array.from(container.querySelectorAll('*')).filter((el: Element) => {
+                  const htmlEl = el as HTMLElement;
+                  const style = window.getComputedStyle(htmlEl);
+                  const inlineStyle = htmlEl.style.border || '';
+                  return style.border.includes('dashed') || inlineStyle.includes('dashed');
+                }) as HTMLElement[];
+              }
+              containers.forEach(c => {
+                allContainers.push({ container: c, subMenuId, subMenuLabel: subMenuItem.label });
+              });
+            }
+          } else {
+            // 他のサブメニューの場合は、iframeで読み込んで取得
+            const url = `/business-plan/services/${serviceId}/${conceptId}/${subMenuItem.path}`;
+            const iframe = document.createElement('iframe');
+            iframe.style.display = 'none';
+            iframe.style.width = '0';
+            iframe.style.height = '0';
+            document.body.appendChild(iframe);
+            
+            await new Promise<void>((resolve, reject) => {
+              const timeout = setTimeout(() => {
+                document.body.removeChild(iframe);
+                resolve();
+              }, 10000);
+              
+              iframe.onload = () => {
+                setTimeout(() => {
+                  const iframeDoc = iframe.contentDocument || iframe.contentWindow?.document;
+                  if (iframeDoc) {
+                    // iframeのスタイルシートを現在のドキュメントにコピー
+                    const iframeStyles = Array.from(iframeDoc.querySelectorAll('style, link[rel="stylesheet"]'));
+                    iframeStyles.forEach(style => {
+                      if (style.tagName === 'STYLE') {
+                        const newStyle = document.createElement('style');
+                        newStyle.textContent = (style as HTMLStyleElement).textContent;
+                        document.head.appendChild(newStyle);
+                        addedStyles.push(newStyle);
+                      } else if (style.tagName === 'LINK') {
+                        const link = style as HTMLLinkElement;
+                        const newLink = document.createElement('link');
+                        newLink.rel = 'stylesheet';
+                        newLink.href = link.href;
+                        document.head.appendChild(newLink);
+                        addedStyles.push(newLink);
+                      }
+                    });
+                    
+                    // 元のページのコンテナ幅を取得
+                    const originalContainer = iframeDoc.querySelector('[data-content-container]') as HTMLElement;
+                    const originalWidth = originalContainer ? 
+                      (iframeDoc.defaultView?.getComputedStyle(originalContainer).width || '1200px') : '1200px';
+                    
+                    // 一時的なコンテナを作成してレイアウトコンテキストを再現
+                    // html2canvasでキャプチャできるように、visibility: visibleにする
+                    const tempContainer = document.createElement('div');
+                    tempContainer.style.position = 'absolute';
+                    tempContainer.style.left = '0';
+                    tempContainer.style.top = '0';
+                    tempContainer.style.width = originalWidth;
+                    tempContainer.style.visibility = 'visible';
+                    tempContainer.style.opacity = '0';
+                    tempContainer.style.pointerEvents = 'none';
+                    tempContainer.style.zIndex = '-1';
+                    document.body.appendChild(tempContainer);
+                    tempContainers.push(tempContainer);
+                    
+                    let containers = Array.from(iframeDoc.querySelectorAll('[data-page-container]')) as HTMLElement[];
+                    if (containers.length === 0) {
+                      containers = Array.from(iframeDoc.querySelectorAll('*')).filter((el: Element) => {
+                        const htmlEl = el as HTMLElement;
+                        const style = iframeDoc.defaultView?.getComputedStyle(htmlEl);
+                        const inlineStyle = htmlEl.style.border || '';
+                        return style?.border.includes('dashed') || inlineStyle.includes('dashed');
+                      }) as HTMLElement[];
+                    }
+                    containers.forEach(c => {
+                      // コンテナを現在のドキュメントにクローン
+                      const clonedContainer = c.cloneNode(true) as HTMLElement;
+                      
+                      // 元の要素のcomputed styleを取得して適用
+                      const originalStyle = iframeDoc.defaultView?.getComputedStyle(c);
+                      if (originalStyle) {
+                        clonedContainer.style.width = originalStyle.width;
+                        clonedContainer.style.height = originalStyle.height;
+                        clonedContainer.style.margin = originalStyle.margin;
+                        clonedContainer.style.padding = originalStyle.padding;
+                        clonedContainer.style.display = originalStyle.display;
+                        clonedContainer.style.position = originalStyle.position;
+                        // flexbox関連のスタイルを保持
+                        clonedContainer.style.flex = originalStyle.flex;
+                        clonedContainer.style.flexDirection = originalStyle.flexDirection;
+                        clonedContainer.style.flexWrap = originalStyle.flexWrap;
+                        clonedContainer.style.alignItems = originalStyle.alignItems;
+                        clonedContainer.style.justifyContent = originalStyle.justifyContent;
+                        clonedContainer.style.minWidth = originalStyle.minWidth;
+                        clonedContainer.style.maxWidth = originalStyle.maxWidth;
+                        clonedContainer.style.minHeight = originalStyle.minHeight;
+                        clonedContainer.style.maxHeight = originalStyle.maxHeight;
+                        clonedContainer.style.gap = originalStyle.gap;
+                      }
+                      
+                      // 子要素のスタイルも保持（特にflexboxレイアウト）
+                      const cloneAllElementStyles = (originalEl: HTMLElement, clonedEl: HTMLElement) => {
+                        const originalChildren = originalEl.children;
+                        const clonedChildren = clonedEl.children;
+                        
+                        for (let i = 0; i < originalChildren.length && i < clonedChildren.length; i++) {
+                          const originalChild = originalChildren[i] as HTMLElement;
+                          const clonedChild = clonedChildren[i] as HTMLElement;
+                          const childStyle = iframeDoc.defaultView?.getComputedStyle(originalChild);
+                          
+                          if (childStyle) {
+                            clonedChild.style.width = childStyle.width;
+                            clonedChild.style.height = childStyle.height;
+                            clonedChild.style.margin = childStyle.margin;
+                            clonedChild.style.padding = childStyle.padding;
+                            clonedChild.style.display = childStyle.display;
+                            clonedChild.style.position = childStyle.position;
+                            clonedChild.style.flex = childStyle.flex;
+                            clonedChild.style.flexDirection = childStyle.flexDirection;
+                            clonedChild.style.flexWrap = childStyle.flexWrap;
+                            clonedChild.style.alignItems = childStyle.alignItems;
+                            clonedChild.style.justifyContent = childStyle.justifyContent;
+                            clonedChild.style.minWidth = childStyle.minWidth;
+                            clonedChild.style.maxWidth = childStyle.maxWidth;
+                            clonedChild.style.minHeight = childStyle.minHeight;
+                            clonedChild.style.maxHeight = childStyle.maxHeight;
+                            clonedChild.style.gap = childStyle.gap;
+                            clonedChild.style.textAlign = childStyle.textAlign;
+                            clonedChild.style.verticalAlign = childStyle.verticalAlign;
+                            
+                            // flexプロパティを持つ要素の幅を固定値に変換（PDF出力時の位置ズレを防ぐため）
+                            if (childStyle.flex && childStyle.flex !== 'none' && childStyle.flex !== '0 0 auto') {
+                              const actualWidth = originalChild.offsetWidth || originalChild.scrollWidth;
+                              if (actualWidth > 0) {
+                                clonedChild.style.width = `${actualWidth}px`;
+                                clonedChild.style.flex = '0 0 auto'; // flexを無効化して固定幅にする
+                              }
+                            }
+                          }
+                          
+                          // 再帰的に子要素のスタイルも保持
+                          cloneAllElementStyles(originalChild, clonedChild);
+                        }
+                      };
+                      
+                      cloneAllElementStyles(c, clonedContainer);
+                      
+                      // SVG要素のスタイルも保持
+                      const svgElements = clonedContainer.querySelectorAll('svg');
+                      const originalSvgElements = c.querySelectorAll('svg');
+                      svgElements.forEach((svg, index) => {
+                        if (index < originalSvgElements.length) {
+                          const originalSvg = originalSvgElements[index] as SVGSVGElement;
+                          const svgStyle = iframeDoc.defaultView?.getComputedStyle(originalSvg);
+                          if (svgStyle) {
+                            const svgEl = svg as unknown as HTMLElement;
+                            svgEl.style.width = svgStyle.width;
+                            svgEl.style.height = svgStyle.height;
+                            svgEl.style.maxWidth = svgStyle.maxWidth;
+                            svgEl.style.maxHeight = svgStyle.maxHeight;
+                            svgEl.style.margin = svgStyle.margin;
+                            svgEl.style.display = svgStyle.display;
+                            svgEl.style.position = svgStyle.position;
+                            
+                            // SVGのwidth属性が"100%"の場合は、実際の幅を計算して固定値に変換
+                            const widthAttr = originalSvg.getAttribute('width');
+                            const heightAttr = originalSvg.getAttribute('height');
+                            const viewBox = originalSvg.getAttribute('viewBox');
+                            
+                            if (widthAttr === '100%' && svgStyle.width && svgStyle.width !== 'auto') {
+                              // 実際の幅を取得して固定値に変換
+                              const actualWidth = parseFloat(svgStyle.width);
+                              if (!isNaN(actualWidth) && actualWidth > 0) {
+                                svg.setAttribute('width', `${actualWidth}px`);
+                              } else if (viewBox) {
+                                // viewBoxから幅を取得
+                                const viewBoxValues = viewBox.split(' ');
+                                if (viewBoxValues.length >= 3) {
+                                  const viewBoxWidth = parseFloat(viewBoxValues[2]);
+                                  if (!isNaN(viewBoxWidth) && viewBoxWidth > 0) {
+                                    svg.setAttribute('width', `${viewBoxWidth}px`);
+                                  }
+                                }
+                              }
+                            } else if (widthAttr) {
+                              svg.setAttribute('width', widthAttr);
+                            }
+                            
+                            if (heightAttr) {
+                              svg.setAttribute('height', heightAttr);
+                            }
+                            
+                            // viewBoxとpreserveAspectRatioも保持
+                            if (viewBox) {
+                              svg.setAttribute('viewBox', viewBox);
+                            }
+                            const preserveAspectRatio = originalSvg.getAttribute('preserveAspectRatio');
+                            if (preserveAspectRatio) {
+                              svg.setAttribute('preserveAspectRatio', preserveAspectRatio);
+                            }
+                          }
+                        }
+                      });
+                      
+                      // 画像のパスを絶対パスに変換
+                      const images = clonedContainer.querySelectorAll('img');
+                      images.forEach(img => {
+                        const imgSrc = img.getAttribute('src') || img.src;
+                        if (imgSrc && !imgSrc.startsWith('http') && !imgSrc.startsWith('data:')) {
+                          try {
+                            // 相対パスの場合は現在のページのベースURLを使用
+                            const baseUrl = window.location.origin + url.replace(/\/[^/]*$/, '/');
+                            const absoluteUrl = new URL(imgSrc, baseUrl);
+                            img.src = absoluteUrl.href;
+                          } catch (e) {
+                            // エラーの場合は元のsrcをそのまま使用
+                            console.warn('画像パスの変換に失敗:', imgSrc, e);
+                          }
+                        }
+                      });
+                      
+                      tempContainer.appendChild(clonedContainer);
+                      allContainers.push({ container: clonedContainer, subMenuId, subMenuLabel: subMenuItem.label });
+                    });
+                  }
+                  document.body.removeChild(iframe);
+                  clearTimeout(timeout);
+                  resolve();
+                }, 2000);
+              };
+              
+              iframe.onerror = () => {
+                document.body.removeChild(iframe);
+                clearTimeout(timeout);
+                resolve();
+              };
+              
+              iframe.src = url;
+            });
+          }
+        }
       }
       
-      if (containers.length === 0) {
+      if (allContainers.length === 0) {
         alert('コンテナが見つかりません。コンテナ表示モードでPDF出力してください。');
         return;
       }
 
-      console.log('PDF出力対象のコンテナ数:', containers.length);
+      console.log('PDF出力対象のコンテナ数:', allContainers.length);
+      
+      // レイアウトの再計算を待つ（flexboxレイアウトが正しく計算されるように）
+      await new Promise(resolve => setTimeout(resolve, 500));
+      
+      // すべての一時的なコンテナの幅を再計算
+      tempContainers.forEach(tempContainer => {
+        const firstChild = tempContainer.firstElementChild as HTMLElement;
+        if (firstChild) {
+          const computedStyle = window.getComputedStyle(firstChild);
+          const originalWidth = computedStyle.width;
+          if (originalWidth && originalWidth !== 'auto') {
+            tempContainer.style.width = originalWidth;
+          }
+        }
+      });
+      
+      // 再度レイアウトの再計算を待つ
+      await new Promise(resolve => setTimeout(resolve, 300));
+      
+      // Page0（キービジュアル）を最初に配置
+      const page0Index = allContainers.findIndex(c => c.container.getAttribute('data-page-container') === '0');
+      if (page0Index > 0) {
+        const page0 = allContainers.splice(page0Index, 1)[0];
+        allContainers.unshift(page0);
+      }
+      
+      const containers = allContainers.map(c => c.container);
 
       // PDFインスタンスをletで宣言
       let pdf: any = new jsPDF({
@@ -713,6 +1295,8 @@ function ConceptLayoutContent({
       // 各コンテナを画像化してPDFに追加
       for (let i = 0; i < containers.length; i++) {
         const containerEl = containers[i];
+        const containerInfo = allContainers[i];
+        const containerSubMenuId = containerInfo?.subMenuId || currentSubMenuId;
         
         // キービジュアルコンテナかどうかを判定（data-page-container="0" かつ img要素が存在する）
         const pageContainerAttr = containerEl.getAttribute('data-page-container');
@@ -840,6 +1424,21 @@ function ConceptLayoutContent({
           }
         }
 
+        // flexboxレイアウトが正しく計算されるように待機
+        await new Promise(resolve => setTimeout(resolve, 200));
+        
+        // コンテナの幅を明示的に設定（flexboxレイアウトが正しく計算されるように）
+        const containerComputedStyle = window.getComputedStyle(containerEl);
+        if (containerComputedStyle.display === 'flex' || containerComputedStyle.display === 'inline-flex') {
+          // flexboxコンテナの幅を明示的に設定
+          const parentWidth = containerEl.parentElement 
+            ? window.getComputedStyle(containerEl.parentElement).width 
+            : '1200px';
+          if (parentWidth && parentWidth !== 'auto') {
+            containerEl.style.width = parentWidth;
+          }
+        }
+        
         // SVG要素のレンダリングを待つための遅延を追加
         await new Promise(resolve => setTimeout(resolve, 100));
         
@@ -963,16 +1562,17 @@ function ConceptLayoutContent({
                   const originalWidth = htmlElement.offsetWidth || htmlElement.scrollWidth || 800;
                   const originalHeight = htmlElement.offsetHeight || htmlElement.scrollHeight || 50;
                   
-                  // 親要素のスタイルを取得
-                  const parent = htmlElement.parentElement;
-                  let textAlign = 'center';
-                  if (parent) {
-                    try {
-                      const parentComputedStyle = window.getComputedStyle(parent);
-                      textAlign = parentComputedStyle.textAlign || 'center';
-                    } catch (e) {
-                      // エラーが発生した場合はデフォルト値を使用
+                  // 親要素のスタイルを取得（元の要素から取得）
+                  let textAlign = 'left'; // デフォルトをleftに変更
+                  try {
+                    // 元の要素から親要素を取得
+                    const originalElement = containerEl.querySelector(`.${Array.from(htmlElement.classList).join('.')}`) as HTMLElement;
+                    if (originalElement && originalElement.parentElement) {
+                      const parentComputedStyle = window.getComputedStyle(originalElement.parentElement);
+                      textAlign = parentComputedStyle.textAlign || 'left';
                     }
+                  } catch (e) {
+                    // エラーが発生した場合はデフォルト値（left）を使用
                   }
               
               // SVG要素を作成
@@ -1011,7 +1611,7 @@ function ConceptLayoutContent({
               
               const stop2 = document.createElementNS('http://www.w3.org/2000/svg', 'stop');
               stop2.setAttribute('offset', '100%');
-              stop2.setAttribute('stop-color', '#00BFFF');
+              stop2.setAttribute('stop-color', '#00D9A5');
               gradient.appendChild(stop2);
               
               defs.appendChild(gradient);
@@ -1019,9 +1619,23 @@ function ConceptLayoutContent({
               
               // テキスト要素
               const textElement = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-              textElement.setAttribute('x', svgWidth / 2);
-              textElement.setAttribute('y', svgHeight / 2);
-              textElement.setAttribute('text-anchor', 'middle');
+              // textAlignに応じてx座標とtext-anchorを設定
+              let textX: number;
+              let textAnchor: string;
+              if (textAlign === 'center') {
+                textX = svgWidth / 2;
+                textAnchor = 'middle';
+              } else if (textAlign === 'right') {
+                textX = svgWidth;
+                textAnchor = 'end';
+              } else {
+                // left（デフォルト）
+                textX = 0;
+                textAnchor = 'start';
+              }
+              textElement.setAttribute('x', textX.toString());
+              textElement.setAttribute('y', (svgHeight / 2).toString());
+              textElement.setAttribute('text-anchor', textAnchor);
               textElement.setAttribute('dominant-baseline', 'middle');
               textElement.setAttribute('font-size', fontSize);
               textElement.setAttribute('font-weight', fontWeight);
@@ -1091,10 +1705,14 @@ function ConceptLayoutContent({
         pdf.addImage(imgData, 'PNG', margin + xOffset, margin + yOffset, finalWidth, finalHeight);
         
         // ロゴをPDFページの右上に追加
+        // ロゴが上に表示されるように、コンテンツの後に追加する
         // 概要・コンセプトの場合は2ページ目以降、それ以外は1ページ目から表示
         // ページコンポーネントに依存せず、PDFページに直接追加
-        if ((currentSubMenu === 'overview' ? i > 0 : i >= 0) && concept?.keyVisualLogoUrl) {
-          try {
+        const hasOverviewInSelection = selectedSubMenus.has('overview');
+        const isOverviewPage = containerSubMenuId === 'overview';
+        if ((hasOverviewInSelection && isOverviewPage && i > 0) || (!hasOverviewInSelection || !isOverviewPage)) {
+          if (concept?.keyVisualLogoUrl) {
+            try {
             // fetch APIを使って画像を取得し、Base64に変換
             const response = await fetch(concept.keyVisualLogoUrl);
             const blob = await response.blob();
@@ -1118,7 +1736,7 @@ function ConceptLayoutContent({
                 resolve({ width: img.width, height: img.height });
               };
               img.onerror = reject;
-              img.src = concept.keyVisualLogoUrl;
+              img.src = concept.keyVisualLogoUrl || '';
             });
 
             const logoAspectRatio = logoImageData.width / logoImageData.height;
@@ -1135,9 +1753,10 @@ function ConceptLayoutContent({
             
             // ロゴ画像をPDFページに直接追加（アスペクト比を維持）
             pdf.addImage(logoBase64, imageFormat, logoX, logoY, logoWidth, logoHeight);
-          } catch (error) {
-            console.error('ロゴの追加エラー:', error);
-            // エラーが発生してもPDF生成を続行
+            } catch (error) {
+              console.error('ロゴの追加エラー:', error);
+              // エラーが発生してもPDF生成を続行
+            }
           }
         }
         
@@ -1175,69 +1794,140 @@ function ConceptLayoutContent({
         
         // キービジュアル（1ページ目）にタイトル、署名、作成日を独立して追加
         // ページコンポーネントの画像とは独立して、PDFページに直接追加
-        // ページ番号と同じように、画像に引きづられずにPDFページに直接描画
+        // 日本語フォントの問題を回避するため、html2canvasを使用して画像として追加
         if (i === 0 && isKeyVisual) {
           // conceptからメタデータを取得
           const metadata = concept?.keyVisualMetadata;
           if (metadata && (metadata.title || metadata.signature || metadata.date)) {
-            pdf.setTextColor(128, 128, 128); // グレー色
-            
-            // ページの座標系（mm単位）で直接指定（画像のサイズや位置に依存しない）
             const textX = metadata.position.x;
             const textY = metadata.position.y;
             const align = metadata.position.align;
             
-            let currentY = textY;
+            // メタデータテキストを一時的なDOM要素として作成（テキスト要素のみ）
+            const textDiv = document.createElement('div');
+            textDiv.style.position = 'absolute';
+            textDiv.style.left = '-9999px';
+            textDiv.style.top = '-9999px';
+            textDiv.style.backgroundColor = 'transparent';
+            textDiv.style.color = '#808080'; // グレー色
+            textDiv.style.fontFamily = 'sans-serif';
+            textDiv.style.lineHeight = '1.5';
+            textDiv.style.textAlign = align;
+            textDiv.style.display = 'inline-block';
+            textDiv.style.whiteSpace = 'nowrap';
             
             // タイトルを追加
             if (metadata.title) {
               const titleFontSize = metadata.titleFontSize || 6;
-              pdf.setFontSize(titleFontSize);
-              pdf.text(metadata.title, textX, currentY, {
-                align: align,
-                baseline: 'bottom'
-              });
-              currentY -= titleFontSize * 0.7; // フォントサイズの70%を行間とする
+              const titleElement = document.createElement('div');
+              titleElement.textContent = metadata.title;
+              titleElement.style.fontSize = `${titleFontSize}pt`;
+              titleElement.style.marginBottom = `${titleFontSize * 0.7}pt`;
+              titleElement.style.color = '#808080';
+              titleElement.style.textAlign = align;
+              textDiv.appendChild(titleElement);
             }
             
             // 署名を追加
             if (metadata.signature) {
               const signatureFontSize = metadata.signatureFontSize || 6;
-              pdf.setFontSize(signatureFontSize);
-              pdf.text(metadata.signature, textX, currentY, {
-                align: align,
-                baseline: 'bottom'
-              });
-              currentY -= signatureFontSize * 0.7; // フォントサイズの70%を行間とする
+              const signatureElement = document.createElement('div');
+              signatureElement.textContent = metadata.signature;
+              signatureElement.style.fontSize = `${signatureFontSize}pt`;
+              signatureElement.style.marginBottom = `${signatureFontSize * 0.7}pt`;
+              signatureElement.style.color = '#808080';
+              signatureElement.style.textAlign = align;
+              textDiv.appendChild(signatureElement);
             }
             
             // 作成日を追加
             if (metadata.date) {
               const dateFontSize = metadata.dateFontSize || 6;
-              pdf.setFontSize(dateFontSize);
-              pdf.text(metadata.date, textX, currentY, {
-                align: align,
-                baseline: 'bottom'
+              const dateElement = document.createElement('div');
+              dateElement.textContent = metadata.date;
+              dateElement.style.fontSize = `${dateFontSize}pt`;
+              dateElement.style.color = '#808080';
+              dateElement.style.textAlign = align;
+              textDiv.appendChild(dateElement);
+            }
+            
+            document.body.appendChild(textDiv);
+            
+            try {
+              // レンダリングを待つ
+              await new Promise(resolve => setTimeout(resolve, 100));
+              
+              // html2canvasで画像化（テキスト要素のみ）
+              const metadataCanvas = await html2canvas(textDiv, {
+                scale: 3, // 高解像度でキャプチャ
+                backgroundColor: null,
+                useCORS: true,
+                logging: false,
+                width: textDiv.scrollWidth,
+                height: textDiv.scrollHeight,
               });
+              
+              const metadataImgData = metadataCanvas.toDataURL('image/png');
+              
+              // 画像のサイズを計算（mm単位、96dpi基準）
+              const imgWidth = (metadataCanvas.width / 3) * 0.264583; // scale: 3なので3で割る
+              const imgHeight = (metadataCanvas.height / 3) * 0.264583;
+              
+              // PDFに画像として追加（下端がtextYになるように配置）
+              let imgX: number;
+              if (align === 'center') {
+                imgX = textX - imgWidth / 2;
+              } else if (align === 'right') {
+                imgX = textX - imgWidth;
+              } else {
+                imgX = textX;
+              }
+              const imgY = textY - imgHeight; // 下端がtextYになるように
+              
+              pdf.addImage(metadataImgData, 'PNG', imgX, imgY, imgWidth, imgHeight);
+            } catch (error) {
+              console.error('メタデータ画像の生成エラー:', error);
+            } finally {
+              // 一時的なDOM要素を削除
+              if (document.body.contains(textDiv)) {
+                document.body.removeChild(textDiv);
+              }
             }
           }
         }
       }
 
       const conceptName = concept?.name || conceptId;
-      pdf.save(`${conceptName}_${currentSubMenu}_${new Date().toISOString().split('T')[0]}.pdf`);
+      const selectedSubMenuLabels = Array.from(selectedSubMenus)
+        .map(id => SUB_MENU_ITEMS.find(item => item.id === id)?.label || id)
+        .join('_');
+      const fileName = selectedSubMenus.size === 1 
+        ? `${conceptName}_${selectedSubMenuLabels}_${new Date().toISOString().split('T')[0]}.pdf`
+        : `${conceptName}_一括出力_${new Date().toISOString().split('T')[0]}.pdf`;
+      pdf.save(fileName);
       console.log('PDF生成が完了しました');
     } catch (error) {
       console.error('PDF出力エラー:', error);
       alert(`PDF出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
+      // 一時的なコンテナと追加したスタイルシートを削除
+      tempContainers.forEach(container => {
+        if (document.body.contains(container)) {
+          document.body.removeChild(container);
+        }
+      });
+      addedStyles.forEach(style => {
+        if (document.head.contains(style)) {
+          document.head.removeChild(style);
+        }
+      });
       setIsExportingPDF(false); // 処理終了
       setPendingPDFExport(false);
       // keyVisualMetadataはクリアしない（Firestoreに保存されているので維持される）
     }
-  }, [showContainers, concept, conceptId, currentSubMenu]);
+  }, [showContainers, concept, conceptId, pathname, serviceId, isComponentizedPage]);
 
-  // モーダルで保存された後にPDF出力を続行（現在は使用されていない）
+  // モーダルで保存された後にPDF出力を続行
   const handleMetadataSave = useCallback(async (metadata: {
     title: string;
     signature: string;
@@ -1247,17 +1937,41 @@ function ConceptLayoutContent({
     signatureFontSize?: number;
     dateFontSize?: number;
   }) => {
-    // Firestoreに保存（Page0.tsxで既に保存されている）
-    // conceptが更新されるまで待つ必要がある
-    setShowKeyVisualMetadataEditor(false);
-    setPendingPDFExport(false);
+    if (!concept?.id || !db || !auth?.currentUser) {
+      console.error('必要な情報が不足しています');
+      return;
+    }
     
-    // 状態更新を待ってからPDF出力を実行
-    // Firestoreの更新が反映されるまで少し待つ
-    setTimeout(async () => {
-      await handleExportToPDF();
-    }, 500);
-  }, [handleExportToPDF]);
+    try {
+      console.log('メタデータを保存します:', metadata);
+      // Firestoreに保存
+      const conceptRef = doc(db, 'concepts', concept.id);
+      await updateDoc(conceptRef, {
+        keyVisualMetadata: metadata,
+        updatedAt: serverTimestamp()
+      });
+      console.log('Firestoreへの保存が完了しました');
+      
+      // conceptを再読み込み
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+      console.log('conceptの再読み込みが完了しました');
+      
+      setShowKeyVisualMetadataEditor(false);
+      setPendingPDFExport(false);
+      
+      // 状態更新を待ってからPDF出力を実行
+      // Firestoreの更新が反映されるまで少し待つ
+      setTimeout(async () => {
+        const currentSubMenuId = getCurrentSubMenu();
+        await handleExportToPDF(new Set([currentSubMenuId]));
+      }, 500);
+    } catch (error) {
+      console.error('キービジュアルメタデータの保存エラー:', error);
+      alert(`メタデータの保存に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
+    }
+  }, [concept, db, auth, reloadConcept, pathname, handleExportToPDF]);
 
   return (
     <Layout>
@@ -1339,7 +2053,7 @@ function ConceptLayoutContent({
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {showContainers && (
                     <button
-                      onClick={handleExportToPDF}
+                      onClick={handleExportToPDFClick}
                       disabled={isExportingPDF}
                       style={{
                         padding: '8px 16px',
@@ -1441,6 +2155,386 @@ function ConceptLayoutContent({
                     }}
                     onClose={() => setShowMigrateModal(false)}
                   />
+                </div>
+              </div>
+            )}
+            {/* PDF出力サブメニュー選択モーダル */}
+            {showPDFSubMenuSelector && (
+              <div style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: 'rgba(0, 0, 0, 0.6)',
+                backdropFilter: 'blur(4px)',
+                zIndex: 10001,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '20px',
+                transition: 'opacity 0.2s ease-out',
+              }}
+              onClick={() => setShowPDFSubMenuSelector(false)}
+              >
+                <div 
+                  onClick={(e) => e.stopPropagation()} 
+                  style={{
+                    backgroundColor: '#fff',
+                    borderRadius: '16px',
+                    padding: '32px',
+                    maxWidth: '800px',
+                    width: '100%',
+                    maxHeight: '85vh',
+                    overflowY: 'auto',
+                    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+                    transition: 'transform 0.3s ease-out',
+                  }}
+                >
+                  {/* ヘッダー */}
+                  <div style={{ marginBottom: '24px', borderBottom: '2px solid #F3F4F6', paddingBottom: '16px' }}>
+                    <h2 style={{ 
+                      margin: 0, 
+                      fontSize: '24px', 
+                      fontWeight: 700,
+                      color: '#1F2937',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '12px',
+                    }}>
+                      <span style={{ 
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '10px',
+                        backgroundColor: '#10B981',
+                        color: '#fff',
+                        fontSize: '20px',
+                      }}>📄</span>
+                      PDF出力するサブメニューを選択
+                    </h2>
+                    <p style={{ 
+                      margin: '8px 0 0 0',
+                      fontSize: '14px',
+                      color: '#6B7280',
+                    }}>
+                      出力したいサブメニューを選択してください。複数選択可能です。
+                    </p>
+                  </div>
+
+                  {/* 全選択/全解除ボタン */}
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '8px', 
+                    marginBottom: '20px',
+                    paddingBottom: '16px',
+                    borderBottom: '1px solid #E5E7EB',
+                  }}>
+                    <button
+                      onClick={() => {
+                        const allWithPages = SUB_MENU_ITEMS.filter(item => {
+                          const hasPages = concept?.pagesBySubMenu?.[item.id] 
+                            ? Array.isArray(concept.pagesBySubMenu[item.id]) && concept.pagesBySubMenu[item.id].length > 0
+                            : true;
+                          return hasPages;
+                        }).map(item => item.id);
+                        setSelectedSubMenusForPDF(new Set(allWithPages));
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#F3F4F6',
+                        color: '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#E5E7EB';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#F3F4F6';
+                      }}
+                    >
+                      すべて選択
+                    </button>
+                    <button
+                      onClick={() => {
+                        setSelectedSubMenusForPDF(new Set([getCurrentSubMenu()]));
+                      }}
+                      style={{
+                        padding: '6px 12px',
+                        backgroundColor: '#F3F4F6',
+                        color: '#374151',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '12px',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#E5E7EB';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#F3F4F6';
+                      }}
+                    >
+                      選択をクリア
+                    </button>
+                    <div style={{ flex: 1 }} />
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      padding: '6px 12px',
+                      backgroundColor: '#10B981',
+                      color: '#fff',
+                      borderRadius: '6px',
+                      fontSize: '12px',
+                      fontWeight: 600,
+                    }}>
+                      <span>選択中:</span>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '24px',
+                        height: '24px',
+                        padding: '0 8px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        fontSize: '14px',
+                      }}>
+                        {selectedSubMenusForPDF.size}
+                      </span>
+                    </div>
+                  </div>
+
+                  {/* サブメニューリスト */}
+                  <div style={{ 
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
+                    gap: '12px',
+                    marginBottom: '24px',
+                  }}>
+                    {SUB_MENU_ITEMS.map((item, index) => {
+                      const hasPages = concept?.pagesBySubMenu?.[item.id] 
+                        ? Array.isArray(concept.pagesBySubMenu[item.id]) && concept.pagesBySubMenu[item.id].length > 0
+                        : true;
+                      const isSelected = selectedSubMenusForPDF.has(item.id);
+                      
+                      return (
+                        <div
+                          key={item.id}
+                          onClick={() => {
+                            if (!hasPages) return;
+                            const newSelected = new Set(selectedSubMenusForPDF);
+                            if (isSelected) {
+                              newSelected.delete(item.id);
+                            } else {
+                              newSelected.add(item.id);
+                            }
+                            setSelectedSubMenusForPDF(newSelected);
+                          }}
+                          style={{
+                            position: 'relative',
+                            padding: '16px',
+                            borderRadius: '12px',
+                            border: `2px solid ${isSelected ? '#10B981' : '#E5E7EB'}`,
+                            backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
+                            cursor: hasPages ? 'pointer' : 'not-allowed',
+                            opacity: hasPages ? 1 : 0.5,
+                            transition: 'all 0.2s ease',
+                            boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
+                          }}
+                          onMouseEnter={(e) => {
+                            if (hasPages) {
+                              e.currentTarget.style.transform = 'translateY(-2px)';
+                              e.currentTarget.style.boxShadow = isSelected 
+                                ? '0 6px 16px rgba(16, 185, 129, 0.2)' 
+                                : '0 4px 12px rgba(0, 0, 0, 0.15)';
+                            }
+                          }}
+                          onMouseLeave={(e) => {
+                            e.currentTarget.style.transform = 'translateY(0)';
+                            e.currentTarget.style.boxShadow = isSelected 
+                              ? '0 4px 12px rgba(16, 185, 129, 0.15)' 
+                              : '0 1px 3px rgba(0, 0, 0, 0.1)';
+                          }}
+                        >
+                          {/* チェックボックスアイコン */}
+                          <div style={{
+                            position: 'absolute',
+                            top: '12px',
+                            right: '12px',
+                            width: '24px',
+                            height: '24px',
+                            borderRadius: '6px',
+                            border: `2px solid ${isSelected ? '#10B981' : '#D1D5DB'}`,
+                            backgroundColor: isSelected ? '#10B981' : '#FFFFFF',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            transition: 'all 0.2s',
+                          }}>
+                            {isSelected && (
+                              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+                                <path d="M13.3333 4L6 11.3333L2.66667 8" stroke="white" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/>
+                              </svg>
+                            )}
+                          </div>
+
+                          {/* コンテンツ */}
+                          <div style={{ paddingRight: '32px' }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                              marginBottom: '8px',
+                            }}>
+                              <span style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                width: '28px',
+                                height: '28px',
+                                borderRadius: '8px',
+                                backgroundColor: isSelected ? '#10B981' : '#F3F4F6',
+                                color: isSelected ? '#FFFFFF' : '#6B7280',
+                                fontSize: '12px',
+                                fontWeight: 600,
+                              }}>
+                                {index + 1}
+                              </span>
+                              <span style={{ 
+                                fontSize: '15px', 
+                                fontWeight: isSelected ? 600 : 500,
+                                color: isSelected ? '#10B981' : '#1F2937',
+                              }}>
+                                {item.label}
+                              </span>
+                            </div>
+                            {!hasPages && (
+                              <div style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '4px',
+                                padding: '4px 8px',
+                                backgroundColor: '#FEF3C7',
+                                color: '#92400E',
+                                borderRadius: '6px',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                marginTop: '4px',
+                              }}>
+                                <span>⚠️</span>
+                                <span>ページなし</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+
+                  {/* フッター */}
+                  <div style={{ 
+                    display: 'flex', 
+                    gap: '12px', 
+                    justifyContent: 'flex-end',
+                    paddingTop: '20px',
+                    borderTop: '2px solid #F3F4F6',
+                  }}>
+                    <button
+                      onClick={() => {
+                        setShowPDFSubMenuSelector(false);
+                        setSelectedSubMenusForPDF(new Set([getCurrentSubMenu()]));
+                      }}
+                      style={{
+                        padding: '12px 24px',
+                        backgroundColor: '#FFFFFF',
+                        color: '#374151',
+                        border: '2px solid #E5E7EB',
+                        borderRadius: '10px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#F9FAFB';
+                        e.currentTarget.style.borderColor = '#D1D5DB';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#FFFFFF';
+                        e.currentTarget.style.borderColor = '#E5E7EB';
+                      }}
+                    >
+                      キャンセル
+                    </button>
+                    <button
+                      onClick={async () => {
+                        if (selectedSubMenusForPDF.size === 0) {
+                          alert('少なくとも1つのサブメニューを選択してください。');
+                          return;
+                        }
+                        setShowPDFSubMenuSelector(false);
+                        await handleExportToPDF(selectedSubMenusForPDF);
+                      }}
+                      disabled={selectedSubMenusForPDF.size === 0}
+                      style={{
+                        padding: '12px 24px',
+                        backgroundColor: selectedSubMenusForPDF.size === 0 ? '#D1D5DB' : '#10B981',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '10px',
+                        cursor: selectedSubMenusForPDF.size === 0 ? 'not-allowed' : 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 600,
+                        transition: 'all 0.2s',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        boxShadow: selectedSubMenusForPDF.size === 0 ? 'none' : '0 4px 12px rgba(16, 185, 129, 0.3)',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (selectedSubMenusForPDF.size > 0) {
+                          e.currentTarget.style.backgroundColor = '#059669';
+                          e.currentTarget.style.boxShadow = '0 6px 16px rgba(16, 185, 129, 0.4)';
+                          e.currentTarget.style.transform = 'translateY(-1px)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (selectedSubMenusForPDF.size > 0) {
+                          e.currentTarget.style.backgroundColor = '#10B981';
+                          e.currentTarget.style.boxShadow = '0 4px 12px rgba(16, 185, 129, 0.3)';
+                          e.currentTarget.style.transform = 'translateY(0)';
+                        }
+                      }}
+                    >
+                      <span>📥</span>
+                      <span>PDF出力</span>
+                      <span style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        minWidth: '24px',
+                        height: '24px',
+                        padding: '0 8px',
+                        backgroundColor: 'rgba(255, 255, 255, 0.2)',
+                        borderRadius: '12px',
+                        fontSize: '12px',
+                        fontWeight: 700,
+                      }}>
+                        {selectedSubMenusForPDF.size}
+                      </span>
+                    </button>
+                  </div>
                 </div>
               </div>
             )}
@@ -2095,6 +3189,7 @@ function ConceptLayoutContent({
             // keyVisualMetadataはクリアしない（Firestoreに保存されているので維持される）
           }}
           onSave={handleMetadataSave}
+          initialMetadata={concept?.keyVisualMetadata || undefined}
           pageWidth={currentPageDimensions.width}
           pageHeight={currentPageDimensions.height}
         />

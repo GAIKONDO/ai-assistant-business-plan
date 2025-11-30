@@ -3,15 +3,15 @@
 /* キーメッセージコンテナ */
 .key-message-container {
   margin-bottom: 32px;
-  text-align: center;
+  text-align: left;
 }
 
 /* キーメッセージタイトル */
 .key-message-title {
   margin: 0 0 12px 0;
-  font-size: 32px;
+  font-size: 38px;
   font-weight: 700;
-  background: linear-gradient(135deg, #0066CC 0%, #00BFFF 100%);
+  background: linear-gradient(135deg, #0066CC 0%, #00D9A5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
@@ -32,7 +32,7 @@
 
 /* グラデーションカラーリングを適用するクラス（キーメッセージタイトルとサブタイトルの両方に使用可能） */
 .gradient-text-blue {
-  background: linear-gradient(135deg, #0066CC 0%, #00BFFF 100%);
+  background: linear-gradient(135deg, #0066CC 0%, #00D9A5 100%);
   -webkit-background-clip: text;
   -webkit-text-fill-color: transparent;
   background-clip: text;
