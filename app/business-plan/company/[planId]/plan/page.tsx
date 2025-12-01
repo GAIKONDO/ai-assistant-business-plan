@@ -35,7 +35,8 @@ export default function PlanPage() {
   const { plan } = usePlan();
   
   // planIdに応じてコンテンツを表示するかどうかを決定
-  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
+  const planIdString = Array.isArray(planId) ? planId[0] : planId;
+  const hasCustomContent = planIdString && PLAN_CONTENT_MAP[planIdString] ? true : false;
   
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const { showContainers } = useContainerVisibility();

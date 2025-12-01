@@ -3775,7 +3775,7 @@ function CompanyPlanLayoutContent({
                 }}
               >
                 {/* プレゼンテーションモード時はコンテンツを縮小するためのラッパー */}
-                {console.log('レンダリングモード判定:', { isPresentationMode, isComponentized, containersLength: fixedPageContainers.length, currentSubMenu }) || null}
+                {(() => { console.log('レンダリングモード判定:', { isPresentationMode, isComponentized, containersLength: fixedPageContainers.length, currentSubMenu }); return null; })()}
                 {isPresentationMode ? (
                   <div
                     style={{
