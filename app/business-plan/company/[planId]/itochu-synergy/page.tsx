@@ -404,7 +404,8 @@ const GROUP_COMPANIES: GroupCompany[] = [
 ];
 
 export default function ItochuSynergyPage() {
-  const { planId } = useParams();
+  const params = useParams();
+  const planId = params.planId as string;
   const { plan } = usePlan();
   
   // planIdに応じてコンテンツを表示するかどうかを決定

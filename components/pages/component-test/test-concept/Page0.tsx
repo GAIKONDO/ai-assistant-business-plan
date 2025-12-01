@@ -1,35 +1,38 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext, createContext } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
 
-// オプショナルなuseConceptとusePlanをモジュールレベルでインポート
-let useConceptHook: any = null;
-let usePlanHook: any = null;
-let useContainerVisibilityHook: any = null;
+// デフォルトのコンテキスト（コンテキストが存在しない場合に使用）
+const DefaultContainerVisibilityContext = createContext<{ showContainers: boolean } | undefined>(undefined);
+const DefaultConceptContext = createContext<{ concept: any; reloadConcept: () => Promise<void> } | undefined>(undefined);
+const DefaultPlanContext = createContext<{ plan: any; reloadPlan: () => Promise<void> } | undefined>(undefined);
+
+// オプショナルなコンテキストをモジュールレベルでインポート
+let ContainerVisibilityContext: any = DefaultContainerVisibilityContext;
+let ConceptContext: any = DefaultConceptContext;
+let PlanContext: any = DefaultPlanContext;
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const serviceLayout = require('@/app/business-plan/services/[serviceId]/[conceptId]/layout');
-  useConceptHook = serviceLayout.useConcept;
-  useContainerVisibilityHook = serviceLayout.useContainerVisibility;
+  ConceptContext = serviceLayout.ConceptContext || DefaultConceptContext;
+  ContainerVisibilityContext = serviceLayout.ContainerVisibilityContext || DefaultContainerVisibilityContext;
 } catch {
-  // インポートに失敗した場合は無視
+  // インポートに失敗した場合はデフォルトコンテキストを使用
 }
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
   const companyLayout = require('@/app/business-plan/company/[planId]/layout');
-  usePlanHook = companyLayout.usePlan;
-  if (!useContainerVisibilityHook) {
-    useContainerVisibilityHook = companyLayout.useContainerVisibility;
+  PlanContext = companyLayout.PlanContext || DefaultPlanContext;
+  if (ContainerVisibilityContext === DefaultContainerVisibilityContext) {
+    ContainerVisibilityContext = companyLayout.ContainerVisibilityContext || DefaultContainerVisibilityContext;
   }
 } catch {
-  // インポートに失敗した場合は無視
+  // インポートに失敗した場合はデフォルトコンテキストを使用
 }
 
 export default function Page0() {
@@ -39,18 +42,13 @@ export default function Page0() {
   const conceptId = params.conceptId as string | undefined;
   const planId = params.planId as string | undefined;
   
-  // useContainerVisibilityはオプショナル（コンテキストが存在しない場合があるため）
-  // デフォルト値を使用
-  let showContainers = false;
+  // React Hooksのルールに準拠するため、すべてのHooksを常に呼び出す
+  const containerVisibilityValue = useContext(ContainerVisibilityContext);
+  const conceptValue = useContext(ConceptContext);
+  const planValue = useContext(PlanContext);
   
-  if (useContainerVisibilityHook) {
-    try {
-      const containerVisibility = useContainerVisibilityHook();
-      showContainers = containerVisibility.showContainers;
-    } catch {
-      // コンテキストが存在しない場合はデフォルト値を使用
-    }
-  }
+  // useContainerVisibilityはオプショナル（コンテキストが存在しない場合があるため）
+  const showContainers = containerVisibilityValue?.showContainers ?? false;
   
   // useConceptもオプショナル
   // 会社本体の事業計画の場合はusePlanを使用
@@ -58,35 +56,25 @@ export default function Page0() {
   let reloadConcept: (() => Promise<void>) | undefined = undefined;
   
   // 事業企画の場合
-  if (serviceId && conceptId && useConceptHook) {
-    try {
-      const conceptData = useConceptHook();
-      concept = conceptData.concept;
-      reloadConcept = conceptData.reloadConcept;
-    } catch {
-      // コンテキストが存在しない場合はデフォルト値を使用
-    }
-  } else if (planId && usePlanHook) {
+  if (serviceId && conceptId && conceptValue) {
+    concept = conceptValue.concept;
+    reloadConcept = conceptValue.reloadConcept;
+  } else if (planId && planValue) {
     // 会社本体の事業計画の場合
-    try {
-      const planData = usePlanHook();
-      // planをconcept形式に変換
-      concept = planData.plan ? {
-        id: planData.plan.id,
-        keyVisualUrl: planData.plan.keyVisualUrl || '',
-        keyVisualHeight: planData.plan.keyVisualHeight || 56.25,
-        keyVisualLogoUrl: planData.plan.keyVisualLogoUrl || null,
-        keyVisualMetadata: planData.plan.keyVisualMetadata || undefined,
-      } : null;
-      reloadConcept = async () => {
-        // planの再読み込みを実行
-        if (planData.reloadPlan) {
-          await planData.reloadPlan();
-        }
-      };
-    } catch {
-      // コンテキストが存在しない場合はデフォルト値を使用
-    }
+    // planをconcept形式に変換
+    concept = planValue.plan ? {
+      id: planValue.plan.id,
+      keyVisualUrl: planValue.plan.keyVisualUrl || '',
+      keyVisualHeight: planValue.plan.keyVisualHeight || 56.25,
+      keyVisualLogoUrl: planValue.plan.keyVisualLogoUrl || null,
+      keyVisualMetadata: planValue.plan.keyVisualMetadata || undefined,
+    } : null;
+    reloadConcept = async () => {
+      // planの再読み込みを実行
+      if (planValue.reloadPlan) {
+        await planValue.reloadPlan();
+      }
+    };
   }
   
   const imgRef = useRef<HTMLImageElement>(null);

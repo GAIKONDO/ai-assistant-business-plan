@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useMemo } from 'react';
+import { useRef, useMemo, useContext, createContext, useEffect } from 'react';
 import './pageStyles.css';
 import MermaidDiagram from './MermaidDiagram';
 
@@ -17,40 +17,34 @@ interface ContentPart {
   mermaidId?: string;
 }
 
-// オプショナルなuseContainerVisibilityをモジュールレベルでインポート
-let useContainerVisibilityHook: any = null;
+// デフォルトのコンテキスト（コンテキストが存在しない場合に使用）
+const DefaultContainerVisibilityContext = createContext<{ showContainers: boolean } | undefined>(undefined);
+
+// オプショナルなContainerVisibilityContextをモジュールレベルでインポート
+let ContainerVisibilityContext: any = DefaultContainerVisibilityContext;
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const companyLayout = require('@/app/business-plan/company/[planId]/layout');
-  useContainerVisibilityHook = companyLayout.useContainerVisibility;
+  const companyLayout = require('@/app/business-plan/company/[planId]/hooks/useContainerVisibility');
+  ContainerVisibilityContext = companyLayout.ContainerVisibilityContext;
 } catch {
-  // インポートに失敗した場合は無視
+  // インポートに失敗した場合はデフォルトコンテキストを使用
 }
 
 try {
-  // eslint-disable-next-line @typescript-eslint/no-var-requires
-  const serviceLayout = require('@/app/business-plan/services/[serviceId]/[conceptId]/layout');
-  if (!useContainerVisibilityHook) {
-    useContainerVisibilityHook = serviceLayout.useContainerVisibility;
+  const serviceLayout = require('@/app/business-plan/services/[serviceId]/[conceptId]/hooks/useContainerVisibility');
+  if (ContainerVisibilityContext === DefaultContainerVisibilityContext) {
+    ContainerVisibilityContext = serviceLayout.ContainerVisibilityContext;
   }
 } catch {
-  // インポートに失敗した場合は無視
+  // インポートに失敗した場合はデフォルトコンテキストを使用
 }
 
 export default function DynamicPage({ pageId, pageNumber, title, content }: DynamicPageProps) {
   // useContainerVisibilityを取得（コンテキストが存在する場合）
   // コンテキストが存在しない場合はデフォルト値を使用
-  let showContainers = false;
-  
-  if (useContainerVisibilityHook) {
-    try {
-      const containerVisibility = useContainerVisibilityHook();
-      showContainers = containerVisibility.showContainers;
-    } catch {
-      // コンテキストが存在しない場合はデフォルト値を使用
-    }
-  }
+  // React Hooksのルールに準拠するため、useContextを常に呼び出す
+  const contextValue = useContext(ContainerVisibilityContext);
+  const showContainers = contextValue?.showContainers ?? false;
   
   const contentRef = useRef<HTMLDivElement>(null);
 

@@ -897,7 +897,7 @@ export default function MigrateFromFixedPage({
         // 移行するページデータを準備
         const migratedPages = pages.map((page, index) => {
           const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
-          return {
+          const pageData: any = {
             id: pageId,
             pageNumber: index,
             title: page.title,
@@ -907,8 +907,6 @@ export default function MigrateFromFixedPage({
             migrated: true,
             migratedAt: new Date().toISOString(),
           };
-<<<<<<< HEAD
-=======
           
           // keyMessageとsubMessageはundefinedの場合は含めない（Firestoreはundefinedを許可しない）
           if ((page as any).keyMessage) {
@@ -919,7 +917,6 @@ export default function MigrateFromFixedPage({
           }
           
           return pageData;
->>>>>>> d3f4ff5 (ビルドエラー修正完了: 型エラー、nullチェック、scriptsディレクトリ除外)
         });
         
         // Page0（キービジュアル）を最初に配置
@@ -1039,7 +1036,7 @@ export default function MigrateFromFixedPage({
         // 移行するページデータを準備
         const migratedPages = pages.map((page, index) => {
           const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
-          return {
+          const pageData: any = {
             id: pageId,
             pageNumber: index,
             title: page.title,
@@ -1049,8 +1046,6 @@ export default function MigrateFromFixedPage({
             migrated: true,
             migratedAt: new Date().toISOString(),
           };
-<<<<<<< HEAD
-=======
           
           // keyMessageとsubMessageはundefinedの場合は含めない（Firestoreはundefinedを許可しない）
           if ((page as any).keyMessage) {
@@ -1061,7 +1056,6 @@ export default function MigrateFromFixedPage({
           }
           
           return pageData;
->>>>>>> d3f4ff5 (ビルドエラー修正完了: 型エラー、nullチェック、scriptsディレクトリ除外)
         });
         
         // Page0（キービジュアル）を最初に配置

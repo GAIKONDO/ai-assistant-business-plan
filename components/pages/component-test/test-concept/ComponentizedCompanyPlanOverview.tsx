@@ -13,6 +13,7 @@ import { usePresentationMode } from '@/components/PresentationModeContext';
 import { usePlan } from '@/app/business-plan/company/[planId]/layout';
 import AddPageForm from './AddPageForm';
 import { pageAutoUpdateConfigs, PageAutoUpdateConfig } from './pageAutoUpdateConfig';
+import DynamicPage from './DynamicPage';
 import './pageStyles.css';
 
 export default function ComponentizedCompanyPlanOverview() {
@@ -36,6 +37,21 @@ export default function ComponentizedCompanyPlanOverview() {
     console.log('ComponentizedCompanyPlanOverview - isPresentationMode:', isPresentationMode);
     console.log('ComponentizedCompanyPlanOverview - currentPageIndex:', currentPageIndex);
   }, [orderedConfigs, isPresentationMode, currentPageIndex]);
+
+  // 自動更新が必要なページをチェック
+  useEffect(() => {
+    const currentPageConfig = orderedConfigs[currentPageIndex];
+    if (!currentPageConfig || !plan) return;
+
+    const autoUpdateConfig = pageAutoUpdateConfigs.find(config => config.pageId === currentPageConfig.id);
+    if (autoUpdateConfig && autoUpdateConfig.shouldUpdate(plan)) {
+      // 自動更新が必要な場合は、ページを再読み込み
+      if (refreshPages) {
+        refreshPages();
+      }
+    }
+  }, [orderedConfigs, currentPageIndex, plan, refreshPages]);
+
   // planIdが存在しない場合はエラーを表示
   if (!planId) {
     return (
@@ -226,20 +242,6 @@ export default function ComponentizedCompanyPlanOverview() {
       alert(`ロゴの削除に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
-
-  // 自動更新が必要なページをチェック
-  useEffect(() => {
-    const currentPageConfig = orderedConfigs[currentPageIndex];
-    if (!currentPageConfig || !plan) return;
-
-    const autoUpdateConfig = pageAutoUpdateConfigs.find(config => config.pageId === currentPageConfig.id);
-    if (autoUpdateConfig && autoUpdateConfig.shouldUpdate(plan)) {
-      // 自動更新が必要な場合は、ページを再読み込み
-      if (refreshPages) {
-        refreshPages();
-      }
-    }
-  }, [orderedConfigs, currentPageIndex, plan, refreshPages]);
 
   // 現在のページコンポーネントを取得
   const currentPageConfig = orderedConfigs[currentPageIndex];
