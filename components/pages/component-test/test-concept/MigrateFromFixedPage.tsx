@@ -120,7 +120,7 @@ export default function MigrateFromFixedPage({
    * @param subMenuId サブメニューID（省略時は現在のページ）
    * @param htmlContent HTMLコンテンツ（省略時は現在のDOMから取得）
    */
-  const extractPagesFromHTML = (htmlContent?: string, subMenuId?: string) => {
+  const extractPagesFromHTML = async (htmlContent?: string, subMenuId?: string) => {
     const pages: Array<{
       id: string;
       title: string;
@@ -142,32 +142,74 @@ export default function MigrateFromFixedPage({
     // data-page-container属性を持つ要素を取得
     const containers = container.querySelectorAll('[data-page-container]');
     
-    containers.forEach((containerEl, index) => {
+    // 非同期処理のため、Promise.allを使用
+    const pagePromises = Array.from(containers).map(async (containerEl, index) => {
       const pageId = (containerEl as HTMLElement).getAttribute('data-page-container') || `page-${index}`;
       
-      // タイトルを抽出
+      // タイトルを抽出（data-pdf-title-h3属性を持つ要素を優先的に検出）
       let title = '';
-      const titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title');
+      let titleElement: HTMLElement | null = null;
+      
+      // まずdata-pdf-title-h3属性を持つ要素を探す
+      titleElement = (containerEl as HTMLElement).querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
       if (titleElement) {
         title = titleElement.textContent?.trim() || '';
       } else {
-        const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
-        title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+        // 次にh2, h3, h1, .page-titleを探す
+        titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title') as HTMLElement;
+        if (titleElement) {
+          title = titleElement.textContent?.trim() || '';
+        } else {
+          const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+          title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+        }
       }
       
-      // コンテンツを抽出
-      const rawHTML = (containerEl as HTMLElement).innerHTML;
+      // コンテンツを抽出（タイトル要素とページ番号要素を除外）
+      const containerClone = containerEl.cloneNode(true) as HTMLElement;
+      
+      // タイトル要素をコンテンツから削除
+      if (titleElement) {
+        const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                   containerClone.querySelector('h2, h3, h1, .page-title');
+        if (clonedTitleElement) {
+          clonedTitleElement.remove();
+        }
+      }
+      
+      // ページ番号要素（.container-page-number）をコンテンツから削除
+      const pageNumberElements = containerClone.querySelectorAll('.container-page-number');
+      pageNumberElements.forEach((el) => {
+        el.remove();
+      });
+      
+      // 図形を画像化（canvas、Mermaid図など）
+      // 実際のDOM要素からcanvas要素を検出して画像化し、クローンした要素のHTMLを更新
+      let rawHTML = containerClone.innerHTML;
+      console.log(`[extractPagesFromHTML] ページ ${pageId} の図形画像化を開始`);
+      try {
+        // 実際のDOM要素（containerEl）からcanvas要素を検出して画像化
+        rawHTML = await convertDiagramsToImages(containerEl as HTMLElement, containerClone, pageId);
+        console.log(`[extractPagesFromHTML] ページ ${pageId} の図形画像化が完了`);
+      } catch (error) {
+        console.error(`[extractPagesFromHTML] ページ ${pageId} の図形画像化エラー:`, error);
+        // エラーが発生しても元のHTMLを使用して続行
+      }
+      
       const content = formatHTML(rawHTML);
       
-      pages.push({
+      return {
         id: `migrated-${pageId}-${Date.now()}-${index}`,
         title: title || `ページ ${index + 1}`,
         content: content,
         pageNumber: index,
         pageId: pageId,
         subMenuId: subMenuId,
-      });
+      };
     });
+    
+    const resolvedPages = await Promise.all(pagePromises);
+    pages.push(...resolvedPages);
 
     // Page0（キービジュアル）を最初に配置
     const page0Index = pages.findIndex(p => p.pageId === '0' || p.pageId === 'page-0');
@@ -183,8 +225,9 @@ export default function MigrateFromFixedPage({
    * すべてのサブメニューのページを一括で取得
    */
   const extractAllPagesFromAllSubMenus = async () => {
+    console.log('[extractAllPagesFromAllSubMenus] 関数が呼び出されました');
     if (!planId) {
-      console.error('extractAllPagesFromAllSubMenus: planIdが設定されていません');
+      console.error('[extractAllPagesFromAllSubMenus] planIdが設定されていません');
       return {};
     }
     
@@ -248,20 +291,48 @@ export default function MigrateFromFixedPage({
           const pagePromises = Array.from(containers).map(async (containerEl, index) => {
             const pageId = (containerEl as HTMLElement).getAttribute('data-page-container') || `page-${index}`;
             
-            // タイトルを抽出
+            // タイトルを抽出（data-pdf-title-h3属性を持つ要素を優先的に検出）
             let title = '';
-            const titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title');
+            let titleElement: HTMLElement | null = null;
+            
+            // まずdata-pdf-title-h3属性を持つ要素を探す
+            titleElement = (containerEl as HTMLElement).querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
             if (titleElement) {
               title = titleElement.textContent?.trim() || '';
             } else {
-              const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
-              title = firstText.substring(0, 50) || `${subMenuItem.label} - ページ ${index + 1}`;
+              // 次にh2, h3, h1, .page-titleを探す
+              titleElement = (containerEl as HTMLElement).querySelector('h2, h3, h1, .page-title') as HTMLElement;
+              if (titleElement) {
+                title = titleElement.textContent?.trim() || '';
+              } else {
+                const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+                title = firstText.substring(0, 50) || `${subMenuItem.label} - ページ ${index + 1}`;
+              }
             }
             
             // 図形を画像化（canvas、Mermaid図など）
-            let rawHTML = (containerEl as HTMLElement).innerHTML;
+            // タイトル要素とページ番号要素を除外するためにクローンを作成
+            const containerClone = containerEl.cloneNode(true) as HTMLElement;
+            
+            // タイトル要素をコンテンツから削除
+            if (titleElement) {
+              const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                         containerClone.querySelector('h2, h3, h1, .page-title');
+              if (clonedTitleElement) {
+                clonedTitleElement.remove();
+              }
+            }
+            
+            // ページ番号要素（.container-page-number）をコンテンツから削除
+            const pageNumberElements = containerClone.querySelectorAll('.container-page-number');
+            pageNumberElements.forEach((el) => {
+              el.remove();
+            });
+            
+            let rawHTML = containerClone.innerHTML;
             try {
-              rawHTML = await convertDiagramsToImages(containerEl as HTMLElement, `${subMenuItem.id}-${pageId}`);
+              // 実際のDOM要素からcanvas要素を検出して画像化し、クローンした要素のHTMLを更新
+              rawHTML = await convertDiagramsToImages(containerEl as HTMLElement, containerClone, `${subMenuItem.id}-${pageId}`);
             } catch (error) {
               console.error(`ページ ${subMenuItem.label}-${pageId} の図形画像化エラー:`, error);
               // エラーが発生しても元のHTMLを使用して続行
@@ -314,25 +385,33 @@ export default function MigrateFromFixedPage({
 
   /**
    * 図形要素（canvas、Mermaid図など）を画像化してFirebase Storageに保存
-   * @param containerEl コンテナ要素
+   * @param originalContainerEl 実際のDOM要素（canvas要素を検出するため）
+   * @param clonedContainerEl クローンした要素（HTMLを更新するため）
    * @param pageId ページID（ファイル名に使用）
    * @returns 更新されたHTMLコンテンツ
    */
-  const convertDiagramsToImages = async (containerEl: HTMLElement, pageId: string): Promise<string> => {
+  const convertDiagramsToImages = async (originalContainerEl: HTMLElement, clonedContainerEl: HTMLElement, pageId: string): Promise<string> => {
+    console.log(`[convertDiagramsToImages] 関数が呼び出されました。pageId: ${pageId}`);
     if (!auth?.currentUser || !storage) {
-      console.warn('Firebase Storageが利用できません。図形の画像化をスキップします。');
-      return containerEl.innerHTML;
+      console.warn('[convertDiagramsToImages] Firebase Storageが利用できません。図形の画像化をスキップします。');
+      return clonedContainerEl.innerHTML;
     }
 
-    let updatedHTML = containerEl.innerHTML;
+    let updatedHTML = clonedContainerEl.innerHTML;
+    console.log(`[convertDiagramsToImages] Firebase Storage利用可能。画像化処理を開始します。`);
     
     // 1. canvas要素（p5.jsなど）を検出して画像化
-    // 実際のDOM要素から検出（tempDivではなく、containerElから直接検出）
-    const canvases = containerEl.querySelectorAll('canvas');
-    const canvasReplacements: Array<{ original: string; replacement: string }> = [];
+    // 実際のDOM要素から検出（レンダリング済みのcanvas要素を取得）
+    const canvases = originalContainerEl.querySelectorAll('canvas');
+    console.log(`[convertDiagramsToImages] 検出されたcanvas要素の数: ${canvases.length}`);
+    
+    // クローンした要素内のcanvas要素も取得（置換用）
+    const clonedCanvases = clonedContainerEl.querySelectorAll('canvas');
+    console.log(`[convertDiagramsToImages] クローンした要素内のcanvas要素の数: ${clonedCanvases.length}`);
     
     for (let i = 0; i < canvases.length; i++) {
       const canvas = canvases[i] as HTMLCanvasElement;
+      
       try {
         // canvasを画像データに変換
         const imageData = canvas.toDataURL('image/png', 1.0);
@@ -357,29 +436,153 @@ export default function MigrateFromFixedPage({
         await uploadBytes(storageRef, blob);
         const downloadURL = await getDownloadURL(storageRef);
         
-        console.log(`Canvas画像をアップロード: ${downloadURL}`);
+        console.log(`[convertDiagramsToImages] Canvas画像をアップロード成功:`);
+        console.log(`  - ファイル名: ${fileName}`);
+        console.log(`  - ストレージパス: ${storagePath}`);
+        console.log(`  - ダウンロードURL: ${downloadURL}`);
+        console.log(`  - 画像サイズ: ${blob.size} bytes`);
         
-        // canvas要素をimgタグに置き換え（後で一括置換するため、配列に保存）
-        const imgTag = `<img src="${downloadURL}" alt="図形" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
-        canvasReplacements.push({
-          original: canvas.outerHTML,
-          replacement: imgTag,
-        });
+        // canvas要素のサイズを取得（元のサイズを保持）
+        const canvasStyle = window.getComputedStyle(canvas);
+        // style属性のwidth/heightを優先（表示サイズ）、なければwidth/height属性を使用
+        const canvasWidth = canvas.style.width || canvasStyle.width || (canvas.getAttribute('width') ? canvas.getAttribute('width') + 'px' : 'auto');
+        const canvasHeight = canvas.style.height || canvasStyle.height || (canvas.getAttribute('height') ? canvas.getAttribute('height') + 'px' : 'auto');
+        const canvasDisplay = canvas.style.display || canvasStyle.display || 'block';
+        const canvasMargin = canvas.style.margin || canvasStyle.margin || '0px';
+        const canvasMaxWidth = canvas.style.maxWidth || canvasStyle.maxWidth || '100%';
+        
+        // 親要素のスタイルも確認（親要素がサイズを制御している場合）
+        const canvasParent = canvas.parentElement;
+        let parentMaxWidth = '';
+        if (canvasParent) {
+          const parentStyle = window.getComputedStyle(canvasParent);
+          const parentMaxWidthValue = canvasParent.style.maxWidth || parentStyle.maxWidth;
+          if (parentMaxWidthValue && parentMaxWidthValue !== 'none') {
+            parentMaxWidth = parentMaxWidthValue;
+          }
+        }
+        
+        console.log(`[convertDiagramsToImages] Canvasサイズ情報:`);
+        console.log(`  - width属性: ${canvas.getAttribute('width')}`);
+        console.log(`  - height属性: ${canvas.getAttribute('height')}`);
+        console.log(`  - style.width: ${canvas.style.width}`);
+        console.log(`  - style.height: ${canvas.style.height}`);
+        console.log(`  - 計算されたwidth: ${canvasStyle.width}`);
+        console.log(`  - 計算されたheight: ${canvasStyle.height}`);
+        console.log(`  - 実際のcanvas.width: ${canvas.width}`);
+        console.log(`  - 実際のcanvas.height: ${canvas.height}`);
+        console.log(`  - 使用するwidth: ${canvasWidth}`);
+        console.log(`  - 使用するheight: ${canvasHeight}`);
+        if (parentMaxWidth) {
+          console.log(`  - 親要素のmaxWidth: ${parentMaxWidth}`);
+        }
+        
+        // canvas要素をimgタグに置き換え（元のサイズを保持）
+        const imgStyle = `width: ${canvasWidth}; height: ${canvasHeight}; max-width: ${parentMaxWidth || canvasMaxWidth}; display: ${canvasDisplay}; margin: ${canvasMargin};`;
+        const imgTag = `<img src="${downloadURL}" alt="図形" style="${imgStyle}" />`;
+        
+        // canvas要素のIDまたはクラス名で特定
+        const canvasId = canvas.id || '';
+        const canvasClass = canvas.className || '';
+        console.log(`[convertDiagramsToImages] Canvas ${i}: id="${canvasId}", class="${canvasClass}"`);
+        
+        // クローンした要素内で対応するcanvas要素を探す
+        let clonedCanvas: HTMLCanvasElement | null = null;
+        if (canvasId) {
+          clonedCanvas = clonedContainerEl.querySelector(`#${canvasId}`) as HTMLCanvasElement;
+          console.log(`[convertDiagramsToImages] IDで検索: ${clonedCanvas ? '見つかった' : '見つからない'}`);
+        } else if (canvasClass) {
+          // クラス名で検索（インデックスで対応）
+          const clonedCanvasesWithClass = Array.from(clonedContainerEl.querySelectorAll(`canvas.${canvasClass.split(' ')[0]}`));
+          clonedCanvas = clonedCanvasesWithClass[i] as HTMLCanvasElement || null;
+          console.log(`[convertDiagramsToImages] クラス名で検索: ${clonedCanvasesWithClass.length}個見つかり、index ${i}を使用: ${clonedCanvas ? '見つかった' : '見つからない'}`);
+        } else {
+          // IDもクラスもない場合、インデックスで対応
+          clonedCanvas = clonedCanvases[i] as HTMLCanvasElement || null;
+          console.log(`[convertDiagramsToImages] インデックスで検索: ${clonedCanvas ? '見つかった' : '見つからない'}`);
+        }
+        
+        if (clonedCanvas) {
+          // クローンした要素内のcanvas要素を直接置換
+          console.log(`[convertDiagramsToImages] Canvas要素を置換前:`, clonedCanvas.outerHTML.substring(0, 200));
+          const parentElement = clonedCanvas.parentElement;
+          
+          // img要素を作成してcanvas要素と置き換え
+          const tempDiv = document.createElement('div');
+          tempDiv.innerHTML = imgTag;
+          const imgElement = tempDiv.firstElementChild as HTMLElement;
+          
+          if (parentElement && imgElement) {
+            parentElement.replaceChild(imgElement, clonedCanvas);
+            console.log(`[convertDiagramsToImages] Canvas要素を置換後:`, imgElement.outerHTML.substring(0, 200));
+          } else {
+            // フォールバック: outerHTMLを使用
+            clonedCanvas.outerHTML = imgTag;
+            console.log(`[convertDiagramsToImages] Canvas要素をouterHTMLで置換しました`);
+          }
+        } else {
+          // クローンした要素内にcanvas要素がない場合、親要素を探して置換
+          const canvasParent = canvas.parentElement;
+          if (canvasParent) {
+            const parentStyle = canvasParent.getAttribute('style') || '';
+            // クローンした要素内でcanvas要素を含む親要素を探す
+            const canvasInCloned = clonedContainerEl.querySelector('canvas');
+            if (canvasInCloned) {
+              const clonedParent = canvasInCloned.parentElement;
+              if (clonedParent) {
+                console.log(`[convertDiagramsToImages] 親要素を置換前:`, clonedParent.outerHTML.substring(0, 200));
+                // canvas要素を含む親divをimgタグに置き換え
+                clonedParent.innerHTML = imgTag;
+                // スタイルを保持
+                if (parentStyle) {
+                  clonedParent.setAttribute('style', parentStyle);
+                }
+                console.log(`[convertDiagramsToImages] 親要素を置換後:`, clonedParent.outerHTML.substring(0, 200));
+              }
+            } else {
+              // 最後の手段：maxWidth: 400pxを持つdivを探す
+              const allDivs = Array.from(clonedContainerEl.querySelectorAll('div'));
+              const targetDiv = allDivs.find(div => {
+                const divStyle = div.getAttribute('style') || '';
+                return divStyle.includes('maxWidth: 400px') || divStyle.includes('max-width: 400px') || 
+                       (div.querySelector('canvas') && divStyle.includes('width: 100%'));
+              }) as HTMLElement;
+              
+              if (targetDiv) {
+                console.log(`[convertDiagramsToImages] 最後の手段で親要素を置換前:`, targetDiv.outerHTML.substring(0, 200));
+                // canvas要素を含む親divをimgタグに置き換え
+                targetDiv.innerHTML = imgTag;
+                // スタイルを保持
+                if (parentStyle) {
+                  targetDiv.setAttribute('style', parentStyle);
+                }
+                console.log(`[convertDiagramsToImages] 最後の手段で親要素を置換後:`, targetDiv.outerHTML.substring(0, 200));
+              } else {
+                console.warn(`[convertDiagramsToImages] canvas要素の親要素を特定できませんでした（index: ${i}）。スキップします。`);
+              }
+            }
+          }
+        }
       } catch (error) {
-        console.error('Canvas画像化エラー:', error);
+        console.error('[convertDiagramsToImages] Canvas画像化エラー:', error);
         // エラーが発生しても処理を続行
       }
     }
     
-    // canvas要素を一括置換
-    for (const replacement of canvasReplacements) {
-      updatedHTML = updatedHTML.replace(replacement.original, replacement.replacement);
-    }
+    // canvas要素を置換した後、更新されたHTMLを取得
+    updatedHTML = clonedContainerEl.innerHTML;
+    console.log(`[convertDiagramsToImages] Canvas置換後のHTML更新完了。canvas要素数: ${(updatedHTML.match(/<canvas/g) || []).length}, img要素数: ${(updatedHTML.match(/<img/g) || []).length}`);
+    console.log(`[convertDiagramsToImages] Canvas処理後のHTML（最初の1000文字）: ${updatedHTML.substring(0, 1000)}`);
+    console.log(`[convertDiagramsToImages] Canvas処理後のHTMLにcanvas要素が含まれているか: ${updatedHTML.includes('canvas')}`);
+    console.log(`[convertDiagramsToImages] Canvas処理後のHTMLにimg要素が含まれているか: ${updatedHTML.includes('<img')}`);
 
     // 2. Mermaid図を検出して画像化
-    // 実際のDOM要素から検出（containerElから直接検出）
-    const mermaidContainers = containerEl.querySelectorAll('.mermaid-diagram-container');
-    const mermaidElements = containerEl.querySelectorAll('.mermaid, [data-mermaid-diagram]');
+    // 実際のDOM要素から検出（originalContainerElから直接検出）
+    const mermaidContainers = originalContainerEl.querySelectorAll('.mermaid-diagram-container');
+    const mermaidElements = originalContainerEl.querySelectorAll('.mermaid, [data-mermaid-diagram]');
+    // クローンした要素内のMermaid要素も取得（置換用）
+    const clonedMermaidContainers = clonedContainerEl.querySelectorAll('.mermaid-diagram-container');
+    const clonedMermaidElements = clonedContainerEl.querySelectorAll('.mermaid, [data-mermaid-diagram]');
     const mermaidReplacements: Array<{ original: string; replacement: string }> = [];
     
     if (mermaidContainers.length > 0 || mermaidElements.length > 0) {
@@ -389,13 +592,20 @@ export default function MigrateFromFixedPage({
         
         // 親要素がある場合は親要素を画像化（推奨）
         for (let i = 0; i < mermaidContainers.length; i++) {
-          const containerEl = mermaidContainers[i] as HTMLElement;
+          const mermaidContainer = mermaidContainers[i] as HTMLElement;
+          const clonedMermaidContainer = clonedMermaidContainers[i] as HTMLElement;
+          
+          if (!clonedMermaidContainer) {
+            console.warn(`クローンした要素内にMermaidコンテナが見つかりません（index: ${i}）`);
+            continue;
+          }
+          
           try {
             // Mermaid図が完全にレンダリングされるまで少し待つ
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            // Mermaid図のコンテナ全体を画像化
-            const canvas = await html2canvas(containerEl, {
+            // Mermaid図のコンテナ全体を画像化（実際のDOM要素から）
+            const canvas = await html2canvas(mermaidContainer, {
               scale: 2,
               backgroundColor: '#ffffff',
               useCORS: true,
@@ -427,10 +637,10 @@ export default function MigrateFromFixedPage({
             
             console.log(`Mermaid図を画像化: ${downloadURL}`);
             
-            // Mermaidコンテナ要素をimgタグに置き換え（後で一括置換するため、配列に保存）
+            // Mermaidコンテナ要素をimgタグに置き換え（クローンした要素のouterHTMLを使用）
             const imgTag = `<img src="${downloadURL}" alt="Mermaid図" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
             mermaidReplacements.push({
-              original: containerEl.outerHTML,
+              original: clonedMermaidContainer.outerHTML,
               replacement: imgTag,
             });
           } catch (error) {
@@ -440,6 +650,7 @@ export default function MigrateFromFixedPage({
         }
         
         // 親要素がない場合、直接Mermaid要素を画像化
+        let mermaidIndex = 0;
         for (let i = 0; i < mermaidElements.length; i++) {
           const mermaidEl = mermaidElements[i] as HTMLElement;
           // 親要素が既に処理されている場合はスキップ
@@ -447,11 +658,22 @@ export default function MigrateFromFixedPage({
             continue;
           }
           
+          // クローンした要素内の対応するMermaid要素を見つける
+          const clonedMermaidEl = Array.from(clonedMermaidElements).find((el, idx) => {
+            const originalEl = mermaidElements[idx] as HTMLElement;
+            return !originalEl.closest('.mermaid-diagram-container') && idx === i;
+          }) as HTMLElement;
+          
+          if (!clonedMermaidEl) {
+            console.warn(`クローンした要素内にMermaid要素が見つかりません（index: ${i}）`);
+            continue;
+          }
+          
           try {
             // Mermaid図が完全にレンダリングされるまで少し待つ
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            // Mermaid図を画像化
+            // Mermaid図を画像化（実際のDOM要素から）
             const canvas = await html2canvas(mermaidEl, {
               scale: 2,
               backgroundColor: '#ffffff',
@@ -467,7 +689,7 @@ export default function MigrateFromFixedPage({
             const blob = await response.blob();
             
             // Firebase Storageにアップロード
-            const fileName = `diagram-${pageId}-mermaid-${i}-${Date.now()}.png`;
+            const fileName = `diagram-${pageId}-mermaid-${mermaidIndex}-${Date.now()}.png`;
             let storagePath: string;
             if (planId) {
               storagePath = `companyBusinessPlan/${planId}/${fileName}`;
@@ -484,12 +706,14 @@ export default function MigrateFromFixedPage({
             
             console.log(`Mermaid図を画像化: ${downloadURL}`);
             
-            // Mermaid要素をimgタグに置き換え（後で一括置換するため、配列に保存）
+            // Mermaid要素をimgタグに置き換え（クローンした要素のouterHTMLを使用）
             const imgTag = `<img src="${downloadURL}" alt="Mermaid図" style="max-width: 100%; height: auto; display: block; margin: 16px auto;" />`;
             mermaidReplacements.push({
-              original: mermaidEl.outerHTML,
+              original: clonedMermaidEl.outerHTML,
               replacement: imgTag,
             });
+            
+            mermaidIndex++;
           } catch (error) {
             console.error('Mermaid図画像化エラー:', error);
             // エラーが発生しても処理を続行
@@ -507,7 +731,7 @@ export default function MigrateFromFixedPage({
     }
 
     // 3. SVG要素を検出して画像化（大きなSVG要素のみ対象）
-    const svgElements = Array.from(containerEl.querySelectorAll('svg')).filter((svg) => {
+    const svgElements = Array.from(originalContainerEl.querySelectorAll('svg')).filter((svg) => {
       const svgEl = svg as SVGSVGElement;
       const width = svgEl.getAttribute('width');
       const height = svgEl.getAttribute('height');
@@ -551,19 +775,39 @@ export default function MigrateFromFixedPage({
         for (let i = 0; i < svgElements.length; i++) {
           const svgEl = svgElements[i] as SVGSVGElement;
           try {
-            console.log(`SVG要素 ${i + 1}/${svgElements.length} を画像化中...`);
+            console.log(`[convertDiagramsToImages] SVG要素 ${i + 1}/${svgElements.length} を画像化中...`);
+            
+            // SVG要素が実際のDOMに存在するか確認
+            if (!document.contains(svgEl)) {
+              console.warn(`[convertDiagramsToImages] SVG要素 ${i + 1} がDOMに存在しません。スキップします。`);
+              continue;
+            }
             
             // SVG要素が完全にレンダリングされるまで少し待つ
             await new Promise(resolve => setTimeout(resolve, 500));
             
-            // SVG要素を画像化
-            const canvas = await html2canvas(svgEl as unknown as HTMLElement, {
-              scale: 2,
-              backgroundColor: '#ffffff',
-              useCORS: true,
-              logging: false,
-              allowTaint: true,
-            });
+            // SVG要素を画像化（エラーハンドリングを改善）
+            let canvas: HTMLCanvasElement;
+            try {
+              canvas = await html2canvas(svgEl as unknown as HTMLElement, {
+                scale: 2,
+                backgroundColor: '#ffffff',
+                useCORS: true,
+                logging: false,
+                allowTaint: true,
+                ignoreElements: (element) => {
+                  // iframe内の要素を無視
+                  return element.tagName === 'IFRAME';
+                },
+              });
+            } catch (html2canvasError: any) {
+              // html2canvasのエラーをキャッチ
+              if (html2canvasError.message && html2canvasError.message.includes('cloned iframe')) {
+                console.warn(`[convertDiagramsToImages] SVG要素 ${i + 1} の画像化をスキップ（iframe内の要素のため）:`, html2canvasError.message);
+                continue;
+              }
+              throw html2canvasError; // 他のエラーは再スロー
+            }
             
             const imageData = canvas.toDataURL('image/png', 1.0);
             
@@ -621,8 +865,13 @@ export default function MigrateFromFixedPage({
               original: svgOuterHTML,
               replacement: imgTag,
             });
-          } catch (error) {
-            console.error(`SVG要素 ${i + 1} の画像化エラー:`, error);
+          } catch (error: any) {
+            console.error(`[convertDiagramsToImages] SVG要素 ${i + 1} の画像化エラー:`, error);
+            // iframe関連のエラーの場合はスキップして続行
+            if (error.message && error.message.includes('cloned iframe')) {
+              console.warn(`[convertDiagramsToImages] SVG要素 ${i + 1} をスキップします（iframe内の要素のため）`);
+              continue;
+            }
             // エラーが発生しても処理を続行
           }
         }
@@ -642,6 +891,10 @@ export default function MigrateFromFixedPage({
     }
 
     // 4. ダウンロードボタンを削除
+    // すべての処理完了後、clonedContainerElから最新のHTMLを取得
+    updatedHTML = clonedContainerEl.innerHTML;
+    console.log(`[convertDiagramsToImages] 最終的なHTML更新完了。canvas要素数: ${(updatedHTML.match(/<canvas/g) || []).length}, img要素数: ${(updatedHTML.match(/<img/g) || []).length}`);
+    
     // HTMLをパースしてダウンロードボタンを検出・削除
     try {
       const parser = new DOMParser();
@@ -670,10 +923,11 @@ export default function MigrateFromFixedPage({
       // 更新されたHTMLを取得
       updatedHTML = doc.body.innerHTML;
     } catch (error) {
-      console.error('ダウンロードボタン削除エラー:', error);
+      console.error('[convertDiagramsToImages] ダウンロードボタン削除エラー:', error);
       // エラーが発生しても処理を続行
     }
 
+    console.log(`[convertDiagramsToImages] 関数終了。最終的なHTMLのcanvas要素数: ${(updatedHTML.match(/<canvas/g) || []).length}, img要素数: ${(updatedHTML.match(/<img/g) || []).length}`);
     return updatedHTML;
   };
 
@@ -682,6 +936,7 @@ export default function MigrateFromFixedPage({
    * data-page-container属性を持つ要素からページを抽出
    */
   const extractPagesFromDOM = async () => {
+    console.log('[extractPagesFromDOM] 関数が呼び出されました');
     const pages: Array<{
       id: string;
       title: string;
@@ -692,29 +947,60 @@ export default function MigrateFromFixedPage({
 
     // data-page-container属性を持つ要素を取得
     const containers = document.querySelectorAll('[data-page-container]');
+    console.log(`[extractPagesFromDOM] 検出されたコンテナ数: ${containers.length}`);
     
     // 非同期処理のため、Promise.allを使用
     const pagePromises = Array.from(containers).map(async (container, index) => {
       const containerEl = container as HTMLElement;
       const pageId = containerEl.getAttribute('data-page-container') || `page-${index}`;
       
-      // タイトルを抽出（h2, h3, または最初の見出し要素）
+      // タイトルを抽出（data-pdf-title-h3属性を持つ要素を優先的に検出）
       let title = '';
-      const titleElement = containerEl.querySelector('h2, h3, h1, .page-title');
+      let titleElement: HTMLElement | null = null;
+      
+      // まずdata-pdf-title-h3属性を持つ要素を探す
+      titleElement = containerEl.querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
       if (titleElement) {
         title = titleElement.textContent?.trim() || '';
       } else {
-        // タイトルが見つからない場合は、最初のテキストノードから抽出
-        const firstText = containerEl.textContent?.trim().split('\n')[0] || '';
-        title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+        // 次にh2, h3, h1, .page-titleを探す
+        titleElement = containerEl.querySelector('h2, h3, h1, .page-title') as HTMLElement;
+        if (titleElement) {
+          title = titleElement.textContent?.trim() || '';
+        } else {
+          // タイトルが見つからない場合は、最初のテキストノードから抽出
+          const firstText = containerEl.textContent?.trim().split('\n')[0] || '';
+          title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+        }
       }
       
+      // タイトル要素とページ番号要素をコンテンツから除外するためにクローンを作成
+      const containerClone = containerEl.cloneNode(true) as HTMLElement;
+      
+      // タイトル要素をコンテンツから削除
+      if (titleElement) {
+        const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                   containerClone.querySelector('h2, h3, h1, .page-title');
+        if (clonedTitleElement) {
+          clonedTitleElement.remove();
+        }
+      }
+      
+      // ページ番号要素（.container-page-number）をコンテンツから削除
+      const pageNumberElements = containerClone.querySelectorAll('.container-page-number');
+      pageNumberElements.forEach((el) => {
+        el.remove();
+      });
+      
       // 図形を画像化（canvas、Mermaid図など）
-      let rawHTML = containerEl.innerHTML;
+      // 実際のDOM要素からcanvas要素を検出して画像化し、クローンした要素のHTMLを更新
+      let rawHTML = containerClone.innerHTML;
+      console.log(`[extractPagesFromDOM] ページ ${pageId} の図形画像化を開始`);
       try {
-        rawHTML = await convertDiagramsToImages(containerEl, pageId);
+        rawHTML = await convertDiagramsToImages(containerEl, containerClone, pageId);
+        console.log(`[extractPagesFromDOM] ページ ${pageId} の図形画像化が完了`);
       } catch (error) {
-        console.error(`ページ ${pageId} の図形画像化エラー:`, error);
+        console.error(`[extractPagesFromDOM] ページ ${pageId} の図形画像化エラー:`, error);
         // エラーが発生しても元のHTMLを使用して続行
       }
       
@@ -895,11 +1181,12 @@ export default function MigrateFromFixedPage({
     for (const [subMenuId, pages] of Object.entries(allPagesBySubMenu)) {
       if (Array.isArray(pages) && pages.length > 0) {
         // 移行するページデータを準備
+        // ページ番号は固定ページ形式側でページ順を振る仕組みがあるため、0に設定（順序はpageOrderBySubMenuで管理）
         const migratedPages = pages.map((page, index) => {
           const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
           const pageData: any = {
             id: pageId,
-            pageNumber: index,
+            pageNumber: 0, // 固定ページ形式側でページ順を振る仕組みがあるため、0に設定
             title: page.title,
             content: page.content,
             pageId: page.pageId,
@@ -1034,11 +1321,12 @@ export default function MigrateFromFixedPage({
     for (const [subMenuId, pages] of Object.entries(allPagesBySubMenu)) {
       if (Array.isArray(pages) && pages.length > 0) {
         // 移行するページデータを準備
+        // ページ番号は固定ページ形式側でページ順を振る仕組みがあるため、0に設定（順序はpageOrderBySubMenuで管理）
         const migratedPages = pages.map((page, index) => {
           const pageId = `page-migrated-${migrationTimestamp}-${subMenuId}-${index}`;
           const pageData: any = {
             id: pageId,
-            pageNumber: index,
+            pageNumber: 0, // 固定ページ形式側でページ順を振る仕組みがあるため、0に設定
             title: page.title,
             content: page.content,
             pageId: page.pageId,
@@ -1118,6 +1406,9 @@ export default function MigrateFromFixedPage({
     targetSubMenuId?: string,
     targetPlanId?: string // 「既存に追加」の場合の対象事業計画ID
   ) => {
+    console.log(`[handleCompanyPlanMigration] 関数が呼び出されました。mode: ${mode}, selectedPages数: ${selectedPages.length}`);
+    console.log(`[handleCompanyPlanMigration] selectedPagesの最初のページのcontent（最初の500文字）:`, selectedPages[0]?.content?.substring(0, 500));
+    
     // 「既存に追加」の場合はtargetPlanIdを使用、それ以外はplanIdを使用
     const finalPlanId = (mode === 'append' && targetPlanId) ? targetPlanId : planId;
     
@@ -1136,11 +1427,12 @@ export default function MigrateFromFixedPage({
     const migrationTimestamp = Date.now();
 
     // 移行するページデータを準備
+    // ページ番号は固定ページ形式側でページ順を振る仕組みがあるため、0に設定（順序はpageOrderBySubMenuで管理）
     const migratedPages = selectedPages.map((page, index) => {
       const pageId = `page-migrated-${migrationTimestamp}-${index}`;
       return {
         id: pageId,
-        pageNumber: index,
+        pageNumber: 0, // 固定ページ形式側でページ順を振る仕組みがあるため、0に設定
         title: page.title,
         content: page.content,
         pageId: page.pageId,
@@ -1324,6 +1616,7 @@ export default function MigrateFromFixedPage({
    * 固定ページからページコンポーネントへ移行
    */
   const handleMigrate = async (mode: 'overwrite' | 'append' | 'new', targetConceptId?: string, targetSubMenuId?: string) => {
+    console.log(`[handleMigrate] 移行処理を開始。mode: ${mode}, targetConceptId: ${targetConceptId}, targetSubMenuId: ${targetSubMenuId}`);
     if (!auth?.currentUser || !db) {
       alert('ログインが必要です');
       return;
@@ -1333,7 +1626,9 @@ export default function MigrateFromFixedPage({
       setMigrating(true);
       
       // 既に抽出されたページがある場合はそれを使用、ない場合は新しく抽出
+      console.log(`[handleMigrate] 抽出済みページ数: ${extractedPages.length}`);
       let pages = extractedPages.length > 0 ? extractedPages : await extractPagesFromDOM();
+      console.log(`[handleMigrate] 抽出されたページ数: ${pages.length}`);
       
       if (pages.length === 0) {
         alert('移行するページが見つかりませんでした。data-page-container属性を持つ要素を確認してください。');
@@ -1684,12 +1979,13 @@ export default function MigrateFromFixedPage({
 
       // 移行するページを準備（明確なIDを生成）
       const migrationTimestamp = Date.now();
+      // ページ番号は固定ページ形式側でページ順を振る仕組みがあるため、0に設定（順序はpageOrderBySubMenuで管理）
       const migratedPages = selectedPages.map((page, index) => {
         // 明確なIDを生成（page-migrated-{timestamp}-{index}形式）
         const pageId = `page-migrated-${migrationTimestamp}-${index}`;
         return {
           id: pageId,
-          pageNumber: mode === 'overwrite' ? index : currentSubMenuPages.length + index,
+          pageNumber: 0, // 固定ページ形式側でページ順を振る仕組みがあるため、0に設定
           title: page.title,
           content: page.content,
           createdAt: new Date().toISOString(),
@@ -2593,7 +2889,10 @@ export default function MigrateFromFixedPage({
                   }
                 } else {
                   // 通常モード
-                  handleMigrate('new');
+                  console.log('[ボタンクリック] 「新規で作成」ボタンがクリックされました。handleMigrateを呼び出します。');
+                  handleMigrate('new').catch((error) => {
+                    console.error('[ボタンクリック] handleMigrateでエラーが発生しました:', error);
+                  });
                 }
               }}
               disabled={migrating}

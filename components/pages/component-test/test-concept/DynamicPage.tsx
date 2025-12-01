@@ -369,11 +369,22 @@ export default function DynamicPage({ pageId, pageNumber, title, content }: Dyna
         } : {}),
       }}
     >
-      {/* ページタイトルを常に表示（元のデザインに合わせる） */}
+      {/* ページタイトルを常に表示（固定形式と同じスタイル、PDF出力時に左上に配置される） */}
       {title && (
-        <h4 className="page-section-title">
+        <h3 
+          data-pdf-title-h3="true"
+          style={{
+            fontSize: '16px',
+            fontWeight: 600,
+            color: 'var(--color-text)',
+            borderLeft: '3px solid var(--color-primary)',
+            paddingLeft: '8px',
+            margin: 0,
+            marginBottom: '16px',
+          }}
+        >
           {title}
-        </h4>
+        </h3>
       )}
       {/* スライドマスタースタイルを適用：共通デザインクラスを使用 */}
       <div 

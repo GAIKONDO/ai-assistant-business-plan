@@ -1685,7 +1685,7 @@ function CompanyPlanLayoutContent({
         let pageTitle = '';
         let titleElement: HTMLElement | null = null;
         if (!isKeyVisual) {
-          // 固定ページ形式のコンテナの場合、data-pdf-title-h3属性でタイトル要素を探す
+          // 固定ページ形式・コンポーネント形式の両方に対応：data-pdf-title-h3属性でタイトル要素を探す
           titleElement = containerEl.querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
           if (titleElement) {
             pageTitle = titleElement.textContent?.trim() || '';
@@ -1694,7 +1694,7 @@ function CompanyPlanLayoutContent({
             hiddenElements.push({ element: titleElement, originalDisplay: originalTitleDisplay });
             titleElement.style.display = 'none';
           }
-          // タイトルが見つからない場合、data属性から取得を試みる
+          // タイトルが見つからない場合、data属性から取得を試みる（固定ページ形式のみ）
           if (!pageTitle && db) {
             const containerId = containerEl.getAttribute('data-page-container');
             if (containerId && containerId !== '0') {
