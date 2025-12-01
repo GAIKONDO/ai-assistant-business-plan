@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useRef, useContext, createContext } from 'react';
+import { useState, useEffect, useRef, useContext, createContext, useMemo } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
@@ -26,10 +26,18 @@ try {
 }
 
 try {
-  const companyLayout = require('@/app/business-plan/company/[planId]/layout');
-  PlanContext = companyLayout.PlanContext || DefaultPlanContext;
-  if (ContainerVisibilityContext === DefaultContainerVisibilityContext) {
-    ContainerVisibilityContext = companyLayout.ContainerVisibilityContext || DefaultContainerVisibilityContext;
+  // PlanContextを直接インポート
+  const planHook = require('@/app/business-plan/company/[planId]/hooks/usePlan');
+  PlanContext = planHook.PlanContext || DefaultPlanContext;
+  
+  // ContainerVisibilityContextもlayoutから取得を試みる
+  try {
+    const companyLayout = require('@/app/business-plan/company/[planId]/layout');
+    if (ContainerVisibilityContext === DefaultContainerVisibilityContext) {
+      ContainerVisibilityContext = companyLayout.ContainerVisibilityContext || DefaultContainerVisibilityContext;
+    }
+  } catch {
+    // ContainerVisibilityContextの取得に失敗しても続行
   }
 } catch {
   // インポートに失敗した場合はデフォルトコンテキストを使用
@@ -52,30 +60,48 @@ export default function Page0() {
   
   // useConceptもオプショナル
   // 会社本体の事業計画の場合はusePlanを使用
-  let concept: any = null;
-  let reloadConcept: (() => Promise<void>) | undefined = undefined;
+  // useMemoを使ってconceptオブジェクトをメモ化し、planValue.planの変更を監視
+  const concept = useMemo(() => {
+    if (serviceId && conceptId && conceptValue) {
+      return conceptValue.concept;
+    } else if (planId && planValue?.plan) {
+      // 会社本体の事業計画の場合
+      // planをconcept形式に変換
+      return {
+        id: planValue.plan.id,
+        keyVisualUrl: planValue.plan.keyVisualUrl || '',
+        keyVisualHeight: planValue.plan.keyVisualHeight || 56.25,
+        keyVisualScale: planValue.plan.keyVisualScale || 100,
+        keyVisualLogoUrl: planValue.plan.keyVisualLogoUrl || null,
+        keyVisualMetadata: planValue.plan.keyVisualMetadata || undefined,
+      };
+    }
+    return null;
+  }, [serviceId, conceptId, conceptValue, planId, planValue?.plan]);
   
-  // 事業企画の場合
-  if (serviceId && conceptId && conceptValue) {
-    concept = conceptValue.concept;
-    reloadConcept = conceptValue.reloadConcept;
-  } else if (planId && planValue) {
-    // 会社本体の事業計画の場合
-    // planをconcept形式に変換
-    concept = planValue.plan ? {
-      id: planValue.plan.id,
-      keyVisualUrl: planValue.plan.keyVisualUrl || '',
-      keyVisualHeight: planValue.plan.keyVisualHeight || 56.25,
-      keyVisualLogoUrl: planValue.plan.keyVisualLogoUrl || null,
-      keyVisualMetadata: planValue.plan.keyVisualMetadata || undefined,
-    } : null;
-    reloadConcept = async () => {
-      // planの再読み込みを実行
-      if (planValue.reloadPlan) {
-        await planValue.reloadPlan();
-      }
-    };
-  }
+  const reloadConcept = useMemo(() => {
+    if (serviceId && conceptId && conceptValue) {
+      return conceptValue.reloadConcept;
+    } else if (planId && planValue) {
+      return async () => {
+        // planの再読み込みを実行
+        if (planValue.reloadPlan) {
+          await planValue.reloadPlan();
+        }
+      };
+    }
+    return undefined;
+  }, [serviceId, conceptId, conceptValue, planId, planValue]);
+  
+  // デバッグ: planValueとconceptの状態を確認
+  useEffect(() => {
+    console.log('Page0: planId:', planId);
+    console.log('Page0: planValue:', planValue);
+    console.log('Page0: planValue?.plan:', planValue?.plan);
+    console.log('Page0: planValue?.plan?.keyVisualUrl:', planValue?.plan?.keyVisualUrl);
+    console.log('Page0: concept:', concept);
+    console.log('Page0: concept?.keyVisualUrl:', concept?.keyVisualUrl);
+  }, [planId, planValue, concept]);
   
   const imgRef = useRef<HTMLImageElement>(null);
 
@@ -90,6 +116,8 @@ export default function Page0() {
   const logoFileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
+    console.log('Page0: conceptが変更されました:', concept);
+    console.log('Page0: keyVisualUrl:', concept?.keyVisualUrl);
     if (concept?.keyVisualHeight !== undefined) {
       setKeyVisualHeight(concept.keyVisualHeight);
     }
@@ -97,7 +125,7 @@ export default function Page0() {
     if (concept?.keyVisualScale !== undefined) {
       setKeyVisualScale(concept.keyVisualScale);
     }
-  }, [concept?.keyVisualHeight, concept?.keyVisualScale]);
+  }, [concept?.keyVisualHeight, concept?.keyVisualScale, concept?.keyVisualUrl]);
 
   // メタデータはconceptから直接取得（ローカル状態ではなく）
   const keyVisualMetadata = concept?.keyVisualMetadata || null;
@@ -165,8 +193,8 @@ export default function Page0() {
     if (serviceId && conceptId) {
       router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`);
     } else if (planId) {
-      // 会社本体の事業計画の場合は、画像変更機能を無効化するか、別のページに遷移
-      alert('画像変更機能は現在利用できません。');
+      // 会社本体の事業計画の場合もアップロードページに遷移
+      router.push(`/business-plan/company/${planId}/overview/upload-key-visual`);
     }
   };
 

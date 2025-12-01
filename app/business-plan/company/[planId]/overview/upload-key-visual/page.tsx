@@ -6,6 +6,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { auth, storage, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
+import { usePlan } from '../../hooks/usePlan';
 
 interface CropArea {
   x: number;
@@ -20,6 +21,7 @@ export default function UploadKeyVisualPage() {
   const params = useParams();
   const router = useRouter();
   const planId = params.planId as string;
+  const { reloadPlan } = usePlan();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const imageRef = useRef<HTMLImageElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -375,9 +377,20 @@ export default function UploadKeyVisualPage() {
 
       setUploadProgress('アップロード完了！');
       
+      // PlanContextを更新
+      if (reloadPlan) {
+        console.log('アップロードページ: reloadPlanを呼び出します');
+        await reloadPlan();
+        console.log('アップロードページ: reloadPlan完了');
+      } else {
+        console.warn('アップロードページ: reloadPlanが利用できません');
+      }
+      
+      // ページをリロードしてPlanContextを確実に更新
       setTimeout(() => {
+        router.refresh(); // ページをリフレッシュ
         router.push(`/business-plan/company/${planId}/overview`);
-      }, 2000);
+      }, 1000);
     } catch (err: any) {
       console.error('アップロードエラー詳細:', err);
       setError(`アップロードに失敗しました: ${err.message || '不明なエラー'}`);
