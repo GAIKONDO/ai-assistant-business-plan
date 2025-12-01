@@ -44,6 +44,11 @@ export default function ProjectDetailPage() {
       }
     };
 
+    if (!auth) {
+      setLoading(false);
+      return;
+    }
+
     const unsubscribe = auth.onAuthStateChanged((user) => {
       if (user) {
         loadProject();

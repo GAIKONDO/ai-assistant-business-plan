@@ -2,7 +2,8 @@
 
 import React, { useEffect, useState, useRef } from 'react';
 import Script from 'next/script';
-import { usePlan } from '../layout';
+import { useParams } from 'next/navigation';
+import { usePlan } from '../hooks/usePlan';
 import dynamic from 'next/dynamic';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
@@ -10,6 +11,12 @@ const ComponentizedCompanyPlanOverview = dynamic(
   () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
   { ssr: false }
 );
+
+// planIdごとの固定コンテンツコンポーネント（条件付きインポート）
+// 固定コンテンツがあるplanIdのマッピング
+const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
+  '9pu2rwOCRjG5gxmqX2tO': true,
+};
 
 declare global {
   interface Window {
@@ -277,6 +284,11 @@ const SCHEDULE_DATA: ScheduleItem[] = [
 
 export default function ExecutionSchedulePage() {
   const { plan } = usePlan();
+  const params = useParams();
+  const planId = params.planId as string;
+  
+  // planIdに応じてコンテンツを表示するかどうかを決定
+  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
   
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
@@ -585,6 +597,11 @@ export default function ExecutionSchedulePage() {
   // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
   if (plan?.pagesBySubMenu) {
     return <ComponentizedCompanyPlanOverview />;
+  }
+
+  // 固定ページ形式で、planId固有のコンテンツが存在しない場合は何も表示しない
+  if (!hasCustomContent) {
+    return null;
   }
 
   // 年ごとのスケジュールを整理

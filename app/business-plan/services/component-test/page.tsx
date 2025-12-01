@@ -86,6 +86,8 @@ export default function ComponentTestPage() {
   }, []);
 
   useEffect(() => {
+    if (!auth) return;
+    
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthReady(!!user);
       if (user) {
@@ -94,7 +96,7 @@ export default function ComponentTestPage() {
     });
 
     return () => unsubscribe();
-  }, [loadConcepts]);
+  }, [loadConcepts, auth]);
 
   const handleConceptFormClose = () => {
     setShowConceptForm(false);

@@ -1,8 +1,12 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import Script from 'next/script';
-import { usePlan } from '../layout';
+import { useParams } from 'next/navigation';
+import { usePlan } from '../hooks/usePlan';
+import { useContainerVisibility } from '../hooks/useContainerVisibility';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
@@ -10,6 +14,12 @@ const ComponentizedCompanyPlanOverview = dynamic(
   () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
   { ssr: false }
 );
+
+// planIdごとの固定コンテンツコンポーネント（条件付きインポート）
+// 固定コンテンツがあるplanIdのマッピング
+const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
+  '9pu2rwOCRjG5gxmqX2tO': true,
+};
 
 declare global {
   interface Window {
@@ -35,6 +45,16 @@ interface BusinessSynergy {
     strategicValue: string;
   }[];
 }
+
+// 固定ページ形式のコンテナの型定義
+interface FixedPageContainer {
+  id: string;
+  title: string;
+  content: string;
+  order: number;
+}
+
+const FIRESTORE_COLLECTION_NAME = 'companyBusinessPlan';
 
 const BUSINESS_SYNERGIES: BusinessSynergy[] = [
   {
@@ -384,11 +404,153 @@ const GROUP_COMPANIES: GroupCompany[] = [
 ];
 
 export default function ItochuSynergyPage() {
+  const { planId } = useParams();
   const { plan } = usePlan();
   
+  // planIdに応じてコンテンツを表示するかどうかを決定
+  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
+  
+  // 会社名を取得（planから取得、なければデフォルト値）
+  const companyName = (plan as any)?.companyName || '株式会社AIアシスタント';
+  
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
+  const { showContainers } = useContainerVisibility();
   const [expandedService, setExpandedService] = useState<string | null>(null);
   const [expandedCompany, setExpandedCompany] = useState<string | null>(null);
+  
+  // 固定ページ形式のコンテナ管理
+  const [fixedPageContainers, setFixedPageContainers] = useState<FixedPageContainer[]>([]);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingContent, setEditingContent] = useState('');
+  
+  // コンポーネント化版かどうかを判定
+  const isComponentized = plan?.pagesBySubMenu && 
+    typeof plan.pagesBySubMenu === 'object' && 
+    Object.keys(plan.pagesBySubMenu).length > 0 &&
+    Object.values(plan.pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+  
+  // 固定ページ形式のコンテナをFirestoreから読み込む
+  useEffect(() => {
+    if (isComponentized || !plan || !db || !auth?.currentUser) {
+      return;
+    }
+    
+    const loadContainers = async () => {
+      try {
+        if (!db) return;
+        const planDoc = await getDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id));
+        if (planDoc.exists()) {
+          const data = planDoc.data();
+          const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+          const containers = containersBySubMenu['itochu-synergy'] || [];
+          setFixedPageContainers(containers);
+        }
+      } catch (error) {
+        console.error('コンテナの読み込みエラー:', error);
+      }
+    };
+    
+    loadContainers();
+  }, [plan, isComponentized, db, auth]);
+  
+  // 固定ページ形式のコンテナをFirestoreに保存
+  const saveContainers = useCallback(async (containers: FixedPageContainer[]) => {
+    if (!plan || !db || !auth?.currentUser) return;
+    
+    try {
+      if (!db) return;
+      const planDoc = await getDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id));
+      if (planDoc.exists()) {
+        const data = planDoc.data();
+        const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+        await updateDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id), {
+          fixedPageContainersBySubMenu: {
+            ...containersBySubMenu,
+            'itochu-synergy': containers,
+          },
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.error('コンテナの保存エラー:', error);
+      alert('コンテナの保存に失敗しました。');
+    }
+  }, [plan, db, auth]);
+  
+  // コンテナの編集を開始
+  const handleStartEditContainer = useCallback((containerId: string) => {
+    const container = fixedPageContainers.find(c => c.id === containerId);
+    if (container) {
+      setEditingContainerId(containerId);
+      setEditingTitle(container.title);
+      setEditingContent(container.content);
+    }
+  }, [fixedPageContainers]);
+  
+  // コンテナの編集を保存
+  const handleSaveEditContainer = useCallback(async () => {
+    if (!editingContainerId) return;
+    
+    const updatedContainers = fixedPageContainers.map(c =>
+      c.id === editingContainerId
+        ? { ...c, title: editingTitle, content: editingContent }
+        : c
+    );
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, [editingContainerId, editingTitle, editingContent, fixedPageContainers, saveContainers]);
+  
+  // コンテナの編集をキャンセル
+  const handleCancelEditContainer = useCallback(() => {
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, []);
+  
+  // コンテナを削除
+  const handleDeleteContainer = useCallback(async (containerId: string) => {
+    if (!confirm('このコンテナを削除しますか？')) return;
+    
+    const updatedContainers = fixedPageContainers
+      .filter(c => c.id !== containerId)
+      .map((c, index) => ({ ...c, order: index }));
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（上に移動）
+  const handleMoveContainerUp = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index <= 0) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index - 1], updatedContainers[index]] = [updatedContainers[index], updatedContainers[index - 1]];
+    updatedContainers[index - 1].order = index - 1;
+    updatedContainers[index].order = index;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（下に移動）
+  const handleMoveContainerDown = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index < 0 || index >= fixedPageContainers.length - 1) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index], updatedContainers[index + 1]] = [updatedContainers[index + 1], updatedContainers[index]];
+    updatedContainers[index].order = index;
+    updatedContainers[index + 1].order = index + 1;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
   const [expandedQuantitative, setExpandedQuantitative] = useState<boolean>(false);
   const [expandedQualitative, setExpandedQualitative] = useState<boolean>(false);
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
@@ -409,7 +571,7 @@ export default function ItochuSynergyPage() {
   }, []);
 
   // 獲得価値アーキテクチャ図を生成
-  const generateValueArchitectureDiagram = () => {
+  const generateValueArchitectureDiagram = (companyName: string) => {
     let diagram = 'graph TB\n';
     diagram += '    direction TB\n';
     diagram += '    classDef startupClass fill:#6495ED,stroke:#4169E1,stroke-width:3px,color:#fff\n';
@@ -418,7 +580,7 @@ export default function ItochuSynergyPage() {
     diagram += '    classDef area2Class fill:#FFF9C4,stroke:#F9A825,stroke-width:2px,color:#000\n';
     diagram += '    classDef groupClass fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000\n\n';
     
-    diagram += '    Startup["株式会社AIアシスタント<br/>設立・事業立ち上げ"]\n\n';
+    diagram += `    Startup["${companyName}<br/>設立・事業立ち上げ"]\n\n`;
     
     diagram += '    subgraph Quantitative["定量面（数値で測定可能な価値）"]\n';
     diagram += '        Q1["事業実績・売上<br/>━━━━━━━━━━━━━━━━<br/>・ユーザー獲得数<br/>・B2B契約数<br/>・プレミアムプラン加入者数<br/>・パートナー連携件数<br/>・代行サービス取扱件数<br/>・売上高・利益率"]\n';
@@ -474,7 +636,7 @@ export default function ItochuSynergyPage() {
   };
 
   // Mermaid図を生成（SOW構造化版）
-  const generateSynergyDiagram = () => {
+  const generateSynergyDiagram = (companyName: string) => {
     let diagram = 'graph TB\n';
     diagram += '    direction TB\n';
     diagram += '    classDef area1Class fill:#E3F2FD,stroke:#1976D2,stroke-width:2px,color:#000\n';
@@ -485,7 +647,7 @@ export default function ItochuSynergyPage() {
     diagram += '    classDef sowClass fill:#F5F5F5,stroke:#666,stroke-width:1px,color:#000\n\n';
     
     diagram += '    Area1["エリア1: 情報・通信部門AI事業戦略<br/>━━━━━━━━━━━━━━━━<br/>【SOW】<br/>・AI新規事業会社の設立<br/>・ドッグフーディング案件の創出<br/>・AI活用ノウハウの獲得<br/>・業務コンサル基盤の構築"]\n';
-    diagram += '    Company["株式会社AIアシスタント<br/>━━━━━━━━━━━━━━━━<br/>【役割】プレイグラウンド<br/>【提供】出産支援パーソナルアプリ<br/>【成果物】実績・ノウハウ・データ"]\n';
+    diagram += `    Company["${companyName}<br/>━━━━━━━━━━━━━━━━<br/>【役割】プレイグラウンド<br/>【提供】出産支援パーソナルアプリ<br/>【成果物】実績・ノウハウ・データ"]\n`;
     diagram += '    Google["Google等大手AI企業<br/>━━━━━━━━━━━━━━━━<br/>【SOW】<br/>・AIモデル・Agent技術提供<br/>・協業連携・技術支援"]\n\n';
     
     diagram += '    subgraph SOW1["SOW: ベルシステム24"]\n';
@@ -577,7 +739,7 @@ export default function ItochuSynergyPage() {
   };
 
   // 各グループ会社とのSOW図を生成（シーケンス図版）
-  const generateCompanySOWDiagram = (serviceId: string, companyName: string) => {
+  const generateCompanySOWDiagram = (serviceId: string, companyName: string, ourCompanyName: string) => {
     const businessSynergy = BUSINESS_SYNERGIES.find(bs => bs.serviceId === serviceId);
     if (!businessSynergy) return '';
     
@@ -585,7 +747,7 @@ export default function ItochuSynergyPage() {
     if (!company) return '';
 
     let diagram = 'sequenceDiagram\n';
-    diagram += `    participant C as 株式会社AIアシスタント<br/>${businessSynergy.serviceName}\n`;
+    diagram += `    participant C as ${ourCompanyName}<br/>${businessSynergy.serviceName}\n`;
     diagram += `    participant G as ${company.companyName}\n\n`;
     
     diagram += `    Note over C: 【役割】<br/>・${businessSynergy.serviceName}<br/>・AI活用ノウハウ獲得\n\n`;
@@ -638,9 +800,9 @@ export default function ItochuSynergyPage() {
       try {
         // expandedCompanyからserviceIdとcompanyNameを抽出
         const [serviceId, ...companyNameParts] = expandedCompany.split('-');
-        const companyName = companyNameParts.join('-');
+        const groupCompanyName = companyNameParts.join('-');
         
-        const diagram = generateCompanySOWDiagram(serviceId, companyName);
+        const diagram = generateCompanySOWDiagram(serviceId, groupCompanyName, companyName);
         if (!diagram) return;
 
         if (window.mermaid) {
@@ -695,7 +857,7 @@ export default function ItochuSynergyPage() {
 
     const renderValueArchitecture = async () => {
       try {
-        const diagram = generateValueArchitectureDiagram();
+        const diagram = generateValueArchitectureDiagram(companyName);
         
         if (window.mermaid) {
           window.mermaid.initialize({ 
@@ -728,7 +890,7 @@ export default function ItochuSynergyPage() {
     const renderDiagram = async () => {
       try {
         setError(null);
-        const diagram = generateSynergyDiagram();
+        const diagram = generateSynergyDiagram(companyName);
         
         if (window.mermaid) {
           window.mermaid.initialize({ 
@@ -783,6 +945,11 @@ export default function ItochuSynergyPage() {
     return <ComponentizedCompanyPlanOverview />;
   }
 
+  // 固定ページ形式で、planId固有のコンテンツが存在しない場合、コンテナがあるかチェック
+  if (!hasCustomContent && (!fixedPageContainers || fixedPageContainers.length === 0)) {
+    return null;
+  }
+
   return (
     <>
       <Script
@@ -802,7 +969,7 @@ export default function ItochuSynergyPage() {
       {/* 事業立ち上げによる獲得価値 */}
       <div className="card" style={{ marginBottom: '24px' }}>
         <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)' }}>
-          株式会社AIアシスタント設立・事業立ち上げによる獲得価値
+          {companyName}設立・事業立ち上げによる獲得価値
         </h3>
         
         {/* 獲得価値アーキテクチャ図 */}
@@ -1155,7 +1322,7 @@ export default function ItochuSynergyPage() {
                                         if (mermaidLoaded && expandedService === businessSynergy.serviceId && expandedCompany === companyKey) {
                                           const renderDiagram = async () => {
                                             try {
-                                              const diagram = generateCompanySOWDiagram(businessSynergy.serviceId, company.companyName);
+                                              const diagram = generateCompanySOWDiagram(businessSynergy.serviceId, company.companyName, companyName);
                                               if (!diagram) return;
 
                                               if (window.mermaid) {
@@ -1458,6 +1625,257 @@ export default function ItochuSynergyPage() {
           </div>
         </div>
       </div>
+      
+      {/* 固定ページ形式のコンテナセクション */}
+      {!hasCustomContent && !isComponentized && fixedPageContainers.length > 0 && (
+        <>
+          {fixedPageContainers
+            .sort((a, b) => a.order - b.order)
+            .map((container, index) => {
+              // 固定ページコンテナの順序に基づいて1から始まる連番を振る
+              const containerNumber = index + 1;
+              
+              return (
+                <div
+                  key={container.id}
+                  data-page-container={containerNumber.toString()}
+                  style={{
+                    marginBottom: '24px',
+                    position: 'relative',
+                    ...(showContainers ? {
+                      border: '4px dashed #000000',
+                      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                      backgroundColor: 'transparent',
+                    } : {}),
+                  }}
+                >
+                  {/* 編集・削除・順序変更ボタン */}
+                  {showContainers && auth?.currentUser && (
+                    <div 
+                      className="container-control-buttons"
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                      display: 'flex',
+                      gap: '4px',
+                      zIndex: 10,
+                    }}>
+                      {/* 上に移動 */}
+                      {container.order > 0 && (
+                        <button
+                          onClick={() => handleMoveContainerUp(container.id)}
+                          style={{
+                            background: 'rgba(255,255,255,0.9)',
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            fontSize: '12px',
+                          }}
+                          title="上に移動"
+                        >
+                          ↑
+                        </button>
+                      )}
+                      {/* 下に移動 */}
+                      {container.order < fixedPageContainers.length - 1 && (
+                        <button
+                          onClick={() => handleMoveContainerDown(container.id)}
+                          style={{
+                            background: 'rgba(255,255,255,0.9)',
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            fontSize: '12px',
+                          }}
+                          title="下に移動"
+                        >
+                          ↓
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleStartEditContainer(container.id)}
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          borderRadius: '4px',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        title="編集"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteContainer(container.id)}
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          borderRadius: '4px',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        title="削除"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
+                  {/* タイトル */}
+                  <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h3 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      borderLeft: '3px solid var(--color-primary)',
+                      paddingLeft: '8px',
+                      margin: 0,
+                      flex: 1,
+                    }}>
+                      {container.title}
+                    </h3>
+                    <span 
+                      className="container-page-number"
+                      style={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      color: 'var(--color-text-light)',
+                      marginLeft: '16px',
+                    }}>
+                      {containerNumber}
+                    </span>
+                  </div>
+                  {/* コンテンツ */}
+                  <div
+                    style={{
+                      padding: '16px',
+                      minHeight: '100px',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: container.content }}
+                  />
+                </div>
+              );
+            })}
+          
+          {/* 編集モーダル */}
+          {editingContainerId && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}>
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '24px',
+                borderRadius: '8px',
+                width: '90%',
+                maxWidth: '600px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}>
+                <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>コンテナを編集</h3>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>タイトル</label>
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>コンテンツ (HTML)</label>
+                  <textarea
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    rows={10}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button
+                    onClick={handleCancelEditContainer}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#E5E7EB',
+                      color: '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleSaveEditContainer}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

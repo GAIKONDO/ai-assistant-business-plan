@@ -1,6 +1,7 @@
 'use client';
 
-import { usePlan } from '../layout';
+import { usePlan } from '../hooks/usePlan';
+import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
@@ -9,13 +10,29 @@ const ComponentizedCompanyPlanOverview = dynamic(
   { ssr: false }
 );
 
+// planIdごとの固定コンテンツコンポーネント（条件付きインポート）
+// 固定コンテンツがあるplanIdのマッピング
+const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
+  '9pu2rwOCRjG5gxmqX2tO': true,
+};
+
 export default function SnapshotComparisonPage() {
   const { plan } = usePlan();
+  const params = useParams();
+  const planId = params.planId as string;
+  
+  // planIdに応じてコンテンツを表示するかどうかを決定
+  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
   
   // コンポーネント化されたページを使用するかチェック
   // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
   if (plan?.pagesBySubMenu) {
     return <ComponentizedCompanyPlanOverview />;
+  }
+
+  // 固定ページ形式で、planId固有のコンテンツが存在しない場合は何も表示しない
+  if (!hasCustomContent) {
+    return null;
   }
   return (
     <>

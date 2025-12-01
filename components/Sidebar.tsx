@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon, VisualizationsIcon } from './Icons';
-import { collection, query, where, getDocs, orderBy } from 'firebase/firestore';
+import { collection, query, where, getDocs, orderBy, Timestamp } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 
@@ -219,15 +219,15 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                 id: doc.id,
                 title: data.name || conceptId,
                 conceptId: conceptId,
-                createdAt: data.createdAt?.toDate() || null,
+                createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
               });
             }
           });
 
           // 作成日時でソート（降順）
           concepts.sort((a, b) => {
-            const aTime = a.createdAt?.getTime() || 0;
-            const bTime = b.createdAt?.getTime() || 0;
+            const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+            const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
             return bTime - aTime;
           });
 
@@ -323,7 +323,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           companyPlans.push({
             id: doc.id,
             title: data.title || '会社事業計画',
-            createdAt: data.createdAt?.toDate() || null,
+            createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
           });
         });
 
@@ -350,20 +350,20 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           projects.push({
             id: doc.id,
             title: projectTitle,
-            createdAt: data.createdAt?.toDate() || null,
+            createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
           });
         });
 
         // 作成日時でソート（降順）
         companyPlans.sort((a, b) => {
-          const aTime = a.createdAt?.getTime() || 0;
-          const bTime = b.createdAt?.getTime() || 0;
+          const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+          const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
           return bTime - aTime;
         });
 
         projects.sort((a, b) => {
-          const aTime = a.createdAt?.getTime() || 0;
-          const bTime = b.createdAt?.getTime() || 0;
+          const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+          const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
           return bTime - aTime;
         });
 

@@ -57,14 +57,16 @@ export default function KeyVisualPDFMetadataEditor({
         setSignatureFontSize(initialMetadata.signatureFontSize || 6);
         setDateFontSize(initialMetadata.dateFontSize || 6);
       } else {
-        // デフォルト値：右下に右揃えで3列
+        // デフォルト値：右下に右揃えで3列（16:9横長に合わせた位置）
         setTitle('');
         setSignature('');
         setDate(new Date().toLocaleDateString('ja-JP'));
-        setPositionX(pageWidth - 10); // 右から10mm
-        setPositionY(pageHeight - 10); // 下から10mm
+        // 右下に配置（右端から10mm、下端から10mm）
+        // pageWidth = 254mm, pageHeight = 143mm
+        setPositionX(pageWidth - 10); // 244mm（右端から10mm内側）
+        setPositionY(pageHeight - 10); // 133mm（下端から10mm上）
         setAlign('right');
-        setTitleFontSize(6);
+        setTitleFontSize(14); // デフォルトを少し大きく（横長なので）
         setSignatureFontSize(6);
         setDateFontSize(6);
       }
@@ -90,21 +92,34 @@ export default function KeyVisualPDFMetadataEditor({
 
   if (!isOpen) return null;
 
-  // プレビューのスタイルを計算
+  // プレビューのスタイルを計算（16:9の比率を維持）
+  // プレビューエリアのサイズ（px単位）
+  const previewHeight = 400; // 固定高さ
+  const previewWidth = (pageWidth / pageHeight) * previewHeight; // アスペクト比を維持
+  
+  // mmからpxへの変換率（プレビューエリアのサイズに基づく）
+  const mmToPxX = previewWidth / pageWidth;
+  const mmToPxY = previewHeight / pageHeight;
+  
   const previewStyle: React.CSSProperties = {
     position: 'relative',
-    width: `${(pageWidth / pageHeight) * 400}px`,
-    height: '400px',
+    width: `${previewWidth}px`,
+    height: `${previewHeight}px`,
     backgroundColor: '#f5f5f5',
     border: '1px solid #ddd',
     margin: '20px auto',
   };
 
+  // テキストの位置をmm単位からpx単位に正確に変換
   const textStyle: React.CSSProperties = {
     position: 'absolute',
-    right: align === 'right' ? `${(pageWidth - positionX) / pageWidth * 100}%` : 'auto',
-    left: align === 'left' ? `${positionX / pageWidth * 100}%` : align === 'center' ? '50%' : 'auto',
-    bottom: `${(pageHeight - positionY) / pageHeight * 100}%`,
+    // X座標: mm単位のpositionXをpx単位に変換
+    // 右揃えの場合は、右端からの距離を計算
+    right: align === 'right' ? `${(pageWidth - positionX) * mmToPxX}px` : 'auto',
+    // 左揃えの場合は、左端からの距離を計算
+    left: align === 'left' ? `${positionX * mmToPxX}px` : align === 'center' ? '50%' : 'auto',
+    // Y座標: mm単位のpositionYをpx単位に変換（下端からの距離）
+    bottom: `${(pageHeight - positionY) * mmToPxY}px`,
     transform: align === 'center' ? 'translateX(-50%)' : 'none',
     textAlign: align,
     color: '#666',
@@ -154,9 +169,29 @@ export default function KeyVisualPDFMetadataEditor({
           <div ref={previewRef} style={previewStyle}>
             {(title || signature || date) && (
               <div style={textStyle}>
-                {title && <div style={{ fontSize: `${titleFontSize * 1.33}px` }}>{title}</div>}
-                {signature && <div style={{ fontSize: `${signatureFontSize * 1.33}px` }}>{signature}</div>}
-                {date && <div style={{ fontSize: `${dateFontSize * 1.33}px` }}>{date}</div>}
+                {title && (
+                  <div style={{ 
+                    fontSize: `${titleFontSize * (mmToPxY * 0.352778)}px`, // ptからpxへの変換（1pt = 0.352778mm）
+                    marginBottom: `${titleFontSize * 0.7 * (mmToPxY * 0.352778)}px`
+                  }}>
+                    {title}
+                  </div>
+                )}
+                {signature && (
+                  <div style={{ 
+                    fontSize: `${signatureFontSize * (mmToPxY * 0.352778)}px`,
+                    marginBottom: `${signatureFontSize * 0.7 * (mmToPxY * 0.352778)}px`
+                  }}>
+                    {signature}
+                  </div>
+                )}
+                {date && (
+                  <div style={{ 
+                    fontSize: `${dateFontSize * (mmToPxY * 0.352778)}px`
+                  }}>
+                    {date}
+                  </div>
+                )}
               </div>
             )}
           </div>
@@ -253,9 +288,40 @@ export default function KeyVisualPDFMetadataEditor({
             borderRadius: '8px',
             border: '1px solid #e5e7eb'
           }}>
-            <h3 style={{ marginTop: 0, marginBottom: '16px', fontSize: '16px', fontWeight: 600, color: '#111827' }}>
-              位置設定
-            </h3>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
+              <h3 style={{ marginTop: 0, marginBottom: 0, fontSize: '16px', fontWeight: 600, color: '#111827' }}>
+                位置設定
+              </h3>
+              <button
+                onClick={() => {
+                  // デフォルト値：右下に右揃え（右端から10mm、下端から10mm）
+                  setPositionX(pageWidth - 10); // 244mm（右端から10mm内側）
+                  setPositionY(pageHeight - 10); // 133mm（下端から10mm上）
+                  setAlign('right');
+                }}
+                style={{
+                  padding: '6px 12px',
+                  backgroundColor: '#f3f4f6',
+                  color: '#374151',
+                  border: '1px solid #d1d5db',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '12px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#e5e7eb';
+                  e.currentTarget.style.borderColor = '#9ca3af';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#f3f4f6';
+                  e.currentTarget.style.borderColor = '#d1d5db';
+                }}
+              >
+                デフォルト設定
+              </button>
+            </div>
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px' }}>
               <div>
                 <label style={{ display: 'block', marginBottom: '6px', fontSize: '13px', fontWeight: 500, color: '#374151' }}>

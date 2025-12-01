@@ -1,5 +1,8 @@
 'use client';
 
+import { useParams } from 'next/navigation';
+import { usePlan } from '../hooks/usePlan';
+import dynamic from 'next/dynamic';
 import ChaosMap, { ChaosMapData } from '@/components/ChaosMap';
 import BubbleChart, { BubbleData } from '@/components/BubbleChart';
 import ScatterBubbleChart, { ScatterBubbleData } from '@/components/ScatterBubbleChart';
@@ -8,6 +11,18 @@ import BusinessSunburst, { SunburstNode } from '@/components/BusinessSunburst';
 import BusinessRadialBar, { RadialBarData } from '@/components/BusinessRadialBar';
 import AlluvialDiagram, { AlluvialDiagramData } from '@/components/AlluvialDiagram';
 import EcosystemAlluvialDiagram, { EcosystemAlluvialData } from '@/components/EcosystemAlluvialDiagram';
+
+// ComponentizedCompanyPlanOverviewを動的インポート
+const ComponentizedCompanyPlanOverview = dynamic(
+  () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
+  { ssr: false }
+);
+
+// planIdごとの固定コンテンツコンポーネント（条件付きインポート）
+// 固定コンテンツがあるplanIdのマッピング
+const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
+  '9pu2rwOCRjG5gxmqX2tO': true,
+};
 
 // サンプルデータ（実際のデータはFirebaseなどから取得）
 const sampleChaosMapData: ChaosMapData = {
@@ -678,6 +693,24 @@ const maternityCareChallengeFlowData: EcosystemAlluvialData = {
 };
 
 export default function VisualizationsPage() {
+  const { plan } = usePlan();
+  const params = useParams();
+  const planId = params.planId as string;
+  
+  // planIdに応じてコンテンツを表示するかどうかを決定
+  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
+  
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+
+  // 固定ページ形式で、planId固有のコンテンツが存在しない場合は何も表示しない
+  if (!hasCustomContent) {
+    return null;
+  }
+
   return (
     <>
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>

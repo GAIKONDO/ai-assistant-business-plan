@@ -33,7 +33,10 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
 
   const formatDate = (date?: Date) => {
     if (!date) return '';
-    return new Date(date).toLocaleDateString('ja-JP', {
+    // Dateオブジェクトでない場合は変換を試みる
+    const dateObj = date instanceof Date ? date : new Date(date);
+    if (isNaN(dateObj.getTime())) return '';
+    return dateObj.toLocaleDateString('ja-JP', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
@@ -173,9 +176,18 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
       {plan.createdAt && (
         <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-border-color)', fontSize: '12px', color: 'var(--color-text-light)' }}>
           作成日: {formatDate(plan.createdAt)}
-          {plan.updatedAt && plan.updatedAt.getTime() !== plan.createdAt.getTime() && (
-            <> | 更新日: {formatDate(plan.updatedAt)}</>
-          )}
+          {plan.updatedAt && (() => {
+            try {
+              const createdAtDate = plan.createdAt instanceof Date ? plan.createdAt : new Date(plan.createdAt);
+              const updatedAtDate = plan.updatedAt instanceof Date ? plan.updatedAt : new Date(plan.updatedAt);
+              if (!isNaN(createdAtDate.getTime()) && !isNaN(updatedAtDate.getTime()) && updatedAtDate.getTime() !== createdAtDate.getTime()) {
+                return <> | 更新日: {formatDate(plan.updatedAt)}</>;
+              }
+            } catch (e) {
+              // エラーが発生した場合は更新日を表示しない
+            }
+            return null;
+          })()}
         </div>
       )}
     </div>

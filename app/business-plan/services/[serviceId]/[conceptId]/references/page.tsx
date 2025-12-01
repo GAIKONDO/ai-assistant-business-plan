@@ -23,15 +23,9 @@ export default function ReferencesPage() {
   const params = useParams();
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [references, setReferences] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
-  
-  // コンポーネント化されたページを使用するかチェック
-  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
-      conceptId.includes('-componentized')) {
-    return <ComponentizedOverview />;
-  }
-  
   const [editingId, setEditingId] = useState<string | null>(null);
   const [newReference, setNewReference] = useState({ title: '', url: '', publishedDate: '' });
   const [showAddForm, setShowAddForm] = useState(false);
@@ -123,6 +117,12 @@ export default function ReferencesPage() {
 
     loadReferences();
   }, [serviceId, conceptId]);
+
+  // コンポーネント化されたページを使用するかチェック
+  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
+      conceptId.includes('-componentized')) {
+    return <ComponentizedOverview />;
+  }
 
   // Firestoreに参考文献を保存
   const saveReferences = async (updatedReferences: Reference[]) => {

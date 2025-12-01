@@ -83,8 +83,9 @@ export default function SettingsPage() {
     try {
       setLoading(true);
       if (!db) return;
+      const dbInstance = db;
       // Firestoreからユーザー情報を取得
-      const usersRef = collection(db, 'users');
+      const usersRef = collection(dbInstance, 'users');
       const q = query(usersRef);
       const querySnapshot = await getDocs(q);
       
@@ -96,7 +97,7 @@ export default function SettingsPage() {
         const userId = userDoc.id;
         
         // ログイン履歴を取得（最新1件と全件を並列で取得）
-        const loginHistoryRef = collection(db, 'users', userId, 'loginHistory');
+        const loginHistoryRef = collection(dbInstance, 'users', userId, 'loginHistory');
         const [lastLoginSnapshot, allLoginSnapshot] = await Promise.all([
           getDocs(query(loginHistoryRef, orderBy('loginAt', 'desc'), limit(1))),
           getDocs(query(loginHistoryRef))

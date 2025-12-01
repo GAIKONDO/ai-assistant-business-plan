@@ -3,7 +3,7 @@
 import { useState, useEffect, createContext, useContext, useCallback, useRef, startTransition, useMemo } from 'react';
 import { useParams, usePathname, useRouter } from 'next/navigation';
 import { onAuthStateChanged } from 'firebase/auth';
-import { doc, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import Script from 'next/script';
 import { auth, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
@@ -14,6 +14,11 @@ import { PresentationModeProvider, usePresentationMode } from '@/components/Pres
 import PageBreakEditor from '@/components/PageBreakEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
 import { ComponentizedCompanyPlanPageProvider, useComponentizedCompanyPlanPageOptional } from '@/components/pages/component-test/test-concept/ComponentizedCompanyPlanPageContext';
+import { PlanContext, usePlan } from './hooks/usePlan';
+import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
+
+// Page0コンポーネントから使用できるようにエクスポート
+export { usePlan, useContainerVisibility };
 
 declare global {
   interface Window {
@@ -27,41 +32,6 @@ declare global {
     mermaid?: any;
   }
 }
-
-interface PlanContextType {
-  plan: (BusinessPlanData & { id: string }) | null;
-  loading: boolean;
-  reloadPlan: () => Promise<void>;
-}
-
-const PlanContext = createContext<PlanContextType>({ 
-  plan: null, 
-  loading: true,
-  reloadPlan: async () => {},
-});
-
-export const usePlan = () => {
-  const context = useContext(PlanContext);
-  if (context === undefined) {
-    throw new Error('usePlan must be used within a PlanContext.Provider');
-  }
-  return context;
-};
-
-interface ContainerVisibilityContextType {
-  showContainers: boolean;
-  setShowContainers: (show: boolean) => void;
-}
-
-const ContainerVisibilityContext = createContext<ContainerVisibilityContextType | undefined>(undefined);
-
-export const useContainerVisibility = () => {
-  const context = useContext(ContainerVisibilityContext);
-  if (context === undefined) {
-    throw new Error('useContainerVisibility must be used within a ContainerVisibilityProvider');
-  }
-  return context;
-};
 
 export default function CompanyPlanDetailLayout({
   children,
@@ -102,7 +72,13 @@ export default function CompanyPlanDetailLayout({
           keyVisualHeight: data.keyVisualHeight || 56.25, // キービジュアルの高さ（%）
           keyVisualScale: data.keyVisualScale || 100, // キービジュアルのスケール（%）
           keyVisualLogoUrl: data.keyVisualLogoUrl || '', // PDFロゴのURL
+          keyVisualLogoSize: data.keyVisualLogoSize || 15, // PDFロゴのサイズ（mm）
           keyVisualMetadata: data.keyVisualMetadata || undefined, // PDFメタデータ（タイトル、署名、作成日）
+          titlePositionX: data.titlePositionX ?? 5, // PDFタイトルのX位置（mm）
+          titlePositionY: data.titlePositionY ?? -3, // PDFタイトルのY位置（mm）
+          titleFontSize: data.titleFontSize ?? 12, // PDFタイトルのフォントサイズ（px）
+          titleBorderEnabled: data.titleBorderEnabled !== undefined ? data.titleBorderEnabled : true, // PDFタイトルのボーダー（縦棒）の有無（デフォルトは有り）
+          footerText: data.footerText || 'AI assistant company, Inc - All Rights Reserved', // PDFフッターテキスト（デフォルト値）
           pagesBySubMenu: data.pagesBySubMenu, // サブメニューごとのページデータ
           pageOrderBySubMenu: data.pageOrderBySubMenu, // サブメニューごとのページ順序
         };
@@ -232,27 +208,7 @@ function CompanyPlanLayoutContent({
   // コンポーネント化されたページのコンテキストを取得（オプショナル）
   const componentizedPageContext = useComponentizedCompanyPlanPageOptional();
   
-  // 固定ページ形式に戻す処理
-  const handleRevertToFixedPage = useCallback(async () => {
-    if (!plan || !db || !auth?.currentUser) return;
-    
-    if (!confirm('コンポーネント化版から固定ページ形式に戻しますか？\n\n注意: コンポーネント化版のページデータは削除されますが、元の固定ページの内容は保持されます。')) {
-      return;
-    }
-    
-    try {
-      await updateDoc(doc(db, 'companyBusinessPlan', plan.id), {
-        pagesBySubMenu: deleteField(),
-        pageOrderBySubMenu: deleteField(),
-      });
-      
-      alert('固定ページ形式に戻しました。ページをリロードします。');
-      window.location.reload();
-    } catch (error) {
-      console.error('エラー:', error);
-      alert('固定ページ形式への戻しに失敗しました。');
-    }
-  }, [plan]);
+  // showContainersの状態をローカルで管理（固定ページ形式の場合）
   const pathname = usePathname();
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
   const [showSlideThumbnails, setShowSlideThumbnails] = useState(false);
@@ -264,7 +220,25 @@ function CompanyPlanLayoutContent({
   const [pageBreakIds, setPageBreakIds] = useState<string[]>([]);
   const [mousePosition, setMousePosition] = useState({ x: 0, y: 0 });
   const presentationContainerRef = useRef<HTMLDivElement>(null);
-  const [showContainers, setShowContainers] = useState(false); // コンテナの表示・非表示状態
+  
+  // showContainersの状態をローカルで管理
+  const [localShowContainers, setLocalShowContainers] = useState(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('showContainers');
+      return saved === 'true';
+    }
+    return false;
+  });
+  
+  const showContainers = localShowContainers;
+  const setShowContainers = setLocalShowContainers;
+  
+  // showContainersの状態をlocalStorageに保存
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('showContainers', showContainers.toString());
+    }
+  }, [showContainers]);
   const [isExportingPDF, setIsExportingPDF] = useState(false); // PDF出力中の状態
   const contentContainerRef = useRef<HTMLDivElement>(null);
   const [contentAspectRatio, setContentAspectRatio] = useState<number | null>(null);
@@ -278,6 +252,148 @@ function CompanyPlanLayoutContent({
   const [subMenuOpen, setSubMenuOpen] = useState(true); // サブメニューの表示状態
   const [showPDFSubMenuSelector, setShowPDFSubMenuSelector] = useState(false); // PDF出力時のサブメニュー選択モーダル
   const [selectedSubMenusForPDF, setSelectedSubMenusForPDF] = useState<Set<string>>(new Set([currentSubMenu])); // 選択されたサブメニュー
+  const [subMenuPagesStatus, setSubMenuPagesStatus] = useState<Array<{ id: string; label: string; hasPages: boolean }>>([]); // サブメニューのページ有無状態
+  const [isCheckingPages, setIsCheckingPages] = useState(false); // ページ確認中かどうか
+  
+  // 固定ページ形式のコンテナ管理用の状態
+  interface FixedPageContainer {
+    id: string;
+    title: string;
+    content: string;
+    order: number;
+  }
+  const [fixedPageContainers, setFixedPageContainers] = useState<FixedPageContainer[]>([]);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingContent, setEditingContent] = useState('');
+  
+  // 固定ページ形式のコンテナはpage.tsxで直接定義するため、Firestoreから読み込まない
+  // useEffect(() => {
+  //   if (isComponentized || !plan || !db || !auth?.currentUser) {
+  //     console.log('コンテナ読み込みスキップ:', { isComponentized, plan: !!plan, db: !!db, auth: !!auth?.currentUser });
+  //     return;
+  //   }
+  //   
+  //   const loadContainers = async () => {
+  //     try {
+  //       const planDoc = await getDoc(doc(db, 'companyBusinessPlan', plan.id));
+  //       if (planDoc.exists()) {
+  //         const data = planDoc.data();
+  //         const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+  //         const containers = containersBySubMenu[currentSubMenu] || [];
+  //         console.log('コンテナを読み込みました:', { currentSubMenu, containersCount: containers.length, containers });
+  //         setFixedPageContainers(containers);
+  //       }
+  //     } catch (error) {
+  //       console.error('コンテナの読み込みエラー:', error);
+  //     }
+  //   };
+  //   
+  //   loadContainers();
+  // }, [plan, currentSubMenu, isComponentized, db, auth]);
+  
+  // 固定ページ形式のコンテナをFirestoreに保存
+  const saveContainers = useCallback(async (containers: FixedPageContainer[]) => {
+    if (!plan || !db || !auth?.currentUser) return;
+    
+    try {
+      const planDoc = await getDoc(doc(db, 'companyBusinessPlan', plan.id));
+      if (planDoc.exists()) {
+        const data = planDoc.data();
+        const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+        await updateDoc(doc(db, 'companyBusinessPlan', plan.id), {
+          fixedPageContainersBySubMenu: {
+            ...containersBySubMenu,
+            [currentSubMenu]: containers,
+          },
+          updatedAt: serverTimestamp(),
+        });
+        console.log('layout.tsx: コンテナを保存しました:', { currentSubMenu, containersCount: containers.length, containers });
+        // planを再読み込みして、overview/page.tsxなど他のコンポーネントにも反映
+        if (reloadPlan) {
+          await reloadPlan();
+        }
+      }
+    } catch (error) {
+      console.error('コンテナの保存エラー:', error);
+      alert('コンテナの保存に失敗しました。');
+    }
+  }, [plan, currentSubMenu, db, auth, reloadPlan]);
+  
+  
+  // コンテナの編集を開始
+  const handleStartEditContainer = useCallback((containerId: string) => {
+    const container = fixedPageContainers.find(c => c.id === containerId);
+    if (container) {
+      setEditingContainerId(containerId);
+      setEditingTitle(container.title);
+      setEditingContent(container.content);
+    }
+  }, [fixedPageContainers]);
+  
+  // コンテナの編集を保存
+  const handleSaveEditContainer = useCallback(async () => {
+    if (!editingContainerId) return;
+    
+    const updatedContainers = fixedPageContainers.map(c =>
+      c.id === editingContainerId
+        ? { ...c, title: editingTitle, content: editingContent }
+        : c
+    );
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, [editingContainerId, editingTitle, editingContent, fixedPageContainers, saveContainers]);
+  
+  // コンテナの編集をキャンセル
+  const handleCancelEditContainer = useCallback(() => {
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, []);
+  
+  // コンテナを削除
+  const handleDeleteContainer = useCallback(async (containerId: string) => {
+    if (!confirm('このコンテナを削除しますか？')) return;
+    
+    const updatedContainers = fixedPageContainers
+      .filter(c => c.id !== containerId)
+      .map((c, index) => ({ ...c, order: index }));
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（上に移動）
+  const handleMoveContainerUp = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index <= 0) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index - 1], updatedContainers[index]] = [updatedContainers[index], updatedContainers[index - 1]];
+    updatedContainers[index - 1].order = index - 1;
+    updatedContainers[index].order = index;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（下に移動）
+  const handleMoveContainerDown = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index < 0 || index >= fixedPageContainers.length - 1) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index], updatedContainers[index + 1]] = [updatedContainers[index + 1], updatedContainers[index]];
+    updatedContainers[index].order = index;
+    updatedContainers[index + 1].order = index + 1;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
   
   // サブメニューの表示状態を監視
   useEffect(() => {
@@ -893,20 +1009,15 @@ function CompanyPlanLayoutContent({
       return;
     }
 
-    // 各サブメニューにページがあるかどうかを確認
-    const subMenuPagesStatus: Array<{ id: string; label: string; hasPages: boolean }> = [];
-    for (const item of SUB_MENU_ITEMS) {
-      const hasPages = await checkSubMenuHasPages(item.id);
-      subMenuPagesStatus.push({ id: item.id, label: item.label, hasPages });
-    }
+    // モーダルをすぐに表示
+    setShowPDFSubMenuSelector(true);
 
     // 現在のサブメニューをデフォルトで選択
     setSelectedSubMenusForPDF(new Set([currentSubMenu]));
-    setShowPDFSubMenuSelector(true);
-  }, [showContainers, checkSubMenuHasPages, currentSubMenu]);
+  }, [showContainers, currentSubMenu]);
 
   // PDF出力機能（実際のPDF生成）
-  const handleExportToPDF = useCallback(async (selectedSubMenus: Set<string>) => {
+  const handleExportToPDF = useCallback(async (selectedSubMenus: Set<string>, downloadCallback?: (blob: Blob, fileName: string) => void) => {
     if (!showContainers) {
       alert('コンテナ表示モードでPDF出力してください。');
       return;
@@ -919,6 +1030,30 @@ function CompanyPlanLayoutContent({
     const addedStyles: HTMLElement[] = [];
 
     try {
+      setIsCheckingPages(true);
+      
+      // 選択したサブメニューにページがあるかどうかを確認（並列処理）
+      const selectedSubMenuStatus = await Promise.all(
+        Array.from(selectedSubMenus).map(async (subMenuId) => {
+          const hasPages = await checkSubMenuHasPages(subMenuId);
+          return { subMenuId, hasPages };
+        })
+      );
+      
+      // ページがないサブメニューがある場合は警告
+      const subMenusWithoutPages = selectedSubMenuStatus.filter(status => !status.hasPages);
+      if (subMenusWithoutPages.length > 0) {
+        const subMenuLabels = subMenusWithoutPages.map(status => {
+          const item = SUB_MENU_ITEMS.find(i => i.id === status.subMenuId);
+          return item?.label || status.subMenuId;
+        }).join('、');
+        alert(`以下のサブメニューにはページがありません: ${subMenuLabels}`);
+        setIsExportingPDF(false);
+        setIsCheckingPages(false);
+        return;
+      }
+      
+      setIsCheckingPages(false);
       // html2canvasとjsPDFを動的にインポート
       const html2canvas = (await import('html2canvas')).default;
       const { jsPDF } = await import('jspdf');
@@ -1446,8 +1581,6 @@ function CompanyPlanLayoutContent({
         const page0 = allContainers.splice(page0Index, 1)[0];
         allContainers.unshift(page0);
       }
-      
-      const containers = allContainers.map(c => c.container);
 
       // パワーポイント形式（16:9）のサイズを計算
       // パワーポイント標準サイズ: 25.4cm × 14.29cm (10インチ × 5.625インチ)
@@ -1466,8 +1599,10 @@ function CompanyPlanLayoutContent({
       });
 
       // 各コンテナを画像化してPDFに追加
-      for (let i = 0; i < containers.length; i++) {
-        const containerEl = containers[i];
+      for (let i = 0; i < allContainers.length; i++) {
+        const containerInfo = allContainers[i];
+        const containerEl = containerInfo.container;
+        const subMenuId = containerInfo.subMenuId;
         
         // キービジュアルコンテナかどうかを判定（data-page-container="0"）
         const isKeyVisual = containerEl.getAttribute('data-page-container') === '0';
@@ -1475,8 +1610,29 @@ function CompanyPlanLayoutContent({
         // 元のborderスタイルを保存
         const originalBorder = containerEl.style.border;
         
+        // PDF出力時に非表示にする要素を追跡する配列（各コンテナごとに初期化）
+        const hiddenElements: Array<{ element: HTMLElement; originalDisplay: string }> = [];
+        
         // PDF出力時は点線を非表示にする
         containerEl.style.border = 'none';
+        
+        // PDF出力時に編集ボタン（↑、↓、編集、ゴミ箱）を非表示にする
+        const controlButtons = containerEl.querySelectorAll('.container-control-buttons');
+        controlButtons.forEach((buttonGroup) => {
+          const buttonGroupEl = buttonGroup as HTMLElement;
+          const originalDisplay = buttonGroupEl.style.display || window.getComputedStyle(buttonGroupEl).display;
+          hiddenElements.push({ element: buttonGroupEl, originalDisplay });
+          buttonGroupEl.style.display = 'none';
+        });
+        
+        // PDF出力時に右上のページ番号を非表示にする（右下にページ番号が出力されるため）
+        const pageNumbers = containerEl.querySelectorAll('.container-page-number');
+        pageNumbers.forEach((pageNumber) => {
+          const pageNumberEl = pageNumber as HTMLElement;
+          const originalDisplay = pageNumberEl.style.display || window.getComputedStyle(pageNumberEl).display;
+          hiddenElements.push({ element: pageNumberEl, originalDisplay });
+          pageNumberEl.style.display = 'none';
+        });
         
         // コンテナのサイズを取得（レイアウトの再計算を待つ）
         await new Promise(resolve => setTimeout(resolve, 50));
@@ -1524,12 +1680,121 @@ function CompanyPlanLayoutContent({
           }
         }
 
+        // 各ページのタイトルを左上に追加（コンテンツに依存せず固定位置・固定サイズ）
+        // コンテナからタイトルを取得（PDF出力前にタイトル要素を非表示にするため、先に取得）
+        let pageTitle = '';
+        let titleElement: HTMLElement | null = null;
+        if (!isKeyVisual) {
+          // 固定ページ形式のコンテナの場合、data-pdf-title-h3属性でタイトル要素を探す
+          titleElement = containerEl.querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
+          if (titleElement) {
+            pageTitle = titleElement.textContent?.trim() || '';
+            // タイトル要素を非表示にして、PDF出力時に2重表示を防ぐ
+            const originalTitleDisplay = titleElement.style.display || window.getComputedStyle(titleElement).display;
+            hiddenElements.push({ element: titleElement, originalDisplay: originalTitleDisplay });
+            titleElement.style.display = 'none';
+          }
+          // タイトルが見つからない場合、data属性から取得を試みる
+          if (!pageTitle && db) {
+            const containerId = containerEl.getAttribute('data-page-container');
+            if (containerId && containerId !== '0') {
+              // 固定ページコンテナの場合は、Firestoreからタイトルを取得
+              try {
+                const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+                if (planDoc.exists()) {
+                  const data = planDoc.data();
+                  const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+                  const containers = containersBySubMenu[subMenuId] || [];
+                  const containerIndex = parseInt(containerId) - 1;
+                  if (containers[containerIndex]) {
+                    pageTitle = containers[containerIndex].title || '';
+                  }
+                }
+              } catch (error) {
+                console.error('タイトル取得エラー:', error);
+              }
+            }
+          }
+        }
+        
+        // タイトルを左上に追加（固定位置・固定サイズ）
+        // 日本語フォントの問題を回避するため、html2canvasを使用して画像として追加
+        // タイトルは最後に追加して、コンテンツの上に表示されるようにする
+        let titleImgData: string | null = null;
+        let titleWidth: number = 0;
+        let titleHeight: number = 0;
+        let titleX: number = 0;
+        let titleY: number = 0;
+        let titlePageTitle: string = '';
+        
+        if (pageTitle) {
+          try {
+            titlePageTitle = pageTitle;
+            // タイトル要素を一時的なDOM要素として作成（通常表示と同じスタイル）
+            const titleDiv = document.createElement('div');
+            titleDiv.style.position = 'absolute';
+            titleDiv.style.left = '-9999px';
+            titleDiv.style.top = '-9999px';
+            titleDiv.style.backgroundColor = 'transparent';
+            titleDiv.style.color = 'var(--color-text)'; // 通常表示と同じ色
+            titleDiv.style.fontFamily = 'sans-serif';
+            titleDiv.style.fontSize = `${plan?.titleFontSize || 12}px`; // 設定値またはデフォルト12px
+            titleDiv.style.fontWeight = '600'; // 太字
+            titleDiv.style.lineHeight = '1.5';
+            titleDiv.style.whiteSpace = 'nowrap';
+            titleDiv.style.display = 'inline-block'; // 幅を正しく計算するために追加
+            // ボーダーの有無を設定に応じて反映（デフォルトは有り）
+            const borderEnabled = plan?.titleBorderEnabled !== false; // undefinedの場合はtrue（デフォルト）
+            if (borderEnabled) {
+              titleDiv.style.borderLeft = '3px solid var(--color-primary)'; // 左側に3pxの縦棒
+              titleDiv.style.paddingLeft = '8px'; // 縦棒とテキストの間隔
+            } else {
+              titleDiv.style.borderLeft = 'none';
+              titleDiv.style.paddingLeft = '0';
+            }
+            titleDiv.style.margin = '0';
+            titleDiv.style.marginBottom = '12px'; // 通常表示と同じマージン
+            titleDiv.textContent = pageTitle;
+            
+            document.body.appendChild(titleDiv);
+            
+            // レンダリングを待つ
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // html2canvasで画像化（width/heightを指定せず自動計算させる）
+            const titleCanvas = await html2canvas(titleDiv, {
+              scale: 2,
+              backgroundColor: null,
+              useCORS: true,
+              logging: false,
+              // width/heightを指定しないことで、要素の実際のサイズを自動計算
+            });
+            
+            titleImgData = titleCanvas.toDataURL('image/png');
+            
+            // 画像のサイズを計算（mm単位、96dpi基準）
+            titleWidth = (titleCanvas.width / 2) * 0.264583; // scale: 2なので2で割る
+            titleHeight = (titleCanvas.height / 2) * 0.264583;
+            
+            // 左上の位置を計算（設定値またはデフォルト値を使用）
+            titleX = margin + (plan?.titlePositionX ?? 5); // 左端からの距離（mm）
+            titleY = margin + (plan?.titlePositionY ?? -3); // 上端からの距離（mm）
+            
+            // 一時的なDOM要素を削除
+            if (document.body.contains(titleDiv)) {
+              document.body.removeChild(titleDiv);
+            }
+          } catch (error) {
+            console.error('タイトル画像の生成エラー:', error);
+            // エラーが発生した場合は、後でテキストとして追加を試みる
+          }
+        }
+
         // キービジュアルの場合は、画像要素を直接取得してアスペクト比を計算
         // また、PDF出力時に不要なボタンを非表示にする
         let targetAspectRatio: number | null = null;
         let keyVisualImageUrl: string | null = null;
         let keyVisualScale: number = 100; // デフォルトは100%（スケールなし）
-        const hiddenElements: Array<{ element: HTMLElement; originalDisplay: string }> = [];
         
         if (isKeyVisual) {
           // サイズ調整ボタンと画像変更ボタンを非表示にする
@@ -1681,21 +1946,21 @@ function CompanyPlanLayoutContent({
                 
                 // 一時的に調整（PDF出力後に復元する）
                 (parent as HTMLElement).style.paddingTop = `${paddingTop + marginTopValue}px`;
-                (svgEl as HTMLElement).style.marginTop = '0';
+                (svgEl as unknown as HTMLElement).style.marginTop = '0';
               }
             }
           }
         });
         
         // コンテナを画像化
+        const canvasScale = 2; // 高品質な画像のためのスケール
         const canvas = await html2canvas(containerEl, {
-          scale: 2,
+          scale: canvasScale,
           useCORS: true,
           logging: false,
           backgroundColor: '#ffffff',
           width: containerEl.scrollWidth,
           height: containerEl.scrollHeight,
-          letterRendering: true, // 文字単位でのレンダリングを有効化
           onclone: (clonedDoc, clonedWindow) => {
             try {
               // グラデーションテキストをSVGに変換
@@ -1845,7 +2110,7 @@ function CompanyPlanLayoutContent({
         // SVGの位置調整を元に戻す
         svgAdjustments.forEach(({ svg, parent, originalParentPaddingTop, originalSvgMarginTop }) => {
           parent.style.paddingTop = originalParentPaddingTop;
-          (svg as HTMLElement).style.marginTop = originalSvgMarginTop;
+          (svg as unknown as HTMLElement).style.marginTop = originalSvgMarginTop;
         });
         
         // 元のborderスタイルを復元
@@ -1945,8 +2210,14 @@ function CompanyPlanLayoutContent({
         } else {
           // 通常のコンテナの場合は、canvasを使用
           const imgData = canvas.toDataURL('image/png', 1.0);
-          const imgAspectRatio = canvas.width / canvas.height;
           
+          // canvasのサイズをscaleで割って、実際のコンテナサイズを取得
+          const actualCanvasWidth = canvas.width / canvasScale;
+          const actualCanvasHeight = canvas.height / canvasScale;
+          const imgAspectRatio = actualCanvasWidth / actualCanvasHeight;
+          
+          // コンテナの実際のサイズとPDFのコンテンツサイズを比較して、適切なサイズを計算
+          // コンテナのアスペクト比を維持しつつ、PDFのコンテンツエリアに収まるようにする
           let finalWidth = contentWidth;
           let finalHeight = contentWidth / imgAspectRatio;
           
@@ -1969,47 +2240,53 @@ function CompanyPlanLayoutContent({
         // ロゴを右上に追加（plan.keyVisualLogoUrlが存在する場合）
         // ロゴが上に表示されるように、コンテンツの後に追加する
         if (plan?.keyVisualLogoUrl) {
+          const logoUrl = plan.keyVisualLogoUrl;
           try {
-            // fetch APIを使って画像を取得し、Base64に変換
-            const response = await fetch(plan.keyVisualLogoUrl);
-            const blob = await response.blob();
-            const reader = new FileReader();
-            const logoBase64 = await new Promise<string>((resolve, reject) => {
-              reader.onloadend = () => {
-                if (typeof reader.result === 'string') {
-                  resolve(reader.result);
-                } else {
-                  reject(new Error('Failed to convert image to base64'));
-                }
-              };
-              reader.onerror = reject;
-              reader.readAsDataURL(blob);
-            });
-
-            // 画像のサイズを取得してアスペクト比を計算
+            // 画像を読み込んでcanvasに描画（透明度の問題を回避するため）
             const img = new Image();
-            const logoImageData = await new Promise<{ width: number; height: number }>((resolve, reject) => {
+            img.crossOrigin = 'anonymous'; // CORSエラーを回避
+            
+            const logoImageData = await new Promise<{ width: number; height: number; canvas: HTMLCanvasElement }>((resolve, reject) => {
               img.onload = () => {
-                resolve({ width: img.width, height: img.height });
+                // canvasを作成して画像を描画（白背景で合成）
+                const canvas = document.createElement('canvas');
+                canvas.width = img.width;
+                canvas.height = img.height;
+                const ctx = canvas.getContext('2d');
+                
+                if (!ctx) {
+                  reject(new Error('Canvas context could not be created'));
+                  return;
+                }
+                
+                // 白背景で塗りつぶし（透明度の問題を回避）
+                ctx.fillStyle = '#FFFFFF';
+                ctx.fillRect(0, 0, canvas.width, canvas.height);
+                
+                // 画像を描画
+                ctx.drawImage(img, 0, 0);
+                
+                resolve({ width: img.width, height: img.height, canvas });
               };
               img.onerror = reject;
-              img.src = plan.keyVisualLogoUrl;
+              img.src = logoUrl;
             });
 
             const logoAspectRatio = logoImageData.width / logoImageData.height;
             const logoMargin = 5; // ロゴのマージン（mm）
-            const logoHeight = 15; // ロゴの高さ（mm）- 基準サイズ
+            // ロゴサイズをplanから取得（デフォルトは15mm）
+            const logoHeight = plan?.keyVisualLogoSize || 15; // ロゴの高さ（mm）
             const logoWidth = logoHeight * logoAspectRatio; // アスペクト比を維持して幅を計算
             
             // 右上の位置を計算（ページサイズからマージンとロゴサイズを引く）
             const logoX = pageWidth - logoMargin - logoWidth;
             const logoY = logoMargin;
             
-            // 画像の形式を自動検出（Base64データURLから取得）
-            const imageFormat = logoBase64.split(';')[0].split('/')[1].toUpperCase();
+            // canvasからBase64データURLを取得（PNG形式、透明度なし）
+            const logoBase64 = logoImageData.canvas.toDataURL('image/png');
             
             // ロゴ画像をPDFページに直接追加（アスペクト比を維持）
-            pdf.addImage(logoBase64, imageFormat, logoX, logoY, logoWidth, logoHeight);
+            pdf.addImage(logoBase64, 'PNG', logoX, logoY, logoWidth, logoHeight);
           } catch (error) {
             console.error('ロゴの追加エラー:', error);
             // エラーが発生してもPDF生成は続行
@@ -2020,12 +2297,68 @@ function CompanyPlanLayoutContent({
         // ページコンポーネントの画像とは独立して、PDFページに直接追加
         // 日本語フォントの問題を回避するため、html2canvasを使用して画像として追加
         if (i === 0 && isKeyVisual) {
-          // planからメタデータを取得
-          const metadata = plan?.keyVisualMetadata;
+          // planからメタデータを取得（最新のplanデータを取得するため、PDF生成時に再取得）
+          // 最新のplanデータを取得するため、Firestoreから直接読み込む
+          let latestMetadata = plan?.keyVisualMetadata;
+          if (plan?.id && db) {
+            try {
+              const planDoc = await getDoc(doc(db, 'companyBusinessPlan', plan.id));
+              if (planDoc.exists()) {
+                const data = planDoc.data();
+                latestMetadata = data.keyVisualMetadata;
+                console.log('PDF生成時: Firestoreからメタデータを取得', latestMetadata);
+              }
+            } catch (error) {
+              console.error('メタデータの取得エラー:', error);
+            }
+          }
+          const metadata = latestMetadata;
+          console.log('PDF生成時のメタデータ:', JSON.stringify(metadata, null, 2));
+          console.log('メタデータの存在チェック:', {
+            hasMetadata: !!metadata,
+            hasTitle: !!(metadata?.title),
+            hasSignature: !!(metadata?.signature),
+            hasDate: !!(metadata?.date),
+            title: metadata?.title,
+            signature: metadata?.signature,
+            date: metadata?.date,
+            position: metadata?.position
+          });
           if (metadata && (metadata.title || metadata.signature || metadata.date)) {
-            const textX = metadata.position.x;
-            const textY = metadata.position.y;
+            console.log('メタデータをPDFに追加します');
             const align = metadata.position.align;
+            
+            // メタデータの位置をそのまま使用（16:9横長のページサイズで設定されているため）
+            // 位置調整は行わず、保存された値をそのまま使用
+            let textX = metadata.position.x;
+            let textY = metadata.position.y;
+            
+            // 右揃えの場合でも、保存されたX座標をそのまま使用
+            // （デフォルト値は既に右端から10mmの位置に設定されている）
+            
+            // 座標がページ範囲外の場合は調整
+            if (textX > pageWidth) {
+              textX = pageWidth - 10; // 右端から10mm内側
+            }
+            if (textX < 0) {
+              textX = 10; // 左端から10mm内側
+            }
+            if (textY > pageHeight) {
+              textY = pageHeight - 10; // 下端から10mm上
+            }
+            if (textY < 0) {
+              textY = 10; // 上端から10mm下
+            }
+            
+            console.log('メタデータの位置（調整後）:', { 
+              textX, 
+              textY, 
+              align,
+              pageWidth,
+              pageHeight,
+              originalX: metadata.position.x,
+              originalY: metadata.position.y
+            });
             
             // メタデータテキストを一時的なDOM要素として作成（テキスト要素のみ）
             const textDiv = document.createElement('div');
@@ -2077,18 +2410,35 @@ function CompanyPlanLayoutContent({
             
             document.body.appendChild(textDiv);
             
+            // テキスト要素の内容を確認
+            console.log('テキスト要素の内容:', {
+              textContent: textDiv.textContent,
+              innerHTML: textDiv.innerHTML,
+              scrollWidth: textDiv.scrollWidth,
+              scrollHeight: textDiv.scrollHeight,
+              offsetWidth: textDiv.offsetWidth,
+              offsetHeight: textDiv.offsetHeight
+            });
+            
             try {
-              // レンダリングを待つ
-              await new Promise(resolve => setTimeout(resolve, 100));
+              // レンダリングを待つ（より長く待つ）
+              await new Promise(resolve => setTimeout(resolve, 500));
               
               // html2canvasで画像化（テキスト要素のみ）
               const metadataCanvas = await html2canvas(textDiv, {
                 scale: 3, // 高解像度でキャプチャ
-                backgroundColor: null,
+                backgroundColor: '#FFFFFF', // 白背景に変更（透明だと見えない可能性がある）
                 useCORS: true,
-                logging: false,
-                width: textDiv.scrollWidth,
-                height: textDiv.scrollHeight,
+                logging: true, // デバッグ用にログを有効化
+                width: textDiv.scrollWidth || 100,
+                height: textDiv.scrollHeight || 100,
+              });
+              
+              console.log('html2canvas結果:', {
+                canvasWidth: metadataCanvas.width,
+                canvasHeight: metadataCanvas.height,
+                scrollWidth: textDiv.scrollWidth,
+                scrollHeight: textDiv.scrollHeight
               });
               
               const metadataImgData = metadataCanvas.toDataURL('image/png');
@@ -2096,6 +2446,8 @@ function CompanyPlanLayoutContent({
               // 画像のサイズを計算（mm単位、96dpi基準）
               const imgWidth = (metadataCanvas.width / 3) * 0.264583; // scale: 3なので3で割る
               const imgHeight = (metadataCanvas.height / 3) * 0.264583;
+              
+              console.log('計算された画像サイズ:', { imgWidth, imgHeight });
               
               // PDFに画像として追加（下端がtextYになるように配置）
               let imgX: number;
@@ -2108,7 +2460,32 @@ function CompanyPlanLayoutContent({
               }
               const imgY = textY - imgHeight; // 下端がtextYになるように
               
+              console.log('メタデータ画像をPDFに追加:', {
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight,
+                canvasWidth: metadataCanvas.width,
+                canvasHeight: metadataCanvas.height,
+                pageWidth,
+                pageHeight,
+                textX,
+                textY,
+                align
+              });
+              
+              // 座標がページ範囲内かチェック
+              if (imgX < 0 || imgX > pageWidth || imgY < 0 || imgY > pageHeight) {
+                console.warn('メタデータ画像の座標がページ範囲外です:', {
+                  imgX,
+                  imgY,
+                  pageWidth,
+                  pageHeight
+                });
+              }
+              
               pdf.addImage(metadataImgData, 'PNG', imgX, imgY, imgWidth, imgHeight);
+              console.log('メタデータ画像の追加完了');
             } catch (error) {
               console.error('メタデータ画像の生成エラー:', error);
             } finally {
@@ -2117,13 +2494,15 @@ function CompanyPlanLayoutContent({
                 document.body.removeChild(textDiv);
               }
             }
+          } else {
+            console.log('メタデータが存在しないか、タイトル・署名・日付がすべて空です');
           }
         }
         
         // フッターテキストを追加（各ページの下部）
         pdf.setFontSize(8);
         pdf.setTextColor(128, 128, 128); // グレー色
-        const footerText = 'AI assistant company, Inc - All Rights Reserved';
+        const footerText = plan?.footerText || 'AI assistant company, Inc - All Rights Reserved'; // 設定値またはデフォルト値
         const textWidth = pdf.getTextWidth(footerText);
         const footerX = (pageWidth - textWidth) / 2; // 中央揃え
         const footerY = pageHeight - 5; // ページ下部から5mm上
@@ -2139,22 +2518,77 @@ function CompanyPlanLayoutContent({
         const pageNumberY = pageHeight - 5; // ページ下部から5mm上
         pdf.text(pageNumberText, pageNumberX, pageNumberY);
         
-        // 非表示にした要素を復元
+        // タイトルを最後に追加（コンテンツの上に表示されるように）
+        if (titleImgData && titlePageTitle) {
+          try {
+            pdf.addImage(titleImgData, 'PNG', titleX, titleY, titleWidth, titleHeight);
+          } catch (error) {
+            console.error('タイトル画像の追加エラー:', error);
+            // エラーの場合は、テキストとして追加を試みる（文字化けする可能性がある）
+            pdf.setFontSize(16);
+            pdf.setTextColor(0, 0, 0);
+            pdf.setFont('helvetica', 'bold');
+            const fallbackTitleX = margin + 5;
+            const fallbackTitleY = margin + 8;
+            pdf.text(titlePageTitle, fallbackTitleX, fallbackTitleY);
+          }
+        }
+        
+        // 非表示にした要素を復元（各コンテナの処理後に復元）
         hiddenElements.forEach(({ element, originalDisplay }) => {
           element.style.display = originalDisplay;
         });
+        
+        // borderスタイルも復元
+        containerEl.style.border = originalBorder;
       }
 
-      // PDFを保存
+      // PDFをBlobとして生成して保存（ユーザー操作のコンテキスト内でダウンロードを実行するため）
       const selectedSubMenuLabels = Array.from(selectedSubMenus)
         .map(id => SUB_MENU_ITEMS.find(item => item.id === id)?.label || id)
         .join('_');
       const fileName = selectedSubMenus.size === 1 
         ? `${planTitle}_${selectedSubMenuLabels}_${new Date().toISOString().split('T')[0]}.pdf`
         : `${planTitle}_一括出力_${new Date().toISOString().split('T')[0]}.pdf`;
-      pdf.save(fileName);
+      
+      // PDFをBlobとして生成
+      const pdfBlob = pdf.output('blob');
 
-      console.log('PDF生成が完了しました');
+      console.log('PDF生成が完了しました', { blobSize: pdfBlob.size, fileName });
+      
+      // コールバックが提供されている場合は、それを使用してダウンロードを実行
+      // これにより、ユーザーのクリックイベントのコンテキスト内でダウンロードが実行される
+      if (downloadCallback) {
+        console.log('コールバックを使用してダウンロードを実行');
+        try {
+          downloadCallback(pdfBlob, fileName);
+          console.log('コールバック実行完了');
+        } catch (error) {
+          console.error('コールバック実行エラー:', error);
+          // フォールバック: 直接ダウンロードを試行
+          const url = URL.createObjectURL(pdfBlob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = fileName;
+          link.style.display = 'none';
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          URL.revokeObjectURL(url);
+        }
+      } else {
+        console.log('コールバックなし、直接ダウンロードを試行');
+        // フォールバック: 直接ダウンロードを試行
+        const url = URL.createObjectURL(pdfBlob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = fileName;
+        link.style.display = 'none';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(url);
+      }
     } catch (error) {
       console.error('PDF出力エラー:', error);
       alert(`PDF出力に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
@@ -2171,8 +2605,9 @@ function CompanyPlanLayoutContent({
         }
       });
       setIsExportingPDF(false); // 処理完了
+      setIsCheckingPages(false); // ページ確認状態をリセット
     }
-  }, [showContainers, planTitle, currentSubMenu, plan, planId, isComponentized]);
+  }, [showContainers, planTitle, currentSubMenu, plan, planId, isComponentized, checkSubMenuHasPages]);
 
   return (
     <Layout>
@@ -2231,12 +2666,15 @@ function CompanyPlanLayoutContent({
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                       <h2 style={{ marginBottom: '4px' }}>{planTitle}</h2>
                       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                        {/* コンポーネント形式の場合はPageBreakEditorを表示 */}
+                        {isComponentized && (
                         <PageBreakEditor
                           planId={planId}
                           currentSubMenu={currentSubMenu}
                           pageBreakIds={pageBreakIds}
                           onSave={savePageBreakIds}
                         />
+                        )}
                         {showContainers && (
                           <button
                             onClick={handleExportToPDFClick}
@@ -2258,7 +2696,12 @@ function CompanyPlanLayoutContent({
                           </button>
                         )}
                         <button
-                          onClick={() => setShowContainers(!showContainers)}
+                          onClick={() => {
+                            const newValue = !showContainers;
+                            setShowContainers(newValue);
+                            // コンポーネント化されたページの場合、既にsetShowContainersがコンテキストのものを指しているので、
+                            // 追加の更新は不要
+                          }}
                           style={{
                             padding: '8px 16px',
                             backgroundColor: showContainers ? 'var(--color-primary)' : '#F3F4F6',
@@ -2273,25 +2716,6 @@ function CompanyPlanLayoutContent({
                         >
                           {showContainers ? 'コンテナ非表示' : 'コンテナ表示'}
                         </button>
-                        {/* コンポーネント化版から固定ページ形式に戻すボタン */}
-                        {isComponentized && (
-                          <button
-                            onClick={handleRevertToFixedPage}
-                            style={{
-                              padding: '8px 16px',
-                              backgroundColor: '#EF4444',
-                              color: '#fff',
-                              border: 'none',
-                              borderRadius: '6px',
-                              cursor: 'pointer',
-                              fontSize: '14px',
-                              fontWeight: 500,
-                            }}
-                            title="コンポーネント化版から固定ページ形式に戻す"
-                          >
-                            固定ページ形式に戻す
-                          </button>
-                        )}
                         {/* 固定ページからページコンポーネントへの移行ボタン（固定ページ形式の場合のみ表示、すべてのサブメニューで表示） */}
                         {!isComponentized && (
                           <button
@@ -2438,6 +2862,22 @@ function CompanyPlanLayoutContent({
                     }}>
                       出力したいサブメニューを選択してください。複数選択可能です。
                     </p>
+                    {isCheckingPages && (
+                      <div style={{
+                        marginTop: '12px',
+                        padding: '8px 12px',
+                        backgroundColor: '#FEF3C7',
+                        borderRadius: '6px',
+                        fontSize: '13px',
+                        color: '#92400E',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                      }}>
+                        <span>⏳</span>
+                        <span>ページを確認中...</span>
+                      </div>
+                    )}
                   </div>
 
                   {/* 全選択/全解除ボタン */}
@@ -2450,14 +2890,12 @@ function CompanyPlanLayoutContent({
                   }}>
                     <button
                       onClick={() => {
-                        const allWithPages = SUB_MENU_ITEMS.filter(item => {
-                          const hasPages = plan?.pagesBySubMenu?.[item.id] 
-                            ? Array.isArray(plan.pagesBySubMenu[item.id]) && plan.pagesBySubMenu[item.id].length > 0
-                            : true;
-                          return hasPages;
-                        }).map(item => item.id);
+                        const allWithPages = subMenuPagesStatus.length > 0
+                          ? subMenuPagesStatus.filter(status => status.hasPages).map(status => status.id)
+                          : SUB_MENU_ITEMS.map(item => item.id);
                         setSelectedSubMenusForPDF(new Set(allWithPages));
                       }}
+                      disabled={isCheckingPages}
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#F3F4F6',
@@ -2539,16 +2977,12 @@ function CompanyPlanLayoutContent({
                     marginBottom: '24px',
                   }}>
                     {SUB_MENU_ITEMS.map((item, index) => {
-                      const hasPages = plan?.pagesBySubMenu?.[item.id] 
-                        ? Array.isArray(plan.pagesBySubMenu[item.id]) && plan.pagesBySubMenu[item.id].length > 0
-                        : true;
                       const isSelected = selectedSubMenusForPDF.has(item.id);
                       
                       return (
                         <div
                           key={item.id}
                           onClick={() => {
-                            if (!hasPages) return;
                             const newSelected = new Set(selectedSubMenusForPDF);
                             if (isSelected) {
                               newSelected.delete(item.id);
@@ -2563,18 +2997,15 @@ function CompanyPlanLayoutContent({
                             borderRadius: '12px',
                             border: `2px solid ${isSelected ? '#10B981' : '#E5E7EB'}`,
                             backgroundColor: isSelected ? '#F0FDF4' : '#FFFFFF',
-                            cursor: hasPages ? 'pointer' : 'not-allowed',
-                            opacity: hasPages ? 1 : 0.5,
+                            cursor: 'pointer',
                             transition: 'all 0.2s ease',
                             boxShadow: isSelected ? '0 4px 12px rgba(16, 185, 129, 0.15)' : '0 1px 3px rgba(0, 0, 0, 0.1)',
                           }}
                           onMouseEnter={(e) => {
-                            if (hasPages) {
                               e.currentTarget.style.transform = 'translateY(-2px)';
                               e.currentTarget.style.boxShadow = isSelected 
                                 ? '0 6px 16px rgba(16, 185, 129, 0.2)' 
                                 : '0 4px 12px rgba(0, 0, 0, 0.15)';
-                            }
                           }}
                           onMouseLeave={(e) => {
                             e.currentTarget.style.transform = 'translateY(0)';
@@ -2635,23 +3066,6 @@ function CompanyPlanLayoutContent({
                                 {item.label}
                               </span>
                             </div>
-                            {!hasPages && (
-                              <div style={{
-                                display: 'inline-flex',
-                                alignItems: 'center',
-                                gap: '4px',
-                                padding: '4px 8px',
-                                backgroundColor: '#FEF3C7',
-                                color: '#92400E',
-                                borderRadius: '6px',
-                                fontSize: '11px',
-                                fontWeight: 500,
-                                marginTop: '4px',
-                              }}>
-                                <span>⚠️</span>
-                                <span>ページなし</span>
-                              </div>
-                            )}
                           </div>
                         </div>
                       );
@@ -2699,8 +3113,37 @@ function CompanyPlanLayoutContent({
                           alert('少なくとも1つのサブメニューを選択してください。');
                           return;
                         }
+                        
+                        // ユーザーのクリックイベントのコンテキスト内でダウンロードを実行するためのコールバック
+                        const downloadPDF = (blob: Blob, fileName: string) => {
+                          console.log('downloadPDFコールバック実行', { blobSize: blob.size, fileName });
+                          try {
+                            const url = URL.createObjectURL(blob);
+                            
+                            // 方法1: リンク要素を使用
+                            const link = document.createElement('a');
+                            link.href = url;
+                            link.download = fileName;
+                            link.style.display = 'none';
+                            document.body.appendChild(link);
+                            
+                            // ダウンロードを確実に実行するため、すぐにクリック
+                            link.click();
+                            
+                            // クリーンアップを少し遅らせる
+                            setTimeout(() => {
+                              document.body.removeChild(link);
+                              URL.revokeObjectURL(url);
+                              console.log('ダウンロードリンククリック完了');
+                            }, 1000);
+                          } catch (error) {
+                            console.error('downloadPDFコールバックエラー:', error);
+                            alert('PDFのダウンロードに失敗しました。ブラウザの設定を確認してください。');
+                          }
+                        };
+                        
                         setShowPDFSubMenuSelector(false);
-                        await handleExportToPDF(selectedSubMenusForPDF);
+                        await handleExportToPDF(selectedSubMenusForPDF, downloadPDF);
                       }}
                       disabled={selectedSubMenusForPDF.size === 0}
                       style={{
@@ -3316,7 +3759,7 @@ function CompanyPlanLayoutContent({
               ...presentationStyle,
             }}
           >
-            <ContainerVisibilityProvider showContainers={false} setShowContainers={() => {}}>
+            <ContainerVisibilityProvider showContainers={showContainers} setShowContainers={setShowContainers}>
               <div
                 ref={contentRef}
                 data-content-container
@@ -3332,6 +3775,7 @@ function CompanyPlanLayoutContent({
                 }}
               >
                 {/* プレゼンテーションモード時はコンテンツを縮小するためのラッパー */}
+                {console.log('レンダリングモード判定:', { isPresentationMode, isComponentized, containersLength: fixedPageContainers.length, currentSubMenu }) || null}
                 {isPresentationMode ? (
                   <div
                     style={{
@@ -3344,6 +3788,7 @@ function CompanyPlanLayoutContent({
                       {planTitle}
                     </h2>
                     {children}
+                    {/* 固定ページ形式のコンテナはpage.tsxで直接定義されるため、ここでは表示しない */}
                   </div>
                 ) : (
                   <>
@@ -3351,12 +3796,9 @@ function CompanyPlanLayoutContent({
                       {planTitle}
                     </h2>
                     {children}
+                    {/* 固定ページ形式のコンテナはpage.tsxで直接定義されるため、ここでは表示しない */}
                   </>
                 )}
-                <h2 style={{ marginBottom: '24px', fontSize: '24px', fontWeight: 600 }}>
-                  {planTitle}
-                </h2>
-                {children}
               </div>
             </ContainerVisibilityProvider>
           </div>
@@ -3430,6 +3872,118 @@ function CompanyPlanLayoutContent({
           </div>
         </div>
         </>
+      )}
+      
+      {/* 固定ページ形式のコンテナ編集モーダル */}
+      {!isComponentized && editingContainerId && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 10000,
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              handleCancelEditContainer();
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '800px',
+              width: '90%',
+              maxHeight: '90vh',
+              overflow: 'auto',
+              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ marginTop: 0, marginBottom: '20px', fontSize: '20px', fontWeight: 600 }}>
+              コンテナを編集
+            </h3>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                タイトル
+              </label>
+              <input
+                type="text"
+                value={editingTitle}
+                onChange={(e) => setEditingTitle(e.target.value)}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--color-border-color)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                }}
+              />
+            </div>
+            
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                コンテンツ（HTML形式）
+              </label>
+              <textarea
+                value={editingContent}
+                onChange={(e) => setEditingContent(e.target.value)}
+                style={{
+                  width: '100%',
+                  minHeight: '300px',
+                  padding: '12px',
+                  border: '1px solid var(--color-border-color)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  fontFamily: 'monospace',
+                }}
+                placeholder="HTMLタグを使用できます（例: &lt;p&gt;, &lt;ul&gt;, &lt;li&gt;など）"
+              />
+            </div>
+            
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={handleCancelEditContainer}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#F3F4F6',
+                  color: 'var(--color-text)',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveEditContainer}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: 'var(--color-primary)',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}
+              >
+                保存
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </Layout>
   );

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { useConcept } from '../layout';
+import { useConcept } from '../hooks/useConcept';
 import Script from 'next/script';
 import dynamic from 'next/dynamic';
 
@@ -18,12 +18,7 @@ export default function BusinessModelPage() {
   const conceptId = params.conceptId as string;
   const { concept, loading } = useConcept();
 
-  // コンポーネント化されたページを使用するかチェック
-  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
-      conceptId.includes('-componentized')) {
-    return <ComponentizedOverview />;
-  }
-
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const businessModelDiagramRef = useRef<HTMLDivElement>(null);
   const businessModelRenderedRef = useRef(false);
@@ -274,6 +269,12 @@ export default function BusinessModelPage() {
 
     return () => clearTimeout(timer);
   }, [conceptId, mermaidLoaded]);
+
+  // コンポーネント化されたページを使用するかチェック
+  if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
+      conceptId.includes('-componentized')) {
+    return <ComponentizedOverview />;
+  }
 
   // 出産支援パーソナルAppと介護支援パーソナルApp以外の構想の場合は、未実装メッセージを表示
   if (conceptId !== 'maternity-support' && conceptId !== 'care-support') {

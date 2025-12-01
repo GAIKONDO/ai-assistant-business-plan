@@ -4,7 +4,8 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
-import { useConcept, useContainerVisibility } from '../layout';
+import { useConcept } from '../hooks/useConcept';
+import { useContainerVisibility } from '../hooks/useContainerVisibility';
 import Script from 'next/script';
 import dynamic from 'next/dynamic';
 
@@ -21,16 +22,8 @@ export default function OverviewPage() {
   const conceptId = params.conceptId as string;
   const { concept, loading } = useConcept();
 
-  // コンポーネント化されたページを使用するかチェック
-  // conceptIdが-componentizedを含む、または特定のconceptIdの場合はComponentizedOverviewを使用
-  if (conceptId.includes('-componentized') || 
-      (serviceId === 'component-test' && conceptId === 'test-concept')) {
-    return <ComponentizedOverview />;
-  }
-
-  // コンポーネント化されていない場合のみuseContainerVisibilityを使用
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const { showContainers } = useContainerVisibility();
-
   const keyVisualUrl = concept?.keyVisualUrl || '';
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25);
   const [showSizeControl, setShowSizeControl] = useState(false);
@@ -419,6 +412,13 @@ export default function OverviewPage() {
       console.error('キービジュアルサイズの保存エラー:', error);
     }
   };
+
+  // コンポーネント化されたページを使用するかチェック
+  // conceptIdが-componentizedを含む、または特定のconceptIdの場合はComponentizedOverviewを使用
+  if (conceptId.includes('-componentized') || 
+      (serviceId === 'component-test' && conceptId === 'test-concept')) {
+    return <ComponentizedOverview />;
+  }
 
   return (
     <>
@@ -4057,7 +4057,7 @@ export default function OverviewPage() {
                           lineHeight: '1.3',
                           letterSpacing: '-0.5px'
                         }}>
-                          なぜ多くの企業でAI活用は<wbr />"止まる"のか？
+                          なぜ多くの企業でAI活用は<wbr />&quot;止まる&quot;のか？
                         </h2>
                         <p style={{ 
                           margin: 0, 
@@ -4066,7 +4066,7 @@ export default function OverviewPage() {
                           color: 'var(--color-primary)',
                           letterSpacing: '0.3px'
                         }}>
-                          — 技術ではなく<strong>"人と組織の設計"</strong>がボトルネックになっている —
+                          — 技術ではなく<strong>&quot;人と組織の設計&quot;</strong>がボトルネックになっている —
                         </p>
                       </div>
 
@@ -4233,7 +4233,7 @@ export default function OverviewPage() {
                             </li>
                             <li style={{ marginBottom: '8px', position: 'relative', paddingLeft: '20px' }}>
                               <span style={{ position: 'absolute', left: 0, color: '#ffc107' }}>•</span>
-                              AIが<strong>"外付け"</strong>になっている
+                              AIが<strong>&quot;外付け&quot;</strong>になっている
                             </li>
                           </ul>
                         </div>
@@ -4362,7 +4362,7 @@ export default function OverviewPage() {
                                 color: 'var(--color-text)',
                                 lineHeight: '1.3'
                               }}>
-                                AIの可能性を"体験"し、業務を"再設計"することで、<br />
+                                AIの可能性を&quot;体験&quot;し、業務を&quot;再設計&quot;することで、<br />
                                 <span style={{ color: 'var(--color-primary)' }}>自走できるAIネイティブ組織へ</span>
                               </h3>
                               <div style={{

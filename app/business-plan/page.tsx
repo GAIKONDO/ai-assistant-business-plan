@@ -91,8 +91,8 @@ export default function BusinessPlanPage() {
         plansData.push({
           id: doc.id,
           ...data,
-          createdAt: data.createdAt?.toDate(),
-          updatedAt: data.updatedAt?.toDate(),
+          createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : undefined),
+          updatedAt: data.updatedAt && typeof data.updatedAt.toDate === 'function' ? data.updatedAt.toDate() : (data.updatedAt instanceof Date ? data.updatedAt : undefined),
         } as BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date });
         
         // デバッグログ（開発時のみ）
@@ -109,8 +109,8 @@ export default function BusinessPlanPage() {
       
       // クライアント側でソート
       plansData.sort((a, b) => {
-        const aTime = a.createdAt?.getTime() || 0;
-        const bTime = b.createdAt?.getTime() || 0;
+        const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+        const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
         return bTime - aTime; // 降順
       });
       
@@ -181,15 +181,21 @@ export default function BusinessPlanPage() {
         projectsData.push({
           id: doc.id,
           ...doc.data(),
-          createdAt: doc.data().createdAt?.toDate(),
-          updatedAt: doc.data().updatedAt?.toDate(),
+          createdAt: (() => {
+            const createdAt = doc.data().createdAt;
+            return createdAt && typeof createdAt.toDate === 'function' ? createdAt.toDate() : (createdAt instanceof Date ? createdAt : undefined);
+          })(),
+          updatedAt: (() => {
+            const updatedAt = doc.data().updatedAt;
+            return updatedAt && typeof updatedAt.toDate === 'function' ? updatedAt.toDate() : (updatedAt instanceof Date ? updatedAt : undefined);
+          })(),
         } as BusinessProjectData & { id: string; createdAt?: Date; updatedAt?: Date });
       });
       
       // クライアント側でソート
       projectsData.sort((a, b) => {
-        const aTime = a.createdAt?.getTime() || 0;
-        const bTime = b.createdAt?.getTime() || 0;
+        const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+        const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
         return bTime - aTime; // 降順
       });
       
@@ -660,9 +666,10 @@ export default function BusinessPlanPage() {
                         
                         try {
                           if (!db) return;
+                          const dbInstance = db;
                           
                           const deletePromises = Array.from(selectedPlanIds).map(planId => 
-                            deleteDoc(doc(db, 'companyBusinessPlan', planId))
+                            deleteDoc(doc(dbInstance, 'companyBusinessPlan', planId))
                           );
                           
                           await Promise.all(deletePromises);

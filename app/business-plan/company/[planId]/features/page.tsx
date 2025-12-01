@@ -1,10 +1,13 @@
 'use client';
 
-import { useEffect, useState, useRef } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import Script from 'next/script';
 import { FaMobileAlt, FaGraduationCap, FaChartBar, FaLaptopCode, FaEye } from 'react-icons/fa';
-import { usePlan } from '../layout';
+import { usePlan } from '../hooks/usePlan';
+import { useContainerVisibility } from '../hooks/useContainerVisibility';
 import { useParams } from 'next/navigation';
+import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
@@ -18,6 +21,16 @@ declare global {
     mermaid?: any;
   }
 }
+
+// 固定ページ形式のコンテナの型定義
+interface FixedPageContainer {
+  id: string;
+  title: string;
+  content: string;
+  order: number;
+}
+
+const FIRESTORE_COLLECTION_NAME = 'companyBusinessPlan';
 
 const SERVICE_NAMES: { [key: string]: string } = {
   'own-service': '自社開発・自社サービス事業',
@@ -110,78 +123,6 @@ const SERVICE_LAUNCH_TIMING: { [key: string]: string } = {
   'ai-dx': '2 - 3年目',
 };
 
-// 資本構成フローダイアグラムコンポーネント（SVG版）
-function CapitalFlowDiagram() {
-  return (
-    <div style={{ width: '100%', maxWidth: '700px', margin: '0 auto' }}>
-      <svg width="100%" height="500" viewBox="0 0 700 500" style={{ maxWidth: '700px' }}>
-        <defs>
-          <marker id="arrowhead-blue" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-            <polygon points="0 0, 10 3, 0 6" fill="#3B82F6" />
-          </marker>
-          <marker id="arrowhead-green" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-            <polygon points="0 0, 10 3, 0 6" fill="#10B981" />
-          </marker>
-          <marker id="arrowhead-red" markerWidth="10" markerHeight="10" refX="9" refY="3" orient="auto" markerUnits="strokeWidth">
-            <polygon points="0 0, 10 3, 0 6" fill="#EF4444" />
-          </marker>
-        </defs>
-
-        {/* 発案者ボックス */}
-        <rect x="100" y="50" width="140" height="90" rx="8" fill="#EFF6FF" stroke="#3B82F6" strokeWidth="2" />
-        <text x="170" y="75" textAnchor="middle" fontSize="14" fontWeight="600" fill="#1E293B">発案者</text>
-        <text x="170" y="95" textAnchor="middle" fontSize="12" fill="#475569">自己資金</text>
-        <text x="170" y="115" textAnchor="middle" fontSize="14" fontWeight="700" fill="#3B82F6">5,000万円</text>
-        <text x="170" y="130" textAnchor="middle" fontSize="10" fill="#64748B">転籍して経営にコミット</text>
-
-        {/* 伊藤忠商事ボックス */}
-        <rect x="460" y="50" width="140" height="90" rx="8" fill="#F0FDF4" stroke="#10B981" strokeWidth="2" />
-        <text x="530" y="75" textAnchor="middle" fontSize="14" fontWeight="600" fill="#1E293B">伊藤忠商事</text>
-        <text x="530" y="95" textAnchor="middle" fontSize="12" fill="#475569">出資</text>
-        <text x="530" y="115" textAnchor="middle" fontSize="14" fontWeight="700" fill="#10B981">5,000万円</text>
-        <text x="530" y="130" textAnchor="middle" fontSize="10" fill="#64748B">Veto権保持</text>
-
-        {/* 新会社ボックス */}
-        <rect x="250" y="220" width="200" height="110" rx="8" fill="#F8FAFC" stroke="#64748B" strokeWidth="2" />
-        <text x="350" y="250" textAnchor="middle" fontSize="16" fontWeight="700" fill="#1E293B">新会社</text>
-        <text x="350" y="270" textAnchor="middle" fontSize="13" fill="#475569">株式会社AIアシスタント</text>
-        <text x="350" y="295" textAnchor="middle" fontSize="18" fontWeight="700" fill="#1E293B">資本金1億円</text>
-        <text x="350" y="315" textAnchor="middle" fontSize="11" fill="#64748B">(発案者50% + 伊藤忠50%)</text>
-
-        {/* 転籍・経営コミットメントテキスト（発案者と保証の中央揃え） */}
-        <text x="170" y="250" textAnchor="middle" fontSize="12" fill="#3B82F6" fontWeight="600">転籍</text>
-        <text x="170" y="270" textAnchor="middle" fontSize="12" fill="#475569">経営</text>
-        <text x="170" y="290" textAnchor="middle" fontSize="11" fill="#64748B">コミット</text>
-
-        {/* Drag-along条項テキスト（独立表示） */}
-        <text x="600" y="260" textAnchor="middle" fontSize="12" fill="#EF4444" fontWeight="600">1,500万円</text>
-
-        {/* 清算時損失補填ボックス */}
-        <rect x="100" y="380" width="140" height="70" rx="8" fill="#FEE2E2" stroke="#EF4444" strokeWidth="2" />
-        <text x="170" y="405" textAnchor="middle" fontSize="12" fontWeight="600" fill="#DC2626">清算時損失補填</text>
-        <text x="170" y="425" textAnchor="middle" fontSize="12" fontWeight="700" fill="#DC2626">最大15%</text>
-        <text x="170" y="440" textAnchor="middle" fontSize="10" fill="#991B1B">(発案者→伊藤忠)</text>
-
-        {/* 発案者から新会社への矢印 */}
-        <path d="M 170 140 Q 200 180 280 220" stroke="#3B82F6" strokeWidth="4" fill="none" markerEnd="url(#arrowhead-blue)" />
-        <text x="220" y="175" fontSize="12" fill="#3B82F6" fontWeight="700">5,000万円</text>
-        <text x="220" y="190" fontSize="11" fill="#64748B">出資</text>
-
-        {/* 伊藤忠から新会社への矢印 */}
-        <path d="M 530 140 Q 500 180 420 220" stroke="#10B981" strokeWidth="4" fill="none" markerEnd="url(#arrowhead-green)" />
-        <text x="470" y="175" fontSize="12" fill="#10B981" fontWeight="700">5,000万円</text>
-        <text x="470" y="190" fontSize="11" fill="#64748B">出資</text>
-
-        {/* 新会社から保証への矢印（点線） */}
-        <path d="M 300 330 Q 250 350 220 380" stroke="#EF4444" strokeWidth="3" strokeDasharray="8,4" fill="none" markerEnd="url(#arrowhead-red)" />
-        <text x="250" y="360" fontSize="10" fill="#EF4444" fontWeight="600">清算時</text>
-
-        {/* 保証から伊藤忠商事への矢印（点線、直角に曲がる、新会社を避ける） */}
-        <path d="M 240 415 L 530 415 L 530 140" stroke="#EF4444" strokeWidth="2.5" strokeDasharray="8,4" fill="none" markerEnd="url(#arrowhead-red)" />
-      </svg>
-    </div>
-  );
-}
 
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string; target: string }> } = {
   'own-service': [
@@ -205,9 +146,11 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
 
 export default function FeaturesPage() {
   const { plan } = usePlan();
+  const params = useParams();
+  const planId = params.planId as string;
   
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
-  const { showContainers } = require('../layout').useContainerVisibility();
+  const { showContainers } = useContainerVisibility();
   const diagramRef = useRef<HTMLDivElement>(null);
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const [svgContent, setSvgContent] = useState<string>('');
@@ -217,6 +160,140 @@ export default function FeaturesPage() {
   const [isTableExpanded, setIsTableExpanded] = useState(false); // 表の折りたたみ状態
   const initializedRef = useRef(false);
   const renderedRef = useRef(false);
+  
+  // 固定ページ形式のコンテナ管理
+  const [fixedPageContainers, setFixedPageContainers] = useState<FixedPageContainer[]>([]);
+  const [editingContainerId, setEditingContainerId] = useState<string | null>(null);
+  const [editingTitle, setEditingTitle] = useState('');
+  const [editingContent, setEditingContent] = useState('');
+  
+  // コンポーネント化版かどうかを判定
+  const isComponentized = plan?.pagesBySubMenu && 
+    typeof plan.pagesBySubMenu === 'object' && 
+    Object.keys(plan.pagesBySubMenu).length > 0 &&
+    Object.values(plan.pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+  
+  // 固定ページ形式のコンテナをFirestoreから読み込む
+  useEffect(() => {
+    if (isComponentized || !plan || !db || !auth?.currentUser) {
+      return;
+    }
+    
+    const loadContainers = async () => {
+      try {
+        if (!db) return;
+        const planDoc = await getDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id));
+        if (planDoc.exists()) {
+          const data = planDoc.data();
+          const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+          const containers = containersBySubMenu['features'] || [];
+          setFixedPageContainers(containers);
+        }
+      } catch (error) {
+        console.error('コンテナの読み込みエラー:', error);
+      }
+    };
+    
+    loadContainers();
+  }, [plan, isComponentized, db, auth]);
+  
+  // 固定ページ形式のコンテナをFirestoreに保存
+  const saveContainers = useCallback(async (containers: FixedPageContainer[]) => {
+    if (!plan || !db || !auth?.currentUser) return;
+    
+    try {
+      if (!db) return;
+      const planDoc = await getDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id));
+      if (planDoc.exists()) {
+        const data = planDoc.data();
+        const containersBySubMenu = data.fixedPageContainersBySubMenu || {};
+        await updateDoc(doc(db, FIRESTORE_COLLECTION_NAME, plan.id), {
+          fixedPageContainersBySubMenu: {
+            ...containersBySubMenu,
+            'features': containers,
+          },
+          updatedAt: serverTimestamp(),
+        });
+      }
+    } catch (error) {
+      console.error('コンテナの保存エラー:', error);
+      alert('コンテナの保存に失敗しました。');
+    }
+  }, [plan, db, auth]);
+  
+  // コンテナの編集を開始
+  const handleStartEditContainer = useCallback((containerId: string) => {
+    const container = fixedPageContainers.find(c => c.id === containerId);
+    if (container) {
+      setEditingContainerId(containerId);
+      setEditingTitle(container.title);
+      setEditingContent(container.content);
+    }
+  }, [fixedPageContainers]);
+  
+  // コンテナの編集を保存
+  const handleSaveEditContainer = useCallback(async () => {
+    if (!editingContainerId) return;
+    
+    const updatedContainers = fixedPageContainers.map(c =>
+      c.id === editingContainerId
+        ? { ...c, title: editingTitle, content: editingContent }
+        : c
+    );
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, [editingContainerId, editingTitle, editingContent, fixedPageContainers, saveContainers]);
+  
+  // コンテナの編集をキャンセル
+  const handleCancelEditContainer = useCallback(() => {
+    setEditingContainerId(null);
+    setEditingTitle('');
+    setEditingContent('');
+  }, []);
+  
+  // コンテナを削除
+  const handleDeleteContainer = useCallback(async (containerId: string) => {
+    if (!confirm('このコンテナを削除しますか？')) return;
+    
+    const updatedContainers = fixedPageContainers
+      .filter(c => c.id !== containerId)
+      .map((c, index) => ({ ...c, order: index }));
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（上に移動）
+  const handleMoveContainerUp = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index <= 0) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index - 1], updatedContainers[index]] = [updatedContainers[index], updatedContainers[index - 1]];
+    updatedContainers[index - 1].order = index - 1;
+    updatedContainers[index].order = index;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
+  
+  // コンテナの順序を変更（下に移動）
+  const handleMoveContainerDown = useCallback(async (containerId: string) => {
+    const index = fixedPageContainers.findIndex(c => c.id === containerId);
+    if (index < 0 || index >= fixedPageContainers.length - 1) return;
+    
+    const updatedContainers = [...fixedPageContainers];
+    [updatedContainers[index], updatedContainers[index + 1]] = [updatedContainers[index + 1], updatedContainers[index]];
+    updatedContainers[index].order = index;
+    updatedContainers[index + 1].order = index + 1;
+    
+    setFixedPageContainers(updatedContainers);
+    await saveContainers(updatedContainers);
+  }, [fixedPageContainers, saveContainers]);
 
   // コンポーネントがマウントされた際に状態をリセット
   useEffect(() => {
@@ -232,7 +309,7 @@ export default function FeaturesPage() {
   }, []);
 
   // 特定の事業企画のMermaidシーケンス図のコードを生成
-  const generateMermaidDiagram = (serviceId: string) => {
+  const generateMermaidDiagram = (serviceId: string, companyName: string = '自社') => {
     const serviceName = SERVICE_NAMES[serviceId];
     const scope = SERVICE_SCOPE[serviceId];
     const target = SERVICE_TARGET[serviceId];
@@ -241,7 +318,7 @@ export default function FeaturesPage() {
     
     // 自社開発・自社サービス事業の場合は専用の参加者構成
     if (serviceId === 'own-service') {
-      diagram += '    participant 自社 as 株式会社AIアシスタント\n';
+      diagram += `    participant 自社 as ${companyName}\n`;
       diagram += '    participant 自治体 as 顧客：自治体\n';
       diagram += '    participant 企業 as 顧客：企業\n';
       diagram += '    participant 従業員 as エンドユーザー：従業員\n';
@@ -259,7 +336,7 @@ export default function FeaturesPage() {
       diagram += `    自社->>一般利用者: ${serviceName}\n`;
     } else {
       // その他の事業企画は従来の参加者構成
-    diagram += '    participant 自社 as 株式会社AIアシスタント\n';
+    diagram += `    participant 自社 as ${companyName}\n`;
     diagram += '    participant 経営層 as 顧客企業・経営層・人事部門\n';
       diagram += '    participant 業務部門 as 顧客企業・営業部門・職能部門\n';
     diagram += '    participant システム部門 as 顧客企業・システム部門\n';
@@ -327,7 +404,9 @@ export default function FeaturesPage() {
       setError(null);
       try {
         const mermaid = window.mermaid;
-        const diagram = generateMermaidDiagram(selectedServiceId);
+        // planIdに応じて会社名を決定（現時点ではデフォルト値を使用）
+        const companyName = planId === '9pu2rwOCRjG5gxmqX2tO' ? '株式会社AIアシスタント' : '自社';
+        const diagram = generateMermaidDiagram(selectedServiceId, companyName);
         
         // 初期化（一度だけ実行）
         if (!initializedRef.current) {
@@ -445,6 +524,11 @@ export default function FeaturesPage() {
   // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
   if ((plan as any)?.pagesBySubMenu) {
     return <ComponentizedCompanyPlanOverview />;
+  }
+
+  // 固定ページ形式で、コンテナがあるかチェック
+  if (!fixedPageContainers || fixedPageContainers.length === 0) {
+    return null;
   }
 
   return (
@@ -1856,276 +1940,6 @@ export default function FeaturesPage() {
           </div>
         </div>
 
-        {/* 設立時の資本構成 */}
-        <div 
-          data-page-container="4"
-          style={{
-            marginBottom: '32px',
-            ...(showContainers ? {
-              border: '3px dashed #1F2933',
-              backgroundColor: 'transparent',
-              position: 'relative',
-              zIndex: 1,
-              borderRadius: '8px',
-              padding: '16px',
-              pageBreakInside: 'avoid',
-              breakInside: 'avoid',
-            } : {}),
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' }}>
-            <h3 style={{ fontSize: '16px', fontWeight: 600, color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px', margin: 0 }}>
-              設立時の資本構成
-            </h3>
-            <span id="page-growth-4" style={{ fontSize: '12px', color: '#94A3B8' }}>4</span>
-          </div>
-          <h2 style={{ fontSize: '38px', fontWeight: 700, marginBottom: '12px', color: 'var(--color-text)', lineHeight: '1.4', textAlign: 'center' }}>
-            株式会社AIアシスタント 設立計画（共同出資スキーム案）
-          </h2>
-          <h3 style={{ fontSize: '18px', fontWeight: 500, marginBottom: '20px', color: 'var(--color-text-light)', lineHeight: '1.6', textAlign: 'center', fontStyle: 'normal' }}>
-            発案者は転籍し、経営とプロダクト開発にコミットメント
-          </h3>
-          <div style={{ 
-            marginTop: '20px'
-          }}>
-            <div style={{
-              display: 'flex',
-              gap: '40px',
-              alignItems: 'flex-start',
-              flexWrap: 'wrap'
-            }}>
-              {/* 左側：相関図 */}
-              <div style={{
-                flex: '1',
-                minWidth: '400px'
-              }}>
-                <div style={{
-                  fontSize: '16px',
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  marginBottom: '20px',
-                  textAlign: 'center'
-                }}>
-                  資本構成とお金の流れ
-                </div>
-                <CapitalFlowDiagram />
-              </div>
-
-              {/* 右側：資本構成図 */}
-              <div style={{
-                flex: '1',
-                minWidth: '400px'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'center',
-                  alignItems: 'flex-start',
-                  gap: '40px',
-                  marginBottom: '32px',
-                  flexWrap: 'wrap'
-                }}>
-              {/* 発案者 */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                flex: '1',
-                minWidth: '200px',
-                maxWidth: '300px'
-              }}>
-                <div style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  backgroundColor: '#EFF6FF',
-                  border: '3px solid #3B82F6',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '16px',
-                  boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
-                }}>
-                  <div style={{
-                    fontSize: '24px',
-                    fontWeight: 700,
-                    color: '#3B82F6'
-                  }}>
-                    50%
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  marginBottom: '8px',
-                  textAlign: 'center'
-                }}>
-                  発案者
-                </div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  marginTop: '8px'
-                }}>
-                  <span style={{
-                    fontSize: '18px',
-                    fontWeight: 600,
-                    color: '#475569'
-                  }}>自己資金</span>
-                  <span style={{
-                    fontSize: '20px',
-                    fontWeight: 700,
-                    color: '#3B82F6'
-                  }}>5,000万円</span>
-                </div>
-                
-                {/* 発案者の主要条件カード */}
-                <div style={{
-                  marginTop: '24px',
-                  padding: '16px',
-                  backgroundColor: '#FFFFFF',
-                  border: '2px dashed #3B82F6',
-                  borderRadius: '8px',
-                  width: '100%',
-                  maxWidth: '280px',
-                  minHeight: '360px',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <div style={{
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    color: '#3B82F6',
-                    marginBottom: '12px',
-                    textAlign: 'center'
-                  }}>
-                    主要条件
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#475569',
-                    lineHeight: '1.8',
-                    textAlign: 'left'
-                  }}>
-                    <div style={{ marginBottom: '8px' }}>1. フルコミットメント</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>経営責任およびプロダクト開発に専念</div>
-                    <div style={{ marginBottom: '8px' }}>2. 自己資金5,000万円出資</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>新会社の株式50%を保有、経営者責任としてリスクテイク</div>
-                    <div style={{ marginBottom: '8px' }}>3. 清算時損失補填（最大15%）</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>事業不振・清算のとき、伊藤忠側へ損失補填</div>
-                    <div style={{ marginBottom: '8px' }}>4. Drag-along</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>条件付きのExit時の同条件売却義務</div>
-                    <div>5. Veto権は投資家に付与</div>
-                    <div style={{ fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>安全性担保</div>
-                  </div>
-                </div>
-              </div>
-
-              {/* 伊藤忠商事 */}
-              <div style={{
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                flex: '1',
-                minWidth: '200px',
-                maxWidth: '300px'
-              }}>
-                <div style={{
-                  width: '120px',
-                  height: '120px',
-                  borderRadius: '50%',
-                  backgroundColor: '#F0FDF4',
-                  border: '3px solid #10B981',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  marginBottom: '16px',
-                  boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
-                }}>
-                  <div style={{
-                    fontSize: '24px',
-                    fontWeight: 700,
-                    color: '#10B981'
-                  }}>
-                    50%
-                  </div>
-                </div>
-                <div style={{
-                  fontSize: '18px',
-                  fontWeight: 600,
-                  color: '#1E293B',
-                  marginBottom: '8px',
-                  textAlign: 'center'
-                }}>
-                  伊藤忠商事
-                </div>
-                <div style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '8px',
-                  marginTop: '8px'
-                }}>
-                  <span style={{
-                    fontSize: '18px',
-                    fontWeight: 600,
-                    color: '#475569'
-                  }}>出資</span>
-                  <span style={{
-                    fontSize: '20px',
-                    fontWeight: 700,
-                    color: '#10B981'
-                  }}>5,000万円</span>
-                </div>
-                
-                {/* 伊藤忠商事の主要条件カード */}
-                <div style={{
-                  marginTop: '24px',
-                  padding: '16px',
-                  backgroundColor: '#FFFFFF',
-                  border: '2px dashed #10B981',
-                  borderRadius: '8px',
-                  width: '100%',
-                  maxWidth: '280px',
-                  minHeight: '360px',
-                  display: 'flex',
-                  flexDirection: 'column'
-                }}>
-                  <div style={{
-                    fontSize: '14px',
-                    fontWeight: 600,
-                    color: '#10B981',
-                    marginBottom: '12px',
-                    textAlign: 'center'
-                  }}>
-                    主要条件
-                  </div>
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#475569',
-                    lineHeight: '1.8',
-                    textAlign: 'left'
-                  }}>
-                    <div style={{ marginBottom: '8px' }}>1. 出資5,000万円（株式50%）</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>新会社の株式50%を保有</div>
-                    <div style={{ marginBottom: '8px' }}>2. Veto権保持</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>増資・役員選任・事業売却等の重要事項について拒否権</div>
-                    <div style={{ marginBottom: '8px' }}>3. 清算優先権（1.0x）</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>優先回収権</div>
-                    <div style={{ marginBottom: '8px' }}>4. Drag-along（条件付き）</div>
-                    <div style={{ marginBottom: '8px', fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>3倍以上の売却価格の場合のみ有効</div>
-                    <div>5. 定期的な情報提供</div>
-                    <div style={{ fontSize: '11px', color: '#64748B', paddingLeft: '8px' }}>KPI/PL/BS/CF</div>
-                  </div>
-                </div>
-              </div>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
 
         <div 
           data-page-container="5"
@@ -3086,44 +2900,6 @@ export default function FeaturesPage() {
             先行者優位の市場において、後発者が参入するためには、「規模・密度・範囲の経済のトリレンマ」が１つの切り口
           </h3>
 
-          {/* 株式会社AIアシスタントの視点 */}
-          <div style={{
-            marginTop: '32px'
-          }}>
-            <div style={{
-              display: 'flex',
-              gap: '24px',
-              alignItems: 'flex-start',
-              marginBottom: '16px'
-            }}>
-              <div style={{
-                flex: '0 0 auto',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                width: '48px',
-                height: '48px',
-                borderRadius: '8px',
-                backgroundColor: '#EFF6FF',
-                color: '#3B82F6'
-              }}>
-                <FaEye size={24} />
-              </div>
-              <div style={{
-                flex: 1
-              }}>
-                <p style={{ 
-                  fontSize: '14px', 
-                  color: 'var(--color-text)', 
-                  lineHeight: '1.8',
-                  margin: 0,
-                  fontWeight: 600
-                }}>
-                  株式会社AIアシスタントは、<strong>「範囲の経済の犠牲」</strong>を選択し、出産支援/介護支援という特定領域（密度の経済）に集中しつつ、AIアプリケーションとして効率的な規模（規模の経済）を実現することで、後発事業者としての参入を目指す。
-                </p>
-              </div>
-            </div>
-          </div>
 
           {/* 規模・密度・範囲の経済のトリレンマ */}
             <div style={{ marginTop: '32px' }}>
@@ -3379,6 +3155,257 @@ export default function FeaturesPage() {
           </div>
         </div>
       </div>
+      
+      {/* 固定ページ形式のコンテナセクション */}
+      {!isComponentized && fixedPageContainers.length > 0 && (
+        <>
+          {fixedPageContainers
+            .sort((a, b) => a.order - b.order)
+            .map((container, index) => {
+              // 固定ページコンテナの順序に基づいて1から始まる連番を振る
+              const containerNumber = index + 1;
+              
+              return (
+                <div
+                  key={container.id}
+                  data-page-container={containerNumber.toString()}
+                  style={{
+                    marginBottom: '24px',
+                    position: 'relative',
+                    ...(showContainers ? {
+                      border: '4px dashed #000000',
+                      boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                      backgroundColor: 'transparent',
+                    } : {}),
+                  }}
+                >
+                  {/* 編集・削除・順序変更ボタン */}
+                  {showContainers && auth?.currentUser && (
+                    <div 
+                      className="container-control-buttons"
+                      style={{
+                        position: 'absolute',
+                        top: '10px',
+                        right: '10px',
+                      display: 'flex',
+                      gap: '4px',
+                      zIndex: 10,
+                    }}>
+                      {/* 上に移動 */}
+                      {container.order > 0 && (
+                        <button
+                          onClick={() => handleMoveContainerUp(container.id)}
+                          style={{
+                            background: 'rgba(255,255,255,0.9)',
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            fontSize: '12px',
+                          }}
+                          title="上に移動"
+                        >
+                          ↑
+                        </button>
+                      )}
+                      {/* 下に移動 */}
+                      {container.order < fixedPageContainers.length - 1 && (
+                        <button
+                          onClick={() => handleMoveContainerDown(container.id)}
+                          style={{
+                            background: 'rgba(255,255,255,0.9)',
+                            border: '1px solid rgba(0,0,0,0.1)',
+                            borderRadius: '4px',
+                            width: '28px',
+                            height: '28px',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            cursor: 'pointer',
+                            boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                            fontSize: '12px',
+                          }}
+                          title="下に移動"
+                        >
+                          ↓
+                        </button>
+                      )}
+                      <button
+                        onClick={() => handleStartEditContainer(container.id)}
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          borderRadius: '4px',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        title="編集"
+                      >
+                        ✏️
+                      </button>
+                      <button
+                        onClick={() => handleDeleteContainer(container.id)}
+                        style={{
+                          background: 'rgba(255,255,255,0.9)',
+                          border: '1px solid rgba(0,0,0,0.1)',
+                          borderRadius: '4px',
+                          width: '28px',
+                          height: '28px',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+                          fontSize: '12px',
+                        }}
+                        title="削除"
+                      >
+                        🗑️
+                      </button>
+                    </div>
+                  )}
+                  {/* タイトル */}
+                  <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <h3 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      borderLeft: '3px solid var(--color-primary)',
+                      paddingLeft: '8px',
+                      margin: 0,
+                      flex: 1,
+                    }}>
+                      {container.title}
+                    </h3>
+                    <span 
+                      className="container-page-number"
+                      style={{
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      color: 'var(--color-text-light)',
+                      marginLeft: '16px',
+                    }}>
+                      {containerNumber}
+                    </span>
+                  </div>
+                  {/* コンテンツ */}
+                  <div
+                    style={{
+                      padding: '16px',
+                      minHeight: '100px',
+                    }}
+                    dangerouslySetInnerHTML={{ __html: container.content }}
+                  />
+                </div>
+              );
+            })}
+          
+          {/* 編集モーダル */}
+          {editingContainerId && (
+            <div style={{
+              position: 'fixed',
+              top: 0,
+              left: 0,
+              right: 0,
+              bottom: 0,
+              backgroundColor: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              zIndex: 1000,
+            }}>
+              <div style={{
+                backgroundColor: '#fff',
+                padding: '24px',
+                borderRadius: '8px',
+                width: '90%',
+                maxWidth: '600px',
+                boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
+              }}>
+                <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>コンテナを編集</h3>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>タイトル</label>
+                  <input
+                    type="text"
+                    value={editingTitle}
+                    onChange={(e) => setEditingTitle(e.target.value)}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                    }}
+                  />
+                </div>
+                <div style={{ marginBottom: '16px' }}>
+                  <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>コンテンツ (HTML)</label>
+                  <textarea
+                    value={editingContent}
+                    onChange={(e) => setEditingContent(e.target.value)}
+                    rows={10}
+                    style={{
+                      width: '100%',
+                      padding: '8px',
+                      border: '1px solid #ccc',
+                      borderRadius: '4px',
+                      fontSize: '14px',
+                      resize: 'vertical',
+                    }}
+                  />
+                </div>
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px' }}>
+                  <button
+                    onClick={handleCancelEditContainer}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#E5E7EB',
+                      color: '#374151',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    キャンセル
+                  </button>
+                  <button
+                    onClick={handleSaveEditContainer}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '6px',
+                      cursor: 'pointer',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                    }}
+                  >
+                    保存
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+        </>
+      )}
     </>
   );
 }

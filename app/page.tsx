@@ -163,7 +163,7 @@ export default function DashboardPage() {
 
     // ページがフォーカスされた時にも再読み込み
     const handleFocus = () => {
-      if (auth.currentUser) {
+      if (auth && auth.currentUser) {
         loadCounts();
       }
     };

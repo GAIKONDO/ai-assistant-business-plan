@@ -30,7 +30,15 @@ export interface BusinessPlanData {
   keyVisualHeight?: number; // キービジュアルの高さ（%）
   keyVisualScale?: number; // キービジュアルのスケール（%）
   keyVisualLogoUrl?: string; // PDFロゴのURL
+  keyVisualLogoSize?: number; // PDFロゴのサイズ（mm）- 高さ
   keyVisualMetadata?: KeyVisualPDFMetadata; // PDFメタデータ（タイトル、署名、作成日）
+  titlePositionX?: number; // PDFタイトルのX位置（mm）
+  titlePositionY?: number; // PDFタイトルのY位置（mm）
+  titleFontSize?: number; // PDFタイトルのフォントサイズ（px）
+  titleBorderEnabled?: boolean; // PDFタイトルのボーダー（縦棒）の有無
+  footerText?: string; // PDFフッターテキスト
+  pagesBySubMenu?: { [subMenuId: string]: Array<any> }; // サブメニューごとのページ
+  pageOrderBySubMenu?: { [subMenuId: string]: string[] }; // サブメニューごとのページ順序
 }
 
 interface BusinessPlanFormProps {

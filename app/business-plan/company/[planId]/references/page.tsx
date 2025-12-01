@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import { doc, getDoc, setDoc } from 'firebase/firestore';
 import { db } from '@/lib/firebase';
-import { usePlan } from '../layout';
+import { usePlan } from '../hooks/usePlan';
 import dynamic from 'next/dynamic';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
@@ -12,6 +12,12 @@ const ComponentizedCompanyPlanOverview = dynamic(
   () => import('@/components/pages/component-test/test-concept/ComponentizedCompanyPlanOverview'),
   { ssr: false }
 );
+
+// planIdごとの固定コンテンツコンポーネント（条件付きインポート）
+// 固定コンテンツがあるplanIdのマッピング
+const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
+  '9pu2rwOCRjG5gxmqX2tO': true,
+};
 
 interface Reference {
   id: string;
@@ -23,14 +29,12 @@ interface Reference {
 export default function ReferencesPage() {
   const { plan } = usePlan();
   
-  // コンポーネント化されたページを使用するかチェック
-  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
-  if (plan?.pagesBySubMenu) {
-    return <ComponentizedCompanyPlanOverview />;
-  }
-  
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const params = useParams();
   const planId = params.planId as string;
+  
+  // planIdに応じてコンテンツを表示するかどうかを決定
+  const hasCustomContent = planId && PLAN_CONTENT_MAP[planId] ? true : false;
   const [references, setReferences] = useState<Reference[]>([]);
   const [loading, setLoading] = useState(true);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -118,6 +122,17 @@ export default function ReferencesPage() {
 
     loadReferences();
   }, [planId]);
+
+  // コンポーネント化されたページを使用するかチェック
+  // pagesBySubMenuが存在する場合はComponentizedCompanyPlanOverviewを使用
+  if (plan?.pagesBySubMenu) {
+    return <ComponentizedCompanyPlanOverview />;
+  }
+
+  // 固定ページ形式で、planId固有のコンテンツが存在しない場合は何も表示しない
+  if (!hasCustomContent) {
+    return null;
+  }
 
   // Firestoreに参考文献を保存
   const saveReferences = async (updatedReferences: Reference[]) => {

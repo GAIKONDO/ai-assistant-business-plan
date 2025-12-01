@@ -9,61 +9,11 @@ import { auth, db } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptSubMenu, { SUB_MENU_ITEMS } from '@/components/ConceptSubMenu';
 import { PresentationModeProvider, usePresentationMode } from '@/components/PresentationModeContext';
-import { ComponentizedPageProvider, useComponentizedPage } from '@/components/pages/component-test/test-concept/ComponentizedPageContext';
+import { ComponentizedPageProvider, useComponentizedPageOptional } from '@/components/pages/component-test/test-concept/ComponentizedPageContext';
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
-
-interface ConceptData {
-  id: string;
-  name: string;
-  description: string;
-  conceptId: string;
-  serviceId: string;
-  keyVisualUrl?: string;
-  keyVisualHeight?: number; // キービジュアルの高さ（%）
-  keyVisualScale?: number; // キービジュアルのスケール（%）
-  keyVisualLogoUrl?: string; // PDF右上に表示するロゴのURL
-  keyVisualMetadata?: {
-    title: string;
-    signature: string;
-    date: string;
-    position: { x: number; y: number; align: 'left' | 'center' | 'right' };
-    titleFontSize?: number;
-    signatureFontSize?: number;
-    dateFontSize?: number;
-  };
-  pagesBySubMenu?: { [subMenuId: string]: Array<any> }; // サブメニューごとのページ
-  pageOrderBySubMenu?: { [subMenuId: string]: string[] }; // サブメニューごとのページ順序
-}
-
-interface ConceptContextType {
-  concept: ConceptData | null;
-  loading: boolean;
-  reloadConcept: () => Promise<void>;
-}
-
-const ConceptContext = createContext<ConceptContextType>({ 
-  concept: null, 
-  loading: true, 
-  reloadConcept: async () => {} 
-});
-
-export const useConcept = () => useContext(ConceptContext);
-
-interface ContainerVisibilityContextType {
-  showContainers: boolean;
-  setShowContainers: (show: boolean) => void;
-}
-
-const ContainerVisibilityContext = createContext<ContainerVisibilityContextType | undefined>(undefined);
-
-export const useContainerVisibility = () => {
-  const context = useContext(ContainerVisibilityContext);
-  if (context === undefined) {
-    throw new Error('useContainerVisibility must be used within a ContainerVisibilityProvider');
-  }
-  return context;
-};
+import { ConceptContext, useConcept, ConceptData } from './hooks/useConcept';
+import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
 
 declare global {
   interface Window {
@@ -314,16 +264,8 @@ function ConceptLayoutContent({
   const [currentPageDimensions, setCurrentPageDimensions] = useState<{ width: number; height: number } | null>(null);
   const [contentAspectRatio, setContentAspectRatio] = useState<number | null>(null);
 
-  // コンポーネント化されたページの場合のコンテキスト
-  let componentizedPageContext: ReturnType<typeof useComponentizedPage> | null = null;
-  try {
-    if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
-        conceptId.includes('-componentized')) {
-      componentizedPageContext = useComponentizedPage();
-    }
-  } catch (e) {
-    // ComponentizedPageProviderでラップされていない場合は無視
-  }
+  // コンポーネント化されたページの場合のコンテキスト（オプショナル版を使用）
+  const componentizedPageContext = useComponentizedPageOptional();
 
   // 現在のサブメニュー項目を判定
   const getCurrentSubMenu = () => {
@@ -1475,7 +1417,7 @@ function ConceptLayoutContent({
                 
                 // 一時的に調整（PDF出力後に復元する）
                 (parent as HTMLElement).style.paddingTop = `${paddingTop + marginTopValue}px`;
-                (svgEl as HTMLElement).style.marginTop = '0';
+                (svgEl as unknown as HTMLElement).style.marginTop = '0';
               }
             }
           }
@@ -1493,7 +1435,6 @@ function ConceptLayoutContent({
           backgroundColor: '#ffffff',
           width: containerEl.scrollWidth,
           height: containerEl.scrollHeight,
-          letterRendering: true, // 文字単位でのレンダリングを有効化
           onclone: (clonedDoc, clonedWindow) => {
             try {
               // クローンされたドキュメント内のフォントを確実に適用
@@ -1510,8 +1451,8 @@ function ConceptLayoutContent({
                     clonedContainer.style.letterSpacing = 'normal';
                     clonedContainer.style.wordSpacing = 'normal';
                     clonedContainer.style.textRendering = 'optimizeLegibility';
-                    clonedContainer.style.webkitFontSmoothing = 'antialiased';
-                    clonedContainer.style.mozOsxFontSmoothing = 'grayscale';
+                    clonedContainer.style.setProperty('-webkit-font-smoothing', 'antialiased');
+                    clonedContainer.style.setProperty('-moz-osx-font-smoothing', 'grayscale');
                   }
                 } catch (e) {
                   // エラーが発生した場合は無視
@@ -1666,7 +1607,7 @@ function ConceptLayoutContent({
         // SVGの位置調整を元に戻す
         svgAdjustments.forEach(({ svg, parent, originalParentPaddingTop, originalSvgMarginTop }) => {
           parent.style.paddingTop = originalParentPaddingTop;
-          (svg as HTMLElement).style.marginTop = originalSvgMarginTop;
+          (svg as unknown as HTMLElement).style.marginTop = originalSvgMarginTop;
         });
         
         // 元のborderスタイルを復元
