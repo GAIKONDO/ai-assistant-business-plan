@@ -49,7 +49,6 @@ export default function BusinessRadialBar({
       )}
       <ResponsiveRadialBar
         data={data}
-        value="y"
         endAngle={360}
         innerRadius={0.3}
         padding={0.1}
@@ -67,24 +66,25 @@ export default function BusinessRadialBar({
         animate={true}
         motionConfig="gentle"
         transitionMode="startAngle"
-        tooltip={({ id, data: tooltipData, value }) => (
-          <div
-            style={{
-              padding: '8px 12px',
-              background: 'rgba(0, 0, 0, 0.8)',
-              color: '#fff',
-              borderRadius: '4px',
-              fontSize: '12px',
-            }}
-          >
-            <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
-              {id}
+        tooltip={({ data: tooltipData, value }: any) => {
+          if (!tooltipData || value === undefined) return null;
+          return (
+            <div
+              style={{
+                padding: '8px 12px',
+                background: 'rgba(0, 0, 0, 0.8)',
+                color: '#fff',
+                borderRadius: '4px',
+                fontSize: '12px',
+              }}
+            >
+              <div style={{ fontWeight: 'bold', marginBottom: '4px' }}>
+                {tooltipData.x || 'N/A'}
+              </div>
+              <div>{typeof value === 'number' ? value.toLocaleString() : value}</div>
             </div>
-            <div>
-              {tooltipData?.x || 'N/A'}: {typeof value === 'number' ? value.toLocaleString() : value}
-            </div>
-          </div>
-        )}
+          );
+        }}
         theme={{
           axis: {
             domain: {

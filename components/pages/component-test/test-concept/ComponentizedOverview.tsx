@@ -10,7 +10,7 @@ import { pageConfigs, PageConfig } from './pageConfig';
 import PageOrderManager from './PageOrderManager';
 import { useComponentizedPage } from './ComponentizedPageContext';
 import { usePresentationMode } from '@/components/PresentationModeContext';
-import { useConcept } from '@/app/business-plan/services/[serviceId]/[conceptId]/layout';
+import { useConcept } from '@/app/business-plan/services/[serviceId]/[conceptId]/hooks/useConcept';
 import AddPageForm from './AddPageForm';
 import { pageAutoUpdateConfigs, PageAutoUpdateConfig } from './pageAutoUpdateConfig';
 import './pageStyles.css';
@@ -57,7 +57,7 @@ export default function ComponentizedOverview() {
       // 各設定をチェックして、自動更新が必要な場合は実行
       for (const config of relevantConfigs) {
         const pageConfig = orderedConfigs.find(c => c.id === config.pageId);
-        if (pageConfig && config.shouldUpdate(concept)) {
+        if (pageConfig && config.shouldUpdate && typeof config.shouldUpdate === 'function' && (config.shouldUpdate as any)(concept)) {
           // 自動更新が必要な場合は、ページを再読み込み
           if (refreshPages) {
             refreshPages();
@@ -152,6 +152,7 @@ export default function ComponentizedOverview() {
       const downloadURL = await getDownloadURL(storageRef);
 
       // Firestoreに保存
+      if (!db) return;
       const conceptRef = doc(db, 'concepts', concept.id);
       await updateDoc(conceptRef, {
         keyVisualLogoUrl: downloadURL,

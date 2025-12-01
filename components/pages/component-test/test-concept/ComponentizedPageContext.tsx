@@ -86,9 +86,9 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
   useEffect(() => {
     // コンポーネント化されたページかどうかを判定
     // conceptIdが-componentizedを含む、または特定のconceptIdの場合はコンポーネント化されたページ
-    const isComponentized = 
+    const isComponentized =
       (serviceId === 'component-test' && conceptId === 'test-concept') ||
-      conceptId.includes('-componentized');
+      (conceptId && conceptId.includes('-componentized'));
     
     if (!serviceId || !conceptId || !isComponentized) {
       setLoading(false);

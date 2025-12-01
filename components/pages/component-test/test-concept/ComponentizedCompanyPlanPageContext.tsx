@@ -14,6 +14,7 @@ interface ComponentizedCompanyPlanPageContextType {
   currentPageIndex: number;
   totalPages: number;
   setCurrentPageIndex: (index: number) => void;
+  setOrderedConfigs: (configs: PageConfig[]) => void;
   goToNextPage: () => void;
   goToPreviousPage: () => void;
   loading: boolean;
@@ -222,6 +223,7 @@ export function ComponentizedCompanyPlanPageProvider({ children }: Componentized
         currentPageIndex,
         totalPages: orderedConfigs.length,
         setCurrentPageIndex,
+        setOrderedConfigs,
         goToNextPage,
         goToPreviousPage,
         loading,

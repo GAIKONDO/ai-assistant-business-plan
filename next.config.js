@@ -3,7 +3,16 @@ const webpack = require('webpack');
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
+  pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
   webpack: (config, { isServer }) => {
+    // scriptsディレクトリを除外
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        checkResource(resource, context) {
+          return context && context.includes('scripts');
+        },
+      })
+    );
     // Vega/Vega-Liteのcanvas依存関係を処理
     if (!isServer) {
       // クライアントサイドではcanvas関連を無視
@@ -34,6 +43,15 @@ const nextConfig = {
         })
       );
     }
+    
+    // scriptsディレクトリを除外
+    config.plugins.push(
+      new webpack.IgnorePlugin({
+        checkResource(resource) {
+          return resource.includes('/scripts/') || resource.includes('\\scripts\\');
+        },
+      })
+    );
     
     // @tanstack/react-queryのvendor-chunks問題を解決
     if (!isServer) {

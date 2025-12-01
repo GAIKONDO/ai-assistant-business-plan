@@ -200,7 +200,7 @@ export default function MermaidDiagram({
             foreignObjects.forEach((fo) => {
               const divs = fo.querySelectorAll('div');
               const spans = fo.querySelectorAll('span');
-              const allElements = Array.from(divs).concat(Array.from(spans));
+              const allElements = Array.from(divs).concat(Array.from(spans) as any);
 
               allElements.forEach((el) => {
                 const textContent = el.textContent || '';

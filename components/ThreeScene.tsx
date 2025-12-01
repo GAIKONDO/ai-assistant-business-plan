@@ -56,7 +56,7 @@ export default function ThreeScene({ config, title, width = 600, height = 400 }:
       
       // TextをTHREEオブジェクトに追加してアニメーションコードからアクセス可能にする
       // RaycasterとVector2は既にTHREEオブジェクトに存在するので、そのまま使用可能
-      THREE.Text = Text;
+      (THREE as any).Text = Text;
 
       // シーンを作成
       const scene = new Scene();
@@ -80,6 +80,7 @@ export default function ThreeScene({ config, title, width = 600, height = 400 }:
       const renderer = new WebGLRenderer({ antialias: true });
       
       // コンテナの実際のサイズを取得
+      if (!containerRef.current) return;
       const containerWidth = containerRef.current.clientWidth - 32; // padding分を引く
       const containerHeight = containerRef.current.clientHeight - 32;
       const actualWidth = Math.max(containerWidth, width);

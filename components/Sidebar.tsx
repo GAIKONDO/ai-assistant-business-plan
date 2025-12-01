@@ -109,6 +109,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
   // 認証状態の監視
   useEffect(() => {
+    if (!auth) return;
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setAuthReady(true);
     });
@@ -163,11 +164,11 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           serviceId,
           isOpen,
           authReady,
-          userId: auth.currentUser.uid,
+          userId: auth?.currentUser?.uid || '',
         });
         
         // 個別の事業企画ページの場合、構想を表示
-        if (serviceId) {
+        if (serviceId && db && auth?.currentUser) {
           console.log('🔍 構想読み込み開始:', { serviceId, pathname });
           
           // Firebaseから構想を取得
@@ -256,6 +257,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         // 会社の事業計画を取得
         let companyPlansSnapshot;
         try {
+          if (!db || !auth?.currentUser) return;
           const companyQuery = query(
             collection(db, 'companyBusinessPlan'),
             where('userId', '==', auth.currentUser.uid),
@@ -264,6 +266,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           companyPlansSnapshot = await getDocs(companyQuery);
         } catch (error: any) {
           if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            if (!db || !auth?.currentUser) return;
             const companyQueryWithoutOrder = query(
               collection(db, 'companyBusinessPlan'),
               where('userId', '==', auth.currentUser.uid)
@@ -290,6 +293,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         } catch (error: any) {
           console.log('⚠️ orderByでエラー、orderByなしで再試行:', error);
           if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            if (!db || !auth?.currentUser) return;
             const projectsQueryWithoutOrder = query(
               collection(db, 'businessProjects'),
               where('userId', '==', auth.currentUser.uid)
@@ -302,6 +306,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           } else {
             // その他のエラーでもorderByなしで再試行
             console.log('⚠️ その他のエラー、orderByなしで再試行');
+            if (!db || !auth?.currentUser) return;
             const projectsQueryWithoutOrder = query(
               collection(db, 'businessProjects'),
               where('userId', '==', auth.currentUser.uid)

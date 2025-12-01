@@ -83,7 +83,7 @@ export default function BubbleChart({
   }, [width, height]);
 
   const packedData = useMemo(() => {
-    return packLayout(root);
+    return packLayout(root as any);
   }, [packLayout, root]);
 
   useEffect(() => {
@@ -200,8 +200,8 @@ export default function BubbleChart({
     // タイトルを追加
     if (title) {
       const titleText = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-      titleText.setAttribute('x', width / 2);
-      titleText.setAttribute('y', 20);
+      titleText.setAttribute('x', String(width / 2));
+      titleText.setAttribute('y', '20');
       titleText.setAttribute('text-anchor', 'middle');
       titleText.setAttribute('font-size', '16px');
       titleText.setAttribute('font-weight', '600');

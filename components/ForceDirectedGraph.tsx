@@ -133,7 +133,7 @@ export default function ForceDirectedGraph({
     }
 
     const unsubscribe = onAuthStateChanged(auth, async (user) => {
-      if (!user) {
+      if (!user || !db) {
         setLoading(false);
         return;
       }
@@ -659,7 +659,7 @@ export default function ForceDirectedGraph({
     const simulation = forceSimulation(nodes as any)
       .force(
         'link',
-        forceLink(simulationLinks)
+        forceLink(simulationLinks as any)
           .id((d: any) => d.id)
           .distance((link: any) => {
             if (link.type === 'company-project') return 150;

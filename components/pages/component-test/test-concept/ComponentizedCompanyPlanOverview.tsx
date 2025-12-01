@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { collection, query, where, getDocs, doc, updateDoc, serverTimestamp } from 'firebase/firestore';
+import { collection, query, where, getDocs, doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth, storage } from '@/lib/firebase';
@@ -19,7 +19,7 @@ export default function ComponentizedCompanyPlanOverview() {
   const params = useParams();
   const planId = params.planId as string | undefined;
   const { isPresentationMode } = usePresentationMode();
-  const { orderedConfigs, currentPageIndex, totalPages, setCurrentPageIndex, refreshPages, subMenuId } = useComponentizedCompanyPlanPage();
+  const { orderedConfigs, currentPageIndex, totalPages, setCurrentPageIndex, setOrderedConfigs, refreshPages, subMenuId } = useComponentizedCompanyPlanPage();
   const { plan, loading: planLoading, reloadPlan } = usePlan();
   const [showOrderManager, setShowOrderManager] = useState(false);
   const [showAddPageForm, setShowAddPageForm] = useState(false);
@@ -36,7 +36,6 @@ export default function ComponentizedCompanyPlanOverview() {
     console.log('ComponentizedCompanyPlanOverview - isPresentationMode:', isPresentationMode);
     console.log('ComponentizedCompanyPlanOverview - currentPageIndex:', currentPageIndex);
   }, [orderedConfigs, isPresentationMode, currentPageIndex]);
-
   // planIdが存在しない場合はエラーを表示
   if (!planId) {
     return (
@@ -53,9 +52,72 @@ export default function ComponentizedCompanyPlanOverview() {
     console.log('ページ順序が変更されました:', newOrder.map(c => c.id));
   };
 
-  const handlePageAdded = () => {
-    if (refreshPages) {
-      refreshPages();
+  const handlePageAdded = async () => {
+    // 注意: refreshPages()は呼び出さない
+    // Firestoreから最新のページデータを取得してコンテキストを直接更新するため、
+    // リロードなしでUIが更新される
+    if (planId && setOrderedConfigs && db) {
+      try {
+        const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+        if (planDoc.exists()) {
+          const planData = planDoc.data();
+          const pagesBySubMenu = planData.pagesBySubMenu || {};
+          const pageOrderBySubMenu = planData.pageOrderBySubMenu || {};
+          const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+          const currentSubMenuPageOrder = pageOrderBySubMenu[subMenuId] || [];
+          
+          // 動的ページをPageConfigに変換
+          const refreshPagesCallback = () => {
+            // 何もしない（コンテキストのorderedConfigsを直接更新しているため）
+          };
+          
+          const dynamicPageConfigs: PageConfig[] = (currentSubMenuPages || []).map((page: any) => ({
+            id: page.id,
+            pageNumber: page.pageNumber,
+            title: page.title,
+            component: () => (
+              <DynamicPage
+                pageId={page.id}
+                pageNumber={page.pageNumber}
+                title={page.title}
+                content={page.content}
+                planId={planId}
+                subMenuId={subMenuId}
+                onPageUpdated={refreshPagesCallback}
+              />
+            ),
+          }));
+          
+          // overviewの場合は固定ページも含める
+          let allConfigs: PageConfig[];
+          if (subMenuId === 'overview') {
+            allConfigs = [...pageConfigs, ...dynamicPageConfigs];
+          } else {
+            allConfigs = dynamicPageConfigs;
+          }
+          
+          // 保存された順序に基づいてページを並び替え
+          let finalOrderedConfigs: PageConfig[];
+          if (currentSubMenuPageOrder && currentSubMenuPageOrder.length > 0) {
+              const ordered = currentSubMenuPageOrder
+                .map((pageId: string) => allConfigs.find((config: PageConfig) => config.id === pageId))
+                .filter((config: PageConfig | undefined): config is PageConfig => config !== undefined);
+            
+            const missingPages = allConfigs.filter(
+              (config) => !currentSubMenuPageOrder.includes(config.id)
+            );
+            
+            finalOrderedConfigs = [...ordered, ...missingPages];
+          } else {
+            finalOrderedConfigs = [...allConfigs].sort((a, b) => a.pageNumber - b.pageNumber);
+          }
+          
+          // コンテキストのorderedConfigsを更新
+          setOrderedConfigs(finalOrderedConfigs);
+        }
+      } catch (error) {
+        console.error('ページ追加後のコンテキスト更新エラー:', error);
+      }
     }
     // ページ順序管理UIも更新するために、一度閉じて再度開く
     if (showOrderManager) {
@@ -105,7 +167,7 @@ export default function ComponentizedCompanyPlanOverview() {
   };
 
   const handleLogoUpload = async (file: File) => {
-    if (!plan?.id || !storage || !auth?.currentUser || !planId) {
+    if (!plan?.id || !storage || !auth?.currentUser || !planId || !db) {
       alert('Firebaseが初期化されていません。');
       return;
     }
@@ -144,6 +206,7 @@ export default function ComponentizedCompanyPlanOverview() {
     if (!plan?.id || !db) return;
 
     if (!confirm('ロゴを削除しますか？')) return;
+    if (!db) return;
 
     try {
       const planRef = doc(db, 'companyBusinessPlan', plan.id);

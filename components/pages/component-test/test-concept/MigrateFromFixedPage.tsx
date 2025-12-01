@@ -907,6 +907,19 @@ export default function MigrateFromFixedPage({
             migrated: true,
             migratedAt: new Date().toISOString(),
           };
+<<<<<<< HEAD
+=======
+          
+          // keyMessageとsubMessageはundefinedの場合は含めない（Firestoreはundefinedを許可しない）
+          if ((page as any).keyMessage) {
+            pageData.keyMessage = (page as any).keyMessage;
+          }
+          if ((page as any).subMessage) {
+            pageData.subMessage = (page as any).subMessage;
+          }
+          
+          return pageData;
+>>>>>>> d3f4ff5 (ビルドエラー修正完了: 型エラー、nullチェック、scriptsディレクトリ除外)
         });
         
         // Page0（キービジュアル）を最初に配置
@@ -1036,6 +1049,19 @@ export default function MigrateFromFixedPage({
             migrated: true,
             migratedAt: new Date().toISOString(),
           };
+<<<<<<< HEAD
+=======
+          
+          // keyMessageとsubMessageはundefinedの場合は含めない（Firestoreはundefinedを許可しない）
+          if ((page as any).keyMessage) {
+            pageData.keyMessage = (page as any).keyMessage;
+          }
+          if ((page as any).subMessage) {
+            pageData.subMessage = (page as any).subMessage;
+          }
+          
+          return pageData;
+>>>>>>> d3f4ff5 (ビルドエラー修正完了: 型エラー、nullチェック、scriptsディレクトリ除外)
         });
         
         // Page0（キービジュアル）を最初に配置

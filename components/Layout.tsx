@@ -152,7 +152,11 @@ export default function Layout({ children }: LayoutProps) {
                 if (userData.approved === false) {
                   console.log('Layout: 承認されていないためログアウト');
                     userApprovalCache.set(user.uid, { approved: false, timestamp: now });
+                  if (auth) {
+                    if (auth) {
                   await signOut(auth);
+                }
+                  }
                   setUser(null);
                   setLoading(false);
                   return;
@@ -170,7 +174,9 @@ export default function Layout({ children }: LayoutProps) {
                 // （新規登録時は必ずユーザードキュメントが作成される）
                 console.log('Layout: ユーザードキュメントが存在しないため、安全のためログアウト');
                   userApprovalCache.set(user.uid, { approved: false, timestamp: now });
-                await signOut(auth);
+                if (auth) {
+                  await signOut(auth);
+                }
                 setUser(null);
                 setLoading(false);
                 return;
@@ -182,7 +188,9 @@ export default function Layout({ children }: LayoutProps) {
             // エラーが発生した場合は、安全側に倒してログアウト
             // 承認状態が確認できない場合はログインを許可しない
             console.log('Layout: 承認状態が確認できないため、安全のためログアウト');
-            await signOut(auth);
+            if (auth) {
+              await signOut(auth);
+            }
             setUser(null);
             setLoading(false);
             return;
@@ -194,14 +202,16 @@ export default function Layout({ children }: LayoutProps) {
             setLoading(false);
           } else {
             // 承認されていない場合はログアウト
-            await signOut(auth);
+            if (auth) {
+              await signOut(auth);
+            }
             setUser(null);
             setLoading(false);
           }
         } else {
           // ログアウト時はキャッシュをクリア
           if (user) {
-            userApprovalCache.delete(user.uid);
+            userApprovalCache.delete((user as any).uid);
           }
           setUser(null);
           setLoading(false);

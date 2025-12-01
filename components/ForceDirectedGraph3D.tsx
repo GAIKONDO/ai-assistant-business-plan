@@ -442,6 +442,7 @@ export default function ForceDirectedGraph3D({
       renderer.setSize(width, height);
       // pixelRatioを制限してパフォーマンスを向上（最大2まで）
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+      if (!containerRef.current) return;
       containerRef.current.innerHTML = '';
       containerRef.current.appendChild(renderer.domElement);
       rendererRef.current = renderer;

@@ -655,12 +655,12 @@ export default function EcosystemAlluvialDiagram({
         // 既に存在するかチェック
         let gradient = defs.select(`#${gradientId}`);
         if (gradient.empty()) {
-          gradient = defs.append('linearGradient')
+          gradient = (defs.append('linearGradient')
             .attr('id', gradientId)
             .attr('x1', '0%')
             .attr('y1', '0%')
             .attr('x2', '100%')
-            .attr('y2', '0%');
+            .attr('y2', '0%') as any);
           
         gradient.append('stop')
           .attr('offset', '0%')

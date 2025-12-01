@@ -230,8 +230,9 @@ export default function ChaosMap({
       if (defsElement) {
         const allPaths = Array.from(svgRef.current.querySelectorAll('path'));
         // defsの後のpath要素を取得
+        const defsPath = defsElement.querySelector('path') as SVGPathElement | null;
         const cellPathElements = allPaths.filter((p) => {
-          const defsIndex = allPaths.indexOf(defsElement.querySelector('path') || defsElement);
+          const defsIndex = defsPath ? allPaths.indexOf(defsPath) : -1;
           return allPaths.indexOf(p) > defsIndex || !defsElement.contains(p);
         }).filter((p) => !defsElement.contains(p));
         
