@@ -432,26 +432,33 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
     })
   );
 
-  // serviceId/conceptIdまたはplanIdが存在しない場合はエラーを表示
-  if (!isCompanyPlan && (!serviceId || !conceptId)) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
-          ページ情報が正しく読み込まれていません。
-        </p>
-      </div>
-    );
-  }
-  
-  if (isCompanyPlan && !planId) {
-    return (
-      <div style={{ textAlign: 'center', padding: '40px' }}>
-        <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
-          ページ情報が正しく読み込まれていません。
-        </p>
-      </div>
-    );
-  }
+  // orderedConfigsが変更されたときに親コンポーネントに通知
+  // 初回レンダリング時はスキップ（読み込み時の変更は無視）
+  const [isInitialLoad, setIsInitialLoad] = useState(true);
+
+  // 定期的にページを再読み込み（ページが追加された可能性があるため）
+  useEffect(() => {
+    const interval = setInterval(() => {
+      setRefreshTrigger(prev => prev + 1);
+    }, 2000); // 2秒ごとにチェック
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // orderedConfigsが変更されたときに親コンポーネントに通知
+  useEffect(() => {
+    if (isInitialLoad) {
+      setIsInitialLoad(false);
+      return;
+    }
+    
+    if (onOrderChange && orderedConfigs.length > 0) {
+      // 次のレンダリングサイクルで呼び出す
+      setTimeout(() => {
+        onOrderChange(orderedConfigs);
+      }, 0);
+    }
+  }, [orderedConfigs, onOrderChange, isInitialLoad]);
 
   // Firestoreから順序を読み込む
   useEffect(() => {
@@ -1274,26 +1281,6 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
       setSaving(false);
     }
   };
-
-  // orderedConfigsが変更されたときに親コンポーネントに通知
-  // 初回レンダリング時はスキップ（読み込み時の変更は無視）
-  const [isInitialLoad, setIsInitialLoad] = useState(true);
-  
-  useEffect(() => {
-    if (isInitialLoad) {
-      setIsInitialLoad(false);
-      return;
-    }
-    
-    if (onOrderChange && orderedConfigs.length > 0) {
-      // 次のレンダリングサイクルで呼び出す
-      const timer = setTimeout(() => {
-        onOrderChange(orderedConfigs);
-      }, 0);
-      return () => clearTimeout(timer);
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [orderedConfigs]);
 
   if (loading) {
     return (

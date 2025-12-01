@@ -27,6 +27,7 @@ export default function ComponentizedCompanyPlanOverview() {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
 
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   // デバッグログ
   useEffect(() => {
     console.log('ComponentizedCompanyPlanOverview - orderedConfigs:', orderedConfigs);
@@ -35,6 +36,20 @@ export default function ComponentizedCompanyPlanOverview() {
     console.log('ComponentizedCompanyPlanOverview - isPresentationMode:', isPresentationMode);
     console.log('ComponentizedCompanyPlanOverview - currentPageIndex:', currentPageIndex);
   }, [orderedConfigs, isPresentationMode, currentPageIndex]);
+
+  // 自動更新が必要なページをチェック
+  useEffect(() => {
+    const currentPageConfig = orderedConfigs[currentPageIndex];
+    if (!currentPageConfig || !plan) return;
+
+    const autoUpdateConfig = pageAutoUpdateConfigs.find(config => config.pageId === currentPageConfig.id);
+    if (autoUpdateConfig && autoUpdateConfig.shouldUpdate(plan)) {
+      // 自動更新が必要な場合は、ページを再読み込み
+      if (refreshPages) {
+        refreshPages();
+      }
+    }
+  }, [currentPageConfig, plan, refreshPages]);
 
   // planIdが存在しない場合はエラーを表示
   if (!planId) {

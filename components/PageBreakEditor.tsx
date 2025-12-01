@@ -660,7 +660,7 @@ export default function PageBreakEditor({
                 <br />
                 ページ分割したい要素にIDを追加してください。
                 <br />
-                （例：id="section-1"）
+                （例：id=&quot;section-1&quot;）
               </p>
             ) : (
               <>

@@ -28,6 +28,47 @@ export default function ComponentizedOverview() {
   const [logoUploading, setLogoUploading] = useState(false);
   const logoFileInputRef = useRef<HTMLInputElement>(null);
 
+  // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
+  // すべてのページコンポーネントの自動更新機能（設定ファイルベース）
+  useEffect(() => {
+    const autoUpdatePages = async () => {
+      if (!serviceId || !conceptId) {
+        return;
+      }
+
+      if (!auth?.currentUser || !db) {
+        return;
+      }
+
+      // 現在のserviceId/conceptId/subMenuIdに該当する設定をフィルタリング
+      const relevantConfigs = pageAutoUpdateConfigs.filter(config => {
+        if (config.serviceId && config.serviceId !== serviceId) {
+          return false;
+        }
+        if (config.conceptId && config.conceptId !== conceptId) {
+          return false;
+        }
+        if (config.subMenuId && config.subMenuId !== subMenuId) {
+          return false;
+        }
+        return true;
+      });
+
+      // 各設定をチェックして、自動更新が必要な場合は実行
+      for (const config of relevantConfigs) {
+        const pageConfig = orderedConfigs.find(c => c.id === config.pageId);
+        if (pageConfig && config.shouldUpdate(concept)) {
+          // 自動更新が必要な場合は、ページを再読み込み
+          if (refreshPages) {
+            refreshPages();
+          }
+        }
+      }
+    };
+
+    autoUpdatePages();
+  }, [serviceId, conceptId, subMenuId, orderedConfigs, concept, refreshPages]);
+
   // serviceIdまたはconceptIdが存在しない場合はエラーを表示
   if (!serviceId || !conceptId) {
     return (
@@ -149,149 +190,6 @@ export default function ComponentizedOverview() {
       alert(`ロゴの削除に失敗しました: ${error instanceof Error ? error.message : String(error)}`);
     }
   };
-
-  // すべてのページコンポーネントの自動更新機能（設定ファイルベース）
-  useEffect(() => {
-    const autoUpdatePages = async () => {
-      if (!serviceId || !conceptId) {
-        return;
-      }
-
-      if (!auth?.currentUser || !db) {
-        return;
-      }
-
-      // 現在のserviceId/conceptId/subMenuIdに該当する設定をフィルタリング
-      const applicableConfigs = pageAutoUpdateConfigs.filter(config => {
-        if (config.serviceId !== serviceId || config.conceptId !== conceptId) {
-          return false;
-        }
-        // subMenuIdが指定されている場合は一致する必要がある
-        if (config.subMenuId !== undefined && config.subMenuId !== subMenuId) {
-          return false;
-        }
-        return true;
-      });
-
-      if (applicableConfigs.length === 0) {
-        return;
-      }
-
-      try {
-        const conceptsQuery = query(
-          collection(db, 'concepts'),
-          where('userId', '==', auth.currentUser.uid),
-          where('serviceId', '==', serviceId),
-          where('conceptId', '==', conceptId)
-        );
-        
-        const conceptsSnapshot = await getDocs(conceptsQuery);
-        
-        if (conceptsSnapshot.empty) {
-          return;
-        }
-
-        const conceptDoc = conceptsSnapshot.docs[0];
-        const conceptData = conceptDoc.data();
-        
-        // サブメニューごとのページデータを取得
-        const pagesBySubMenu = conceptData.pagesBySubMenu || {};
-        let hasUpdates = false;
-        const updatedPagesBySubMenu = { ...pagesBySubMenu };
-
-        // 各設定に対してページを更新
-        for (const config of applicableConfigs) {
-          const targetSubMenuId = config.subMenuId || subMenuId || 'overview';
-          const currentSubMenuPages = updatedPagesBySubMenu[targetSubMenuId] || [];
-
-          const targetPageIndex = currentSubMenuPages.findIndex(
-            (page: any) => page.id === config.pageId
-        );
-
-        if (targetPageIndex === -1) {
-            console.log(`ページ ${config.pageId} が見つかりません。新規作成します。`);
-            // ページが存在しない場合は新規作成
-            const newPage = {
-              id: config.pageId,
-              pageNumber: currentSubMenuPages.length,
-              title: config.title || '新規ページ',
-              content: config.content.trim(),
-              createdAt: new Date().toISOString(),
-            };
-            
-            const updatedPages = [...currentSubMenuPages, newPage];
-            updatedPagesBySubMenu[targetSubMenuId] = updatedPages;
-            
-            // ページ順序にも追加
-            const pageOrderBySubMenu = conceptData.pageOrderBySubMenu || {};
-            const currentSubMenuPageOrder = pageOrderBySubMenu[targetSubMenuId] || [];
-            const updatedPageOrder = [...currentSubMenuPageOrder, config.pageId];
-            
-            await updateDoc(doc(db, 'concepts', conceptDoc.id), {
-              pagesBySubMenu: updatedPagesBySubMenu,
-              pageOrderBySubMenu: {
-                ...pageOrderBySubMenu,
-                [targetSubMenuId]: updatedPageOrder,
-              },
-              updatedAt: serverTimestamp(),
-            });
-            
-            console.log(`✅ ページ ${config.pageId} を新規作成しました`);
-            hasUpdates = true;
-            continue;
-        }
-
-          // 更新が必要かどうかを判定
-          const currentContent = currentSubMenuPages[targetPageIndex].content || '';
-          const shouldUpdate = config.shouldUpdate 
-            ? config.shouldUpdate(currentContent)
-            : true; // デフォルトは常に更新
-
-          if (shouldUpdate) {
-            const updatedPages = [...currentSubMenuPages];
-          updatedPages[targetPageIndex] = {
-            ...updatedPages[targetPageIndex],
-              content: config.content.trim(),
-              ...(config.title && { title: config.title }),
-            };
-
-            updatedPagesBySubMenu[targetSubMenuId] = updatedPages;
-            hasUpdates = true;
-
-            console.log(`✅ ページ ${config.pageId} のコンテンツを自動更新しました`);
-          } else {
-            console.log(`ページ ${config.pageId} は既に更新済みです`);
-          }
-        }
-
-        // 更新があった場合のみFirestoreに保存
-        if (hasUpdates) {
-          await updateDoc(doc(db, 'concepts', conceptDoc.id), {
-            pagesBySubMenu: updatedPagesBySubMenu,
-            updatedAt: serverTimestamp(),
-          });
-          
-          // ページをリロード（少し遅延させてから実行し、無限ループを防ぐ）
-          if (refreshPages) {
-            setTimeout(() => {
-              refreshPages();
-            }, 500);
-          }
-        }
-      } catch (error) {
-        console.error('自動更新エラー:', error);
-      }
-    };
-
-    // 少し遅延させてから実行（認証とデータ読み込みを待つ）
-    const timer = setTimeout(() => {
-      autoUpdatePages();
-    }, 1000);
-
-    return () => clearTimeout(timer);
-    // refreshPagesを依存配列から除外（無限ループを防ぐため）
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [serviceId, conceptId, subMenuId]);
 
   return (
     <div>
