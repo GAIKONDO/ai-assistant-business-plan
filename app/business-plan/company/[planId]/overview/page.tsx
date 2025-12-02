@@ -182,6 +182,39 @@ graph TB
     style C fill:#FFB6C1,stroke:#FF69B4,stroke-width:2px,color:#000
 </div>`;
 
+// 三方良しの関係図用のMermaid図コンテンツ
+const sampoYoshiDiagramContent = `<div class="mermaid">
+graph TB
+    Center["三方よし<br/>Sampo-yoshi<br/><br/>持続的な企業価値向上<br/>と社会課題の解決"]
+    
+    Seller["売り手よし<br/><br/>取引において売り手が<br/>適正な利益を得られること<br/>持続可能な事業運営の基盤"]
+    Buyer["買い手よし<br/><br/>買い手が適正な価格で<br/>良質な商品・サービスを<br/>得られること<br/>顧客満足の実現"]
+    Society["世間よし<br/><br/>社会全体に貢献し<br/>ステークホルダー全体の<br/>利益を考慮すること<br/>社会課題の解決"]
+    
+    Center --> Seller
+    Center --> Buyer
+    Center --> Society
+    
+    Seller --> Buyer
+    Buyer --> Society
+    Society --> Seller
+    
+    SDGs["SDGsの理念<br/>持続可能な開発目標"]
+    Stakeholders["ステークホルダー<br/>投資家・株主・取引先<br/>社員・社会"]
+    
+    Center --> SDGs
+    Seller --> Stakeholders
+    Buyer --> Stakeholders
+    Society --> Stakeholders
+    
+    style Center fill:#4169E1,stroke:#1E3A8A,stroke-width:3px,color:#fff
+    style Seller fill:#90EE90,stroke:#32CD32,stroke-width:2px,color:#000
+    style Buyer fill:#87CEEB,stroke:#4682B4,stroke-width:2px,color:#000
+    style Society fill:#FFB6C1,stroke:#FF69B4,stroke-width:2px,color:#000
+    style SDGs fill:#FFD700,stroke:#FFA500,stroke-width:2px,color:#000
+    style Stakeholders fill:#DDA0DD,stroke:#9370DB,stroke-width:2px,color:#000
+</div>`;
+
 export default function OverviewPage() {
   const { plan, loading, reloadPlan } = usePlan();
   const params = useParams();
@@ -1647,6 +1680,694 @@ export default function OverviewPage() {
             </div>
           </div>
             </div>
+            </div>
+
+            {/* コンテナ3: 伊藤忠商事の三方良しについて */}
+            <div 
+              data-page-container="3"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  伊藤忠商事の三方良しについて
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  3
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  売り手よし、買い手よし、世間よし
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  創業者・初代伊藤忠兵衛の創業精神を表現した「三方よし」は、持続的な企業価値向上と社会課題の解決を同時に図るSDGsの理念にも通じる普遍的な経営思想として注目されています。
+                </p>
+                <p className="body-text-emphasis">
+                  伊藤忠グループは、グループ企業理念「三方よし（売り手よし、買い手よし、世間よし）」のもと、自社の利益だけではなく、投資家や株主の皆様、取引先、社員をはじめ、周囲の様々なステークホルダーの期待と信頼に応えることで、社会課題の解決に貢献することを目指しています。
+                </p>
+              </div>
+
+              {/* 三方良しの3つの要素 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(3, 1fr)',
+                  gap: '24px',
+                  marginBottom: '32px',
+                }}>
+                  {/* 売り手よし */}
+                  <div style={{
+                    padding: '24px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '12px',
+                    }}>
+                      売り手よし
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      取引において売り手が適正な利益を得られること。持続可能な事業運営の基盤となる。
+                    </p>
+                  </div>
+
+                  {/* 買い手よし */}
+                  <div style={{
+                    padding: '24px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '12px',
+                    }}>
+                      買い手よし
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      買い手が適正な価格で良質な商品・サービスを得られること。顧客満足の実現。
+                    </p>
+                  </div>
+
+                  {/* 世間よし */}
+                  <div style={{
+                    padding: '24px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      fontSize: '32px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '12px',
+                    }}>
+                      世間よし
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      社会全体に貢献し、ステークホルダー全体の利益を考慮すること。社会課題の解決。
+                    </p>
+                  </div>
+                </div>
+
+                {/* 三方良しの循環とSDGsとの関連 */}
+                <div style={{
+                  marginTop: '32px',
+                  padding: '24px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '8px',
+                  borderLeft: '4px solid var(--color-primary)',
+                }}>
+                  <h4 style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: 'var(--color-text)',
+                    marginBottom: '12px',
+                  }}>
+                    三方よしの精神は過去から現在、そして未来へと受け継がれ、広がり続ける
+                  </h4>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'var(--color-text)',
+                    lineHeight: '1.8',
+                    margin: 0,
+                  }}>
+                    三方よしの精神は、持続的な企業価値向上と社会課題の解決を同時に図るSDGsの理念にも通じる普遍的な経営思想として、ハーバード・ビジネス・スクールの研究対象にも選定され、世界から注目されています。伊藤忠グループは、この理念のもと、すべてのステークホルダーの期待と信頼に応えることで、社会課題の解決に貢献することを目指しています。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* コンテナ4: 三方良しの関係図 */}
+            <div 
+              data-page-container="4"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  三方良しの関係図
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  4
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  三方よしの循環が生み出す持続可能な価値創造
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  売り手よし、買い手よし、世間よしの3つの要素が相互に強化し合う循環構造が、持続的な企業価値向上と社会課題の解決を同時に実現する
+                </p>
+                <p className="body-text-emphasis">
+                  三方よしの関係図は、単なる取引の原則ではなく、すべてのステークホルダーが相互に利益を得られる循環的な価値創造の仕組みを示しています。
+                </p>
+                <p className="body-text-small">
+                  この循環構造により、企業は短期的な利益追求ではなく、長期的な持続可能性と社会への貢献を両立させることができます。SDGsの理念にも通じるこの経営思想は、ハーバード・ビジネス・スクールの研究対象にも選定され、世界から注目されています。
+                </p>
+              </div>
+
+              <MermaidContent content={sampoYoshiDiagramContent} />
+            </div>
+
+            {/* コンテナ5: Articul8の強み */}
+            <div 
+              data-page-container="5"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  Articul8の強み
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  5
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  ドメイン特化型GenAIプラットフォーム：データの混沌から超パーソナライズされたエンタープライズ成果へ
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  複雑なエンタープライズミッションを、信頼性とパーソナライズされた成果で自律的に実行する次世代AIプラットフォーム
+                </p>
+                <p className="body-text-emphasis">
+                  Articul8は、単なる出力ではなく、エンタープライズ規模で構築され、規制産業向けに設計され、精度、説明可能性、速度に最適化された信頼できるAI成果を提供します。
+                </p>
+              </div>
+
+              {/* 4つのコア機能 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '20px',
+                  marginBottom: '32px',
+                }}>
+                  {/* Agent of Agents */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#e3f2fd',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      Agent of Agents
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      エージェントとモデル間での自律的でインテリジェントな協働を実現
+                    </p>
+                  </div>
+
+                  {/* Domain-Specific Models */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#e8f5e9',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      Domain-Specific Models
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      業界に特化したインテリジェンス。GPT-5を上回る性能を実現
+                    </p>
+                  </div>
+
+                  {/* Trust Every Decision */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#fff3e0',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+                        <path d="M9 12l2 2 4-4"></path>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      Trust Every Decision
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      観測可能性、監査可能性、追跡可能性を提供。SOC 2 Type II準拠
+                    </p>
+                  </div>
+
+                  {/* Hyper-Personalization */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#f3e5f5',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path>
+                        <circle cx="12" cy="7" r="4"></circle>
+                        <path d="M12 11v6"></path>
+                        <path d="M9 14l3-3 3 3"></path>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      Hyper-Personalization
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      データ取り込みの瞬間からモデル作成が開始。超パーソナライズされたエージェント
+                    </p>
+                  </div>
+                </div>
+
+                {/* プラットフォームの核心技術 */}
+                <div style={{
+                  marginTop: '32px',
+                  padding: '24px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '8px',
+                  borderLeft: '4px solid var(--color-primary)',
+                }}>
+                  <h4 style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: 'var(--color-text)',
+                    marginBottom: '24px',
+                  }}>
+                    プラットフォームを支える核心技術
+                  </h4>
+                  <div style={{
+                    display: 'flex',
+                    gap: '32px',
+                    alignItems: 'flex-start',
+                  }}>
+                    {/* 左側：画像 */}
+                    <div style={{
+                      flex: '0 0 300px',
+                    }}>
+                      <img
+                        src="/ChatGPT Image 2025年11月26日 12_15_46.png"
+                        alt="AI Assistant"
+                        style={{
+                          width: '100%',
+                          height: 'auto',
+                          borderRadius: '8px',
+                          objectFit: 'contain',
+                        }}
+                      />
+                    </div>
+                    {/* 右側：説明 */}
+                    <div style={{
+                      flex: '1',
+                    }}>
+                      <table style={{
+                        width: '100%',
+                        borderCollapse: 'collapse',
+                        fontSize: '13px',
+                      }}>
+                        <thead>
+                          <tr>
+                            <th style={{
+                              padding: '12px',
+                              textAlign: 'left',
+                              borderBottom: '2px solid var(--color-primary)',
+                              fontWeight: 600,
+                              color: 'var(--color-text)',
+                              fontSize: '14px',
+                            }}>
+                              技術名
+                            </th>
+                            <th style={{
+                              padding: '12px',
+                              textAlign: 'left',
+                              borderBottom: '2px solid var(--color-primary)',
+                              fontWeight: 600,
+                              color: 'var(--color-text)',
+                              fontSize: '14px',
+                            }}>
+                              説明
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <tr>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              fontWeight: 600,
+                              color: 'var(--color-primary)',
+                              verticalAlign: 'top',
+                              width: '180px',
+                            }}>
+                              ModelMesh™
+                            </td>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              color: 'var(--color-text)',
+                              lineHeight: '1.7',
+                            }}>
+                              自律的なエージェント推論エンジン。ベイジアンシステムと専門言語モデルを組み合わせて、出力の正確性を動的に判断し、次のアクションを決定します。
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              fontWeight: 600,
+                              color: 'var(--color-primary)',
+                              verticalAlign: 'top',
+                            }}>
+                              LLM-IQ™
+                            </td>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              color: 'var(--color-text)',
+                              lineHeight: '1.7',
+                            }}>
+                              モデル評価と動的ルーティング。複雑な産業プロセス全体で一貫性を維持しながら、最適なモデルを選択します。
+                            </td>
+                          </tr>
+                          <tr>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              fontWeight: 600,
+                              color: 'var(--color-text)',
+                              verticalAlign: 'top',
+                            }}>
+                              ドメイン特化モデル
+                            </td>
+                            <td style={{
+                              padding: '12px',
+                              borderBottom: '1px solid var(--color-border-color)',
+                              color: 'var(--color-text)',
+                              lineHeight: '1.7',
+                            }}>
+                              <p style={{ margin: '0 0 12px 0' }}>
+                                Articul8のドメイン特化モデル（DSM）ライブラリは、推論と効率のベンチマークで汎用モデルを上回る専門家レベルのパフォーマンスを提供しています。
+                              </p>
+                              <table style={{
+                                width: '100%',
+                                borderCollapse: 'collapse',
+                                fontSize: '12px',
+                                marginTop: '8px',
+                              }}>
+                                <tbody>
+                                  <tr>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      fontWeight: 600,
+                                      color: 'var(--color-primary)',
+                                      width: '140px',
+                                    }}>
+                                      A8-Semicon
+                                    </td>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      color: 'var(--color-text)',
+                                      lineHeight: '1.6',
+                                    }}>
+                                      半導体エンジニアリング向けVerilog対応DSM。最新のオープンソースSOTAモデルより2倍の性能向上。
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      fontWeight: 600,
+                                      color: 'var(--color-primary)',
+                                    }}>
+                                      A8-Energy
+                                    </td>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      color: 'var(--color-text)',
+                                      lineHeight: '1.6',
+                                    }}>
+                                      EPRIと共同開発。10,000以上の専門エネルギーデータセットで訓練。96.9%の平均精度を達成。
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      fontWeight: 600,
+                                      color: 'var(--color-primary)',
+                                    }}>
+                                      A8-SupplyChain
+                                    </td>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: '1px solid #e5e7eb',
+                                      color: 'var(--color-text)',
+                                      lineHeight: '1.6',
+                                    }}>
+                                      製造・サプライチェーン運用に最適化。92%の精度で、プロセスシーケンスの推論で3倍の改善。
+                                    </td>
+                                  </tr>
+                                  <tr>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: 'none',
+                                      fontWeight: 600,
+                                      color: 'var(--color-primary)',
+                                    }}>
+                                      A8-Fin
+                                    </td>
+                                    <td style={{
+                                      padding: '8px',
+                                      borderBottom: 'none',
+                                      color: 'var(--color-text)',
+                                      lineHeight: '1.6',
+                                    }}>
+                                      金融特化DSM。独自ベンチマークで90%以上の精度を達成。最良のオープンソースモデルより3.5倍コスト効率的。
+                                    </td>
+                                  </tr>
+                                </tbody>
+                              </table>
+                            </td>
+                          </tr>
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+                </div>
+
+                {/* マーケットプレイス対応 */}
+                <div style={{
+                  marginTop: '24px',
+                  padding: '20px',
+                  backgroundColor: '#f9fafb',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                }}>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'var(--color-text)',
+                    lineHeight: '1.8',
+                    margin: 0,
+                  }}>
+                    <strong>AWS、Microsoft、Google Cloud Platform、Databricks</strong>などの主要マーケットプレイスで利用可能。エンタープライズ環境内で直接デプロイ、統合、スケールが可能です。
+                  </p>
+                </div>
+              </div>
             </div>
           </>
         )}

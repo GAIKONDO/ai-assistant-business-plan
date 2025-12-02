@@ -238,6 +238,17 @@ function ConceptLayoutContent({
   const { isPresentationMode, enterPresentationMode, exitPresentationMode } = usePresentationMode();
   const pathname = usePathname();
   const router = useRouter();
+  
+  // URLパラメータをチェックしてサイドバーとサブメニューを非表示にする
+  const [hideSidebar, setHideSidebar] = useState(false);
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      // hideSidebar=trueの場合のみサイドバー（目次）を非表示にする
+      // modal=trueのみの場合はサイドバーを表示する
+      setHideSidebar(params.get('hideSidebar') === 'true');
+    }
+  }, [pathname]);
   const [slideDirection, setSlideDirection] = useState<'left' | 'right' | null>(null);
   const [showSlideThumbnails, setShowSlideThumbnails] = useState(false);
   const [showStartGuide, setShowStartGuide] = useState(false);
@@ -1964,7 +1975,9 @@ function ConceptLayoutContent({
       />
       {!isPresentationMode && (
         <div style={{ display: 'flex', gap: '32px' }}>
-          <ConceptSubMenu serviceId={serviceId} conceptId={conceptId} currentSubMenuId={currentSubMenu} />
+          {!hideSidebar && (
+            <ConceptSubMenu serviceId={serviceId} conceptId={conceptId} currentSubMenuId={currentSubMenu} />
+          )}
           <div style={{ 
             flex: 1, 
             minWidth: 0,
@@ -1974,23 +1987,24 @@ function ConceptLayoutContent({
             marginTop: '0',
             marginBottom: '40px',
           }}>
-            <div style={{ marginBottom: '24px' }}>
-              <button
-                onClick={() => router.push(`/business-plan/services/${serviceId}`)}
-                style={{
-                  background: 'none',
-                  border: 'none',
-                  color: 'var(--color-primary)',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  marginBottom: '16px',
-                  padding: 0,
-                }}
-              >
-                ← {serviceName}に戻る
-              </button>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ marginBottom: '4px' }}>{concept?.name || conceptId}</h2>
+            {!hideSidebar && (
+              <div style={{ marginBottom: '24px' }}>
+                <button
+                  onClick={() => router.push(`/business-plan/services/${serviceId}`)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: 'var(--color-primary)',
+                    cursor: 'pointer',
+                    fontSize: '14px',
+                    marginBottom: '16px',
+                    padding: 0,
+                  }}
+                >
+                  ← {serviceName}に戻る
+                </button>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <h2 style={{ marginBottom: '4px' }}>{concept?.name || conceptId}</h2>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {showContainers && (
                     <button
@@ -2065,6 +2079,7 @@ function ConceptLayoutContent({
                 </div>
               </div>
             </div>
+            )}
             {/* 移行モーダル */}
             {showMigrateModal && (
               <div style={{
