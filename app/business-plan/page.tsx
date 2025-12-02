@@ -732,8 +732,8 @@ export default function BusinessPlanPage() {
       newPlans.splice(targetIndex, 0, draggedPlan);
 
       // すべてのプランのorderを更新
-      const updatePromises = newPlans.map((plan, index) => 
-        updateDoc(doc(db, 'companyBusinessPlan', plan.id), {
+      const updatePromises = newPlans.map((plan, index) =>
+        updateDoc(doc(db!, 'companyBusinessPlan', plan.id), {
           order: index,
           updatedAt: serverTimestamp(),
         })
