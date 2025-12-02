@@ -133,6 +133,8 @@ export default function ForceDirectedGraph({
     servicePlan: boolean;
     subMenu: boolean;
     page: boolean;
+    companySubMenu: boolean;
+    companyPage: boolean;
   }>({
     company: true,
     project: true,
@@ -140,6 +142,8 @@ export default function ForceDirectedGraph({
     servicePlan: true,
     subMenu: false,
     page: false,
+    companySubMenu: false,
+    companyPage: false,
   });
   const [selectedProjectIds, setSelectedProjectIds] = useState<Set<string>>(new Set());
   const [selectedConceptIds, setSelectedConceptIds] = useState<Set<string>>(new Set());
@@ -163,11 +167,17 @@ export default function ForceDirectedGraph({
     conceptId: string;
     subMenuId: string;
     subMenuLabel: string;
+    planId?: string;
+    isCompanyPlan?: boolean;
   } | null>(null);
   const [modalFixedConcept, setModalFixedConcept] = useState<{
     serviceId: string;
     conceptId: string;
     conceptLabel: string;
+  } | null>(null);
+  const [modalCompanyPlan, setModalCompanyPlan] = useState<{
+    planId: string;
+    planLabel: string;
   } | null>(null);
 
   // ノードタイプごとの色を設定
@@ -206,74 +216,155 @@ export default function ForceDirectedGraph({
         const nodesMap = new Map<string, GraphNode>();
 
         // 会社ノードを追加
+        const companyPlanPromises: Promise<void>[] = [];
         companyPlansSnapshot.forEach((doc) => {
-          const data = doc.data();
-          const nodeId = `company-${doc.id}`;
-          const pagesBySubMenu = data.pagesBySubMenu;
-          const isComponentized = pagesBySubMenu && 
-            typeof pagesBySubMenu === 'object' && 
-            Object.keys(pagesBySubMenu).length > 0 &&
-            Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-          nodesMap.set(nodeId, {
-            id: nodeId,
-            label: data.title || '会社事業計画',
-            type: 'company',
-            data: { ...data, docId: doc.id, isComponentized },
-          });
+          const companyPlanPromise = (async () => {
+            const data = doc.data();
+            const nodeId = `company-${doc.id}`;
+            const pagesBySubMenu = data.pagesBySubMenu;
+            const isComponentized = pagesBySubMenu && 
+              typeof pagesBySubMenu === 'object' && 
+              Object.keys(pagesBySubMenu).length > 0 &&
+              Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+            nodesMap.set(nodeId, {
+              id: nodeId,
+              label: data.title || '会社事業計画',
+              type: 'company',
+              data: { ...data, docId: doc.id, isComponentized },
+            });
 
-          // コンポーネント形式の場合、サブメニューノードとページコンテナをノードとして追加
-          if (isComponentized && pagesBySubMenu) {
-            Object.entries(pagesBySubMenu).forEach(([subMenuId, pages]) => {
-              if (Array.isArray(pages) && pages.length > 0) {
-                // サブメニューノードを追加（会社の事業計画にもサブメニューがある場合）
-                const subMenuItem = SUB_MENU_ITEMS.find(item => item.id === subMenuId);
-                if (subMenuItem) {
-                  const subMenuNodeId = `subMenu-company-${doc.id}-${subMenuId}`;
-                  nodesMap.set(subMenuNodeId, {
-                    id: subMenuNodeId,
-                    label: subMenuItem.label,
-                    type: 'subMenu',
-                    data: {
-                      planId: doc.id,
-                      subMenuId: subMenuId,
-                      subMenuLabel: subMenuItem.label,
-                      pages: pages.map((page: any) => ({
-                        id: page.id,
-                        title: page.title,
-                        content: page.content,
-                        pageNumber: page.pageNumber,
-                      })),
-                      isComponentized: true,
-                      isCompanyPlan: true,
-                    },
-                  });
-                }
-                
-                // ページコンテナをノードとして追加
-                pages.forEach((page: any) => {
-                  if (page && page.id && page.title) {
-                    const pageNodeId = `page-company-${doc.id}-${subMenuId}-${page.id}`;
-                    nodesMap.set(pageNodeId, {
-                      id: pageNodeId,
-                      label: page.title || `ページ ${page.pageNumber || ''}`,
-                      type: 'page',
+            // コンポーネント形式の場合、サブメニューノードとページコンテナをノードとして追加
+            if (isComponentized && pagesBySubMenu) {
+              Object.entries(pagesBySubMenu).forEach(([subMenuId, pages]) => {
+                if (Array.isArray(pages) && pages.length > 0) {
+                  // サブメニューノードを追加（会社の事業計画にもサブメニューがある場合）
+                  const subMenuItem = SUB_MENU_ITEMS.find(item => item.id === subMenuId);
+                  if (subMenuItem) {
+                    const subMenuNodeId = `subMenu-company-${doc.id}-${subMenuId}`;
+                    nodesMap.set(subMenuNodeId, {
+                      id: subMenuNodeId,
+                      label: subMenuItem.label,
+                      type: 'subMenu',
                       data: {
                         planId: doc.id,
                         subMenuId: subMenuId,
-                        pageId: page.id,
-                        pageNumber: page.pageNumber,
-                        pageTitle: page.title,
-                        pageContent: page.content,
+                        subMenuLabel: subMenuItem.label,
+                        pages: pages.map((page: any) => ({
+                          id: page.id,
+                          title: page.title,
+                          content: page.content,
+                          pageNumber: page.pageNumber,
+                        })),
                         isComponentized: true,
                         isCompanyPlan: true,
                       },
                     });
                   }
-                });
-              }
-            });
-          }
+                  
+                  // ページコンテナをノードとして追加
+                  pages.forEach((page: any) => {
+                    if (page && page.id && page.title) {
+                      const pageNodeId = `page-company-${doc.id}-${subMenuId}-${page.id}`;
+                      nodesMap.set(pageNodeId, {
+                        id: pageNodeId,
+                        label: page.title || `ページ ${page.pageNumber || ''}`,
+                        type: 'page',
+                        data: {
+                          planId: doc.id,
+                          subMenuId: subMenuId,
+                          pageId: page.id,
+                          pageNumber: page.pageNumber,
+                          pageTitle: page.title,
+                          pageContent: page.content,
+                          isComponentized: true,
+                          isCompanyPlan: true,
+                        },
+                      });
+                    }
+                  });
+                }
+              });
+            } else {
+              // 固定ページ形式の場合でも、サブメニューノードを追加
+              // ただし、ページの内容をチェックして、デフォルトのプレースホルダーのみの場合は除外
+              const companyPlanSubMenuPromises = SUB_MENU_ITEMS.map(async (subMenuItem) => {
+                const subMenuNodeId = `subMenu-company-fixed-${doc.id}-${subMenuItem.id}`;
+                const pageUrl = `/business-plan/company/${doc.id}/${subMenuItem.id}`;
+                
+                // ページの内容をチェック（非同期）
+                try {
+                  const response = await fetch(pageUrl);
+                  if (!response || !response.ok) {
+                    // ページが存在しない場合は除外
+                    return null;
+                  }
+                  
+                  const html = await response.text();
+                  // デフォルトのプレースホルダーテキストのパターンをチェック
+                  const placeholderPatterns = [
+                    `${subMenuItem.label}の内容をここに表示します`,
+                    `この事業計画の${subMenuItem.label}ページは現在準備中です。`,
+                    'の内容をここに表示します',
+                    'は現在準備中です。',
+                  ];
+                  
+                  // HTMLから実際のコンテンツがあるかチェック
+                  // デフォルトのプレースホルダーテキストのみの場合は除外
+                  const hasRealContent = !placeholderPatterns.some(pattern => 
+                    html.includes(pattern) && html.split(pattern).length === 2
+                  );
+                  
+                  // cardクラス内にプレースホルダーテキストのみの場合は除外
+                  const cardMatch = html.match(/<div[^>]*class="card"[^>]*>([\s\S]*?)<\/div>/);
+                  if (cardMatch) {
+                    const cardContent = cardMatch[1];
+                    const isOnlyPlaceholder = placeholderPatterns.some(pattern => 
+                      cardContent.includes(pattern) && cardContent.trim().length < 200
+                    );
+                    if (isOnlyPlaceholder) {
+                      return null;
+                    }
+                  }
+                  
+                  if (!hasRealContent) {
+                    return null;
+                  }
+                  
+                  // ページが存在し、コンテンツがある場合のみノードを作成
+                  return {
+                    id: subMenuNodeId,
+                    label: subMenuItem.label,
+                    type: 'subMenu' as const,
+                    data: {
+                      planId: doc.id,
+                      subMenuId: subMenuItem.id,
+                      subMenuLabel: subMenuItem.label,
+                      pages: [],
+                      isComponentized: false,
+                      isCompanyPlan: true,
+                    },
+                  };
+                } catch (error) {
+                  // エラーの場合は表示対象外にする（ページが存在しない場合など）
+                  console.log('会社事業計画のページ内容のチェックエラー:', pageUrl, error);
+                  return null;
+                }
+              });
+              
+              // すべてのサブメニューのチェックを並列実行
+              const companyPlanSubMenuNodes = await Promise.all(companyPlanSubMenuPromises);
+              companyPlanSubMenuNodes.forEach(node => {
+                if (node) {
+                  nodesMap.set(node.id, node);
+                }
+              });
+            }
+          })();
+          companyPlanPromises.push(companyPlanPromise);
         });
+        
+        // すべての会社ノードの処理を待つ
+        await Promise.all(companyPlanPromises);
 
         // 固定サービス（事業企画）ノードを追加
         SPECIAL_SERVICES.forEach((service) => {
@@ -682,7 +773,7 @@ export default function ForceDirectedGraph({
           }
         });
 
-        // 会社とページコンテナのリンク（コンポーネント形式の場合）
+        // 会社とページコンテナのリンク（コンポーネント形式と固定ページ形式の両方）
         companyPlansSnapshot.forEach((planDoc) => {
           const planData = planDoc.data();
           const companyId = `company-${planDoc.id}`;
@@ -693,6 +784,7 @@ export default function ForceDirectedGraph({
             Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
 
           if (isComponentized && pagesBySubMenu) {
+            // コンポーネント形式の場合
             Object.entries(pagesBySubMenu).forEach(([subMenuId, pages]) => {
               if (Array.isArray(pages) && pages.length > 0) {
                 // サブメニューノードへのリンク
@@ -713,6 +805,18 @@ export default function ForceDirectedGraph({
                       type: 'subMenu-page',
                     });
                   }
+                });
+              }
+            });
+          } else {
+            // 固定ページ形式の場合でも、サブメニューノードへのリンクを作成
+            SUB_MENU_ITEMS.forEach((subMenuItem) => {
+              const subMenuNodeId = `subMenu-company-fixed-${planDoc.id}-${subMenuItem.id}`;
+              if (nodesMap.has(subMenuNodeId)) {
+                linksList.push({
+                  source: companyId,
+                  target: subMenuNodeId,
+                  type: 'company-subMenu',
                 });
               }
             });
@@ -908,6 +1012,21 @@ export default function ForceDirectedGraph({
     
     // 階層フィルター（ノードタイプ）
     filtered = filtered.filter(node => {
+      // 会社の事業計画のサブメニューとページは別のフィルターで制御
+      if (node.type === 'subMenu' && node.data?.isCompanyPlan) {
+        return nodeTypeFilters.companySubMenu ?? true;
+      }
+      if (node.type === 'page' && node.data?.isCompanyPlan) {
+        return nodeTypeFilters.companyPage ?? true;
+      }
+      // 構想のサブメニューとページは既存のフィルターで制御
+      if (node.type === 'subMenu' && !node.data?.isCompanyPlan) {
+        return nodeTypeFilters.subMenu ?? true;
+      }
+      if (node.type === 'page' && !node.data?.isCompanyPlan) {
+        return nodeTypeFilters.page ?? true;
+      }
+      // その他のノードタイプ
       const nodeType = node.type as keyof typeof nodeTypeFilters;
       return nodeTypeFilters[nodeType] ?? true;
     });
@@ -939,10 +1058,32 @@ export default function ForceDirectedGraph({
           relatedConceptIds.add(targetId);
         }
         if (link.type === 'concept-subMenu' && relatedConceptIds.has(sourceId)) {
-          relatedSubMenuIds.add(targetId);
+          // 構想のサブメニューのみを追加（会社の事業計画のサブメニューは除外）
+          const subMenuNode = nodes.find(n => n.id === targetId);
+          if (subMenuNode && !subMenuNode.data?.isCompanyPlan) {
+            relatedSubMenuIds.add(targetId);
+          }
         }
         if (link.type === 'subMenu-page' && relatedSubMenuIds.has(sourceId)) {
-          relatedPageIds.add(targetId);
+          // 構想のページのみを追加（会社の事業計画のページは除外）
+          const pageNode = nodes.find(n => n.id === targetId);
+          if (pageNode && !pageNode.data?.isCompanyPlan) {
+            relatedPageIds.add(targetId);
+          }
+        }
+        // 会社の事業計画のサブメニューとページも追加
+        if (link.type === 'company-subMenu' && relatedCompanyIds.has(sourceId)) {
+          const subMenuNode = nodes.find(n => n.id === targetId);
+          if (subMenuNode && subMenuNode.data?.isCompanyPlan) {
+            relatedSubMenuIds.add(targetId);
+          }
+        }
+        if (link.type === 'subMenu-page') {
+          const sourceNode = nodes.find(n => n.id === sourceId);
+          const pageNode = nodes.find(n => n.id === targetId);
+          if (sourceNode && sourceNode.data?.isCompanyPlan && pageNode && pageNode.data?.isCompanyPlan) {
+            relatedPageIds.add(targetId);
+          }
         }
         if (link.type === 'company-project' && projectNodeIds.has(targetId)) {
           relatedCompanyIds.add(sourceId);
@@ -995,10 +1136,18 @@ export default function ForceDirectedGraph({
         const targetId = typeof link.target === 'string' ? link.target : link.target.id;
         
         if (link.type === 'concept-subMenu' && conceptNodeIds.has(sourceId)) {
-          relatedSubMenuIds.add(targetId);
+          // 構想のサブメニューのみを追加（会社の事業計画のサブメニューは除外）
+          const subMenuNode = nodes.find(n => n.id === targetId);
+          if (subMenuNode && !subMenuNode.data?.isCompanyPlan) {
+            relatedSubMenuIds.add(targetId);
+          }
         }
         if (link.type === 'subMenu-page' && relatedSubMenuIds.has(sourceId)) {
-          relatedPageIds.add(targetId);
+          // 構想のページのみを追加（会社の事業計画のページは除外）
+          const pageNode = nodes.find(n => n.id === targetId);
+          if (pageNode && !pageNode.data?.isCompanyPlan) {
+            relatedPageIds.add(targetId);
+          }
         }
         if (link.type === 'project-concept' && conceptNodeIds.has(targetId)) {
           relatedProjectIds.add(sourceId);
@@ -1170,6 +1319,8 @@ export default function ForceDirectedGraph({
       concept: 0,
       subMenu: 0,
       page: 0,
+      companySubMenu: 0,
+      companyPage: 0,
     };
     
     filteredNodes.forEach(node => {
@@ -1178,9 +1329,17 @@ export default function ForceDirectedGraph({
       } else if (node.type === 'concept') {
         stats.concept++;
       } else if (node.type === 'subMenu') {
-        stats.subMenu++;
+        if (node.data?.isCompanyPlan) {
+          stats.companySubMenu++;
+        } else {
+          stats.subMenu++;
+        }
       } else if (node.type === 'page') {
-        stats.page++;
+        if (node.data?.isCompanyPlan) {
+          stats.companyPage++;
+        } else {
+          stats.page++;
+        }
       }
     });
     
@@ -1556,7 +1715,7 @@ export default function ForceDirectedGraph({
       }
     });
 
-    // ダブルクリックイベントを追加（ページノード、サブメニューノード、構想ノードをダブルクリックするとモーダルで表示）
+    // ダブルクリックイベントを追加（ページノード、サブメニューノード、構想ノード、会社ノードをダブルクリックするとモーダルで表示）
     nodeElements.on('dblclick', function (event: MouseEvent, d: GraphNode) {
       if (d.type === 'page' && d.data?.pageContent) {
         setModalPage({
@@ -1565,6 +1724,17 @@ export default function ForceDirectedGraph({
           pageId: d.data.pageId,
           pageNumber: d.data.pageNumber || 0,
         });
+      } else if (d.type === 'company') {
+        // 会社の事業計画ノードをダブルクリックしたときに、その事業計画のページをモーダルで表示
+        const planId = d.data?.docId || d.id.replace('company-', '');
+        const planLabel = d.label;
+        
+        if (planId) {
+          setModalCompanyPlan({
+            planId,
+            planLabel,
+          });
+        }
       } else if (d.type === 'concept') {
         // 構想ノードをダブルクリックしたときに、その構想のページをモーダルで表示
         const serviceId = d.data?.serviceId;
@@ -1601,18 +1771,39 @@ export default function ForceDirectedGraph({
           setModalSubMenuPages(pages);
         } else if (!d.data?.isComponentized) {
           // 固定ページ形式のサブメニューノードをダブルクリックすると、そのページをモーダルで表示
-          const serviceId = d.data?.serviceId;
-          const conceptId = d.data?.conceptId;
-          const subMenuId = d.data?.subMenuId;
-          const subMenuLabel = d.data?.subMenuLabel || d.label;
+          const isCompanyPlan = d.data?.isCompanyPlan;
           
-          if (serviceId && conceptId && subMenuId) {
-            setModalFixedPage({
-              serviceId,
-              conceptId,
-              subMenuId,
-              subMenuLabel,
-            });
+          if (isCompanyPlan) {
+            // 会社の事業計画のサブメニューの場合
+            const planId = d.data?.planId;
+            const subMenuId = d.data?.subMenuId;
+            const subMenuLabel = d.data?.subMenuLabel || d.label;
+            
+            if (planId && subMenuId) {
+              setModalFixedPage({
+                serviceId: '', // 会社の事業計画の場合は空
+                conceptId: '', // 会社の事業計画の場合は空
+                subMenuId: subMenuId,
+                subMenuLabel: subMenuLabel,
+                planId: planId, // 会社の事業計画のIDを追加
+                isCompanyPlan: true,
+              });
+            }
+          } else {
+            // 構想のサブメニューの場合
+            const serviceId = d.data?.serviceId;
+            const conceptId = d.data?.conceptId;
+            const subMenuId = d.data?.subMenuId;
+            const subMenuLabel = d.data?.subMenuLabel || d.label;
+            
+            if (serviceId && conceptId && subMenuId) {
+              setModalFixedPage({
+                serviceId,
+                conceptId,
+                subMenuId,
+                subMenuLabel,
+              });
+            }
           }
         }
       }
@@ -1695,10 +1886,16 @@ export default function ForceDirectedGraph({
                   <span>構想: <strong style={{ color: '#FF6B6B', fontWeight: 600 }}>{filteredStats.concept}</strong></span>
                 )}
                 {filteredStats.subMenu > 0 && (
-                  <span>サブメニュー: <strong style={{ color: '#E67E22', fontWeight: 600 }}>{filteredStats.subMenu}</strong></span>
+                  <span>サブメニュー（構想）: <strong style={{ color: '#E67E22', fontWeight: 600 }}>{filteredStats.subMenu}</strong></span>
                 )}
                 {filteredStats.page > 0 && (
-                  <span>ページ: <strong style={{ color: '#9B59B6', fontWeight: 600 }}>{filteredStats.page}</strong></span>
+                  <span>ページ（構想）: <strong style={{ color: '#9B59B6', fontWeight: 600 }}>{filteredStats.page}</strong></span>
+                )}
+                {filteredStats.companySubMenu > 0 && (
+                  <span>サブメニュー（会社事業計画）: <strong style={{ color: '#E67E22', fontWeight: 600 }}>{filteredStats.companySubMenu}</strong></span>
+                )}
+                {filteredStats.companyPage > 0 && (
+                  <span>ページ（会社事業計画）: <strong style={{ color: '#9B59B6', fontWeight: 600 }}>{filteredStats.companyPage}</strong></span>
                 )}
               </div>
             </div>
@@ -1805,7 +2002,7 @@ export default function ForceDirectedGraph({
                   cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer'
                 }}
               />
-              <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー</span>
+              <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー（構想）</span>
             </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
               <input
@@ -1822,7 +2019,49 @@ export default function ForceDirectedGraph({
                 }}
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
               />
-              <span style={{ fontSize: '14px', color: '#333' }}>ページ</span>
+              <span style={{ fontSize: '14px', color: '#333' }}>ページ（構想）</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: nodeTypeFilters.companyPage ? 'not-allowed' : 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={nodeTypeFilters.companySubMenu}
+                onChange={(e) => {
+                  // 会社の事業計画のページが選択されている場合は、サブメニューを外せない
+                  if (nodeTypeFilters.companyPage) {
+                    return;
+                  }
+                  const isCompanySubMenuChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    companySubMenu: isCompanySubMenuChecked,
+                    // サブメニューが外されたら、ページも外す
+                    companyPage: isCompanySubMenuChecked ? prev.companyPage : false
+                  }));
+                }}
+                style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  cursor: nodeTypeFilters.companyPage ? 'not-allowed' : 'pointer'
+                }}
+              />
+              <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー（会社事業計画）</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={nodeTypeFilters.companyPage}
+                onChange={(e) => {
+                  const isCompanyPageChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    companyPage: isCompanyPageChecked,
+                    // ページが選択されたら、サブメニューも必須で選択
+                    companySubMenu: isCompanyPageChecked ? true : prev.companySubMenu
+                  }));
+                }}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '14px', color: '#333' }}>ページ（会社事業計画）</span>
             </label>
           </div>
           {/* フィルターセクション（折りたたみ可能） */}
@@ -2155,7 +2394,7 @@ export default function ForceDirectedGraph({
           </div>
           </div>
         <p style={{ marginTop: '12px', fontSize: '13px', color: '#888', fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif" }}>
-          ノードをドラッグして移動できます。構想ノード、サブメニューノード、ページノードをダブルクリックすると詳細を表示します。
+          ノードをドラッグして移動できます。会社ノード、構想ノード、サブメニューノード、ページノードをダブルクリックすると詳細を表示します。
         </p>
       </div>
       
@@ -2425,7 +2664,9 @@ export default function ForceDirectedGraph({
             </div>
             <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
               <iframe
-                src={`/business-plan/services/${modalFixedPage.serviceId}/${modalFixedPage.conceptId}/${modalFixedPage.subMenuId}?modal=true&hideSidebar=true`}
+                src={modalFixedPage.isCompanyPlan && modalFixedPage.planId
+                  ? `/business-plan/company/${modalFixedPage.planId}/${modalFixedPage.subMenuId}?modal=true&hideSidebar=true`
+                  : `/business-plan/services/${modalFixedPage.serviceId}/${modalFixedPage.conceptId}/${modalFixedPage.subMenuId}?modal=true&hideSidebar=true`}
                 style={{
                   width: '100%',
                   height: '70vh',
@@ -2504,6 +2745,77 @@ export default function ForceDirectedGraph({
                   borderRadius: '8px',
                 }}
                 title={modalFixedConcept.conceptLabel}
+              />
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* 会社の事業計画モーダル */}
+      {modalCompanyPlan && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setModalCompanyPlan(null);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              padding: '32px',
+              maxWidth: '1600px',
+              width: '100%',
+              maxHeight: '90vh',
+              overflowY: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+              position: 'relative',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
+              <h3 style={{ fontSize: '20px', fontWeight: 600, color: '#1a1a1a', margin: 0 }}>
+                {modalCompanyPlan.planLabel}
+              </h3>
+              <button
+                onClick={() => setModalCompanyPlan(null)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#6B7280',
+                  padding: '4px 8px',
+                  lineHeight: 1,
+                }}
+              >
+                ×
+              </button>
+            </div>
+            <div style={{ borderTop: '1px solid #e5e7eb', paddingTop: '24px' }}>
+              <iframe
+                src={`/business-plan/company/${modalCompanyPlan.planId}/overview?modal=true`}
+                style={{
+                  width: '100%',
+                  height: '70vh',
+                  border: 'none',
+                  borderRadius: '8px',
+                }}
+                title={modalCompanyPlan.planLabel}
               />
             </div>
           </div>
