@@ -1675,7 +1675,6 @@ export default function BusinessPlanPage() {
               {/* 名前と説明の編集 */}
               <div style={{ marginBottom: '28px' }}>
                 <label style={{ 
-                  display: 'block', 
                   fontSize: '14px', 
                   fontWeight: 600, 
                   color: '#374151', 
@@ -1755,7 +1754,6 @@ export default function BusinessPlanPage() {
               {/* リンク設定 */}
               <div style={{ marginBottom: '8px' }}>
                 <label style={{ 
-                  display: 'block', 
                   fontSize: '14px', 
                   fontWeight: 600, 
                   color: '#374151', 
