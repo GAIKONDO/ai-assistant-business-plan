@@ -1163,6 +1163,30 @@ export default function ForceDirectedGraph({
     });
   }, [links, filteredNodes]);
 
+  // フィルターされたノードの統計情報を計算
+  const filteredStats = useMemo(() => {
+    const stats = {
+      project: 0,
+      concept: 0,
+      subMenu: 0,
+      page: 0,
+    };
+    
+    filteredNodes.forEach(node => {
+      if (node.type === 'project') {
+        stats.project++;
+      } else if (node.type === 'concept') {
+        stats.concept++;
+      } else if (node.type === 'subMenu') {
+        stats.subMenu++;
+      } else if (node.type === 'page') {
+        stats.page++;
+      }
+    });
+    
+    return stats;
+  }, [filteredNodes]);
+
   // Force simulationの実行
   useEffect(() => {
     if (!svgRef.current || filteredNodes.length === 0 || loading) return;
@@ -1644,16 +1668,40 @@ export default function ForceDirectedGraph({
       {title && (
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
-            <h2 style={{ 
-              fontSize: '24px', 
-              fontWeight: '600',
-              color: '#1a1a1a',
-              fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
-              letterSpacing: '-0.02em',
-              margin: 0
-            }}>
-              {title}
-            </h2>
+            <div style={{ flex: 1 }}>
+              <h2 style={{ 
+                fontSize: '24px', 
+                fontWeight: '600',
+                color: '#1a1a1a',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+                letterSpacing: '-0.02em',
+                margin: 0,
+                marginBottom: '8px'
+              }}>
+                {title}
+              </h2>
+              {/* フィルター統計情報 */}
+              <div style={{ 
+                display: 'flex', 
+                gap: '16px', 
+                fontSize: '12px', 
+                color: 'rgba(107, 114, 128, 0.8)',
+                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif"
+              }}>
+                {filteredStats.project > 0 && (
+                  <span>事業企画: <strong style={{ color: '#50C878', fontWeight: 600 }}>{filteredStats.project}</strong></span>
+                )}
+                {filteredStats.concept > 0 && (
+                  <span>構想: <strong style={{ color: '#FF6B6B', fontWeight: 600 }}>{filteredStats.concept}</strong></span>
+                )}
+                {filteredStats.subMenu > 0 && (
+                  <span>サブメニュー: <strong style={{ color: '#E67E22', fontWeight: 600 }}>{filteredStats.subMenu}</strong></span>
+                )}
+                {filteredStats.page > 0 && (
+                  <span>ページ: <strong style={{ color: '#9B59B6', fontWeight: 600 }}>{filteredStats.page}</strong></span>
+                )}
+              </div>
+            </div>
             <div style={{ display: 'flex', gap: '8px' }}>
               <button
                 onClick={() => setFilterMode('all')}
@@ -1734,12 +1782,28 @@ export default function ForceDirectedGraph({
               />
               <span style={{ fontSize: '14px', color: '#333' }}>構想</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer' }}>
               <input
                 type="checkbox"
                 checked={nodeTypeFilters.subMenu}
-                onChange={(e) => setNodeTypeFilters(prev => ({ ...prev, subMenu: e.target.checked }))}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+                onChange={(e) => {
+                  // ページが選択されている場合は、サブメニューを外せない
+                  if (nodeTypeFilters.page) {
+                    return;
+                  }
+                  const isSubMenuChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    subMenu: isSubMenuChecked,
+                    // サブメニューが外されたら、ページも外す
+                    page: isSubMenuChecked ? prev.page : false
+                  }));
+                }}
+                style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer'
+                }}
               />
               <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー</span>
             </label>
@@ -1747,7 +1811,15 @@ export default function ForceDirectedGraph({
               <input
                 type="checkbox"
                 checked={nodeTypeFilters.page}
-                onChange={(e) => setNodeTypeFilters(prev => ({ ...prev, page: e.target.checked }))}
+                onChange={(e) => {
+                  const isPageChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    page: isPageChecked,
+                    // ページが選択されたら、サブメニューも必須で選択
+                    subMenu: isPageChecked ? true : prev.subMenu
+                  }));
+                }}
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '14px', color: '#333' }}>ページ</span>

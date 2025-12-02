@@ -34,9 +34,11 @@ export default function DashboardPage() {
   const [conceptsCount, setConceptsCount] = useState<number>(0);
   const [conceptsFixedCount, setConceptsFixedCount] = useState<number>(0);
   const [conceptsComponentizedCount, setConceptsComponentizedCount] = useState<number>(0);
+  const [conceptsComponentizedPagesCount, setConceptsComponentizedPagesCount] = useState<number>(0);
   const [servicePlansCount, setServicePlansCount] = useState<number>(0);
   const [servicePlansFixedCount, setServicePlansFixedCount] = useState<number>(0);
   const [servicePlansComponentizedCount, setServicePlansComponentizedCount] = useState<number>(0);
+  const [servicePlansComponentizedPagesCount, setServicePlansComponentizedPagesCount] = useState<number>(0);
   const [loading, setLoading] = useState<boolean>(true);
   const router = useRouter();
 
@@ -92,6 +94,7 @@ export default function DashboardPage() {
 
       let dynamicConceptsFixedCount = 0;
       let dynamicConceptsComponentizedCount = 0;
+      let conceptsComponentizedPagesCount = 0;
       try {
         const conceptsQuery = query(
           collection(db, 'concepts'),
@@ -110,12 +113,20 @@ export default function DashboardPage() {
               Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
             if (isComponentized) {
               dynamicConceptsComponentizedCount++;
+              // ページ数を集計
+              if (pagesBySubMenu && typeof pagesBySubMenu === 'object') {
+                Object.values(pagesBySubMenu).forEach((pages: any) => {
+                  if (Array.isArray(pages)) {
+                    conceptsComponentizedPagesCount += pages.length;
+                  }
+                });
+              }
             } else {
               dynamicConceptsFixedCount++;
             }
           }
         });
-        console.log('Dashboard: 動的構想数（固定構想除外後）', { fixed: dynamicConceptsFixedCount, componentized: dynamicConceptsComponentizedCount }, conceptsSnapshot.docs.map(d => ({ id: d.id, conceptId: d.data().conceptId, ...d.data() })));
+        console.log('Dashboard: 動的構想数（固定構想除外後）', { fixed: dynamicConceptsFixedCount, componentized: dynamicConceptsComponentizedCount, pages: conceptsComponentizedPagesCount }, conceptsSnapshot.docs.map(d => ({ id: d.id, conceptId: d.data().conceptId, ...d.data() })));
       } catch (error: any) {
         console.error('Dashboard: 構想取得エラー:', error);
       }
@@ -129,15 +140,17 @@ export default function DashboardPage() {
       const conceptsFixedCount = dynamicConceptsFixedCount + fixedConceptsCount;
       const conceptsComponentizedCount = dynamicConceptsComponentizedCount;
       const totalConcepts = conceptsFixedCount + conceptsComponentizedCount;
-      console.log('Dashboard: 構想総数（動的 + 固定）', totalConcepts, { fixed: conceptsFixedCount, componentized: conceptsComponentizedCount, dynamicFixed: dynamicConceptsFixedCount, dynamicComponentized: dynamicConceptsComponentizedCount, fixedConceptsCount });
+      console.log('Dashboard: 構想総数（動的 + 固定）', totalConcepts, { fixed: conceptsFixedCount, componentized: conceptsComponentizedCount, pages: conceptsComponentizedPagesCount, dynamicFixed: dynamicConceptsFixedCount, dynamicComponentized: dynamicConceptsComponentizedCount, fixedConceptsCount });
       setConceptsCount(totalConcepts);
       setConceptsFixedCount(conceptsFixedCount);
       setConceptsComponentizedCount(conceptsComponentizedCount);
+      setConceptsComponentizedPagesCount(conceptsComponentizedPagesCount);
 
       // 事業計画の数を取得（会社全体の事業計画のみ）
       // 固定ページ形式とコンポーネント形式で分けてカウント
       let servicePlansFixedCount = 0;
       let servicePlansComponentizedCount = 0;
+      let servicePlansComponentizedPagesCount = 0;
       try {
         const companyPlansQuery = query(
           collection(db, 'companyBusinessPlan'),
@@ -153,20 +166,30 @@ export default function DashboardPage() {
             Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
           if (isComponentized) {
             servicePlansComponentizedCount++;
+            // ページ数を集計
+            if (pagesBySubMenu && typeof pagesBySubMenu === 'object') {
+              Object.values(pagesBySubMenu).forEach((pages: any) => {
+                if (Array.isArray(pages)) {
+                  servicePlansComponentizedPagesCount += pages.length;
+                }
+              });
+            }
           } else {
             servicePlansFixedCount++;
           }
         });
         const servicePlansCount = servicePlansFixedCount + servicePlansComponentizedCount;
-        console.log('Dashboard: 会社事業計画数', servicePlansCount, { fixed: servicePlansFixedCount, componentized: servicePlansComponentizedCount });
+        console.log('Dashboard: 会社事業計画数', servicePlansCount, { fixed: servicePlansFixedCount, componentized: servicePlansComponentizedCount, pages: servicePlansComponentizedPagesCount });
         setServicePlansCount(servicePlansCount);
         setServicePlansFixedCount(servicePlansFixedCount);
         setServicePlansComponentizedCount(servicePlansComponentizedCount);
+        setServicePlansComponentizedPagesCount(servicePlansComponentizedPagesCount);
       } catch (error: any) {
         console.error('Dashboard: 会社事業計画取得エラー:', error);
         setServicePlansCount(0);
         setServicePlansFixedCount(0);
         setServicePlansComponentizedCount(0);
+        setServicePlansComponentizedPagesCount(0);
       }
     } catch (error: any) {
       console.error('Dashboard: カウント取得エラー:', error);
@@ -258,6 +281,11 @@ export default function DashboardPage() {
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>事業計画</div>
               <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.5)', fontWeight: 400, marginTop: '2px' }}>コンポーネント形式</div>
+              {servicePlansComponentizedPagesCount > 0 && (
+                <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.6)', fontWeight: 500, marginTop: '4px' }}>
+                  {servicePlansComponentizedPagesCount} ページ
+                </div>
+              )}
             </div>
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
@@ -265,6 +293,11 @@ export default function DashboardPage() {
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>構想</div>
               <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.5)', fontWeight: 400, marginTop: '2px' }}>コンポーネント形式</div>
+              {conceptsComponentizedPagesCount > 0 && (
+                <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.6)', fontWeight: 500, marginTop: '4px' }}>
+                  {conceptsComponentizedPagesCount} ページ
+                </div>
+              )}
             </div>
           </div>
         </div>
