@@ -219,19 +219,19 @@ export default function ForceDirectedGraph({
         const companyPlanPromises: Promise<void>[] = [];
         companyPlansSnapshot.forEach((doc) => {
           const companyPlanPromise = (async () => {
-            const data = doc.data();
-            const nodeId = `company-${doc.id}`;
+          const data = doc.data();
+          const nodeId = `company-${doc.id}`;
             const pagesBySubMenu = data.pagesBySubMenu;
             const isComponentized = pagesBySubMenu && 
               typeof pagesBySubMenu === 'object' && 
               Object.keys(pagesBySubMenu).length > 0 &&
               Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-            nodesMap.set(nodeId, {
-              id: nodeId,
-              label: data.title || '会社事業計画',
-              type: 'company',
+          nodesMap.set(nodeId, {
+            id: nodeId,
+            label: data.title || '会社事業計画',
+            type: 'company',
               data: { ...data, docId: doc.id, isComponentized },
-            });
+          });
 
             // コンポーネント形式の場合、サブメニューノードとページコンテナをノードとして追加
             if (isComponentized && pagesBySubMenu) {
@@ -378,8 +378,13 @@ export default function ForceDirectedGraph({
         });
 
         // 事業企画ノードを追加（Firebaseから取得）
+        // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして表示されるため）
         projectsSnapshot.forEach((doc) => {
           const data = doc.data();
+          // isFixed: trueのプロジェクトは除外
+          if (data.isFixed) {
+            return;
+          }
           const nodeId = `project-${doc.id}`;
           nodesMap.set(nodeId, {
             id: nodeId,
@@ -395,21 +400,21 @@ export default function ForceDirectedGraph({
         
         for (const doc of conceptsSnapshot.docs) {
           const conceptPromise = (async () => {
-            const data = doc.data();
-            const nodeId = `concept-${doc.id}`;
-            const conceptId = data.conceptId || doc.id;
-            addedConceptIds.add(conceptId);
+          const data = doc.data();
+          const nodeId = `concept-${doc.id}`;
+          const conceptId = data.conceptId || doc.id;
+          addedConceptIds.add(conceptId);
             const pagesBySubMenu = data.pagesBySubMenu;
             const isComponentized = pagesBySubMenu && 
               typeof pagesBySubMenu === 'object' && 
               Object.keys(pagesBySubMenu).length > 0 &&
               Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-            nodesMap.set(nodeId, {
-              id: nodeId,
-              label: data.name || '構想',
-              type: 'concept',
+          nodesMap.set(nodeId, {
+            id: nodeId,
+            label: data.name || '構想',
+            type: 'concept',
               data: { ...data, docId: doc.id, serviceId: data.serviceId, conceptId: conceptId, isComponentized },
-            });
+          });
 
           // コンポーネント形式の場合、サブメニューノードとページコンテナをノードとして追加
           if (isComponentized && pagesBySubMenu) {
@@ -552,19 +557,19 @@ export default function ForceDirectedGraph({
             // 既に追加されている構想はスキップ
             if (!addedConceptIds.has(concept.id)) {
               const fixedConceptPromise = (async () => {
-                const nodeId = `fixed-concept-${serviceId}-${concept.id}`;
-                nodesMap.set(nodeId, {
-                  id: nodeId,
-                  label: concept.name,
-                  type: 'concept',
-                  data: { 
-                    serviceId: serviceId, 
-                    conceptId: concept.id, 
-                    description: concept.description,
+              const nodeId = `fixed-concept-${serviceId}-${concept.id}`;
+              nodesMap.set(nodeId, {
+                id: nodeId,
+                label: concept.name,
+                type: 'concept',
+                data: { 
+                  serviceId: serviceId, 
+                  conceptId: concept.id, 
+                  description: concept.description,
                     isFixed: true,
                     isComponentized: false // 固定構想は固定ページ形式
-                  },
-                });
+                },
+              });
                 
                 // 固定ページ形式でも、すべてのサブメニューノードを追加
                 // ただし、ページの内容をチェックして、デフォルトのプレースホルダーのみの場合は除外
@@ -665,18 +670,85 @@ export default function ForceDirectedGraph({
         // リンクを作成
         const linksList: GraphLink[] = [];
 
-        // 会社と事業企画のリンク（同じユーザーIDで関連、すべての会社に接続）
+        // 会社と事業企画のリンク（linkedPlanIdsで関連）
         const companyNodes = Array.from(nodesMap.values()).filter((n) => n.type === 'company');
         const projectNodes = Array.from(nodesMap.values()).filter((n) => n.type === 'project');
 
+        // 動的に追加された事業企画の場合、linkedPlanIdsを使用してリンクを作成
+        // isFixed: trueのプロジェクトは除外（固定サービスは別途処理されるため）
+        projectsSnapshot.forEach((projectDoc) => {
+          const projectData = projectDoc.data();
+          // isFixed: trueのプロジェクトは除外
+          if (projectData.isFixed) {
+            return;
+          }
+          const projectId = `project-${projectDoc.id}`;
+          const linkedPlanIds = projectData.linkedPlanIds;
+          
+          if (linkedPlanIds && Array.isArray(linkedPlanIds) && linkedPlanIds.length > 0) {
+            linkedPlanIds.forEach((planId: string) => {
+              const companyNodeId = `company-${planId}`;
+              if (nodesMap.has(companyNodeId)) {
+                linksList.push({
+                  source: companyNodeId,
+                  target: projectId,
+                  type: 'company-project',
+                });
+              }
+            });
+          }
+        });
+
+        // 固定サービス（事業企画）の場合、linkedPlanIdsを使用してリンクを作成
+        // 固定サービスのデータをFirestoreから取得
+        projectsSnapshot.forEach((projectDoc) => {
+          const projectData = projectDoc.data();
+          if (projectData.isFixed && projectData.serviceId) {
+            const serviceId = projectData.serviceId;
+            const projectId = `project-${serviceId}`;
+            const linkedPlanIds = projectData.linkedPlanIds;
+            
+            if (linkedPlanIds && Array.isArray(linkedPlanIds) && linkedPlanIds.length > 0) {
+              // linkedPlanIdsが設定されている場合、それを使用
+              linkedPlanIds.forEach((planId: string) => {
+                const companyNodeId = `company-${planId}`;
+                if (nodesMap.has(companyNodeId)) {
+                  linksList.push({
+                    source: companyNodeId,
+                    target: projectId,
+                    type: 'company-project',
+                  });
+                }
+              });
+            } else {
+              // linkedPlanIdsが設定されていない場合、すべての会社にリンク（既存の動作を維持）
         companyNodes.forEach((companyNode) => {
-          projectNodes.forEach((projectNode) => {
             linksList.push({
               source: companyNode.id,
-              target: projectNode.id,
+                  target: projectId,
               type: 'company-project',
             });
           });
+            }
+          }
+        });
+        
+        // Firestoreに存在しない固定サービスは、すべての会社にリンク（既存の動作を維持）
+        SPECIAL_SERVICES.forEach((service) => {
+          const projectId = `project-${service.id}`;
+          // 既にリンクが作成されているかチェック
+          const linkExists = linksList.some(
+            link => (typeof link.target === 'string' ? link.target : link.target.id) === projectId
+          );
+          if (!linkExists) {
+            companyNodes.forEach((companyNode) => {
+              linksList.push({
+                source: companyNode.id,
+                target: projectId,
+                type: 'company-project',
+              });
+            });
+          }
         });
 
         // 事業企画と構想のリンク（serviceIdで関連）
@@ -726,8 +798,13 @@ export default function ForceDirectedGraph({
         });
 
         // Firebaseから取得した事業企画と構想のリンク
+        // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして処理されるため）
         projectsSnapshot.forEach((projectDoc) => {
           const projectData = projectDoc.data();
+          // isFixed: trueのプロジェクトは除外
+          if (projectData.isFixed) {
+            return;
+          }
           const projectId = `project-${projectDoc.id}`;
           const serviceId = projectData.serviceId;
 
@@ -941,8 +1018,13 @@ export default function ForceDirectedGraph({
         });
 
         // Firebaseから取得した事業企画とサービス計画のリンク
+        // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして処理されるため）
         projectsSnapshot.forEach((projectDoc) => {
           const projectData = projectDoc.data();
+          // isFixed: trueのプロジェクトは除外
+          if (projectData.isFixed) {
+            return;
+          }
           const projectId = `project-${projectDoc.id}`;
           const serviceId = projectData.serviceId;
 
@@ -1636,7 +1718,7 @@ export default function ForceDirectedGraph({
       )
       .force('charge', forceManyBody().strength(-200))
       .force('center', forceCenter(width / 2, height / 2))
-        .force('collision', forceCollide().radius((d: any) => {
+      .force('collision', forceCollide().radius((d: any) => {
         if (d.type === 'company') return 35;
         if (d.type === 'project') return 24;
         if (d.type === 'concept') return 15;
@@ -1860,17 +1942,17 @@ export default function ForceDirectedGraph({
         <div style={{ marginBottom: '24px' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px' }}>
             <div style={{ flex: 1 }}>
-              <h2 style={{ 
-                fontSize: '24px', 
-                fontWeight: '600',
-                color: '#1a1a1a',
-                fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
+        <h2 style={{ 
+          fontSize: '24px', 
+          fontWeight: '600',
+          color: '#1a1a1a',
+          fontFamily: "'Inter', 'Noto Sans JP', -apple-system, sans-serif",
                 letterSpacing: '-0.02em',
                 margin: 0,
                 marginBottom: '8px'
-              }}>
-                {title}
-              </h2>
+        }}>
+          {title}
+        </h2>
               {/* フィルター統計情報 */}
               <div style={{ 
                 display: 'flex', 

@@ -1976,7 +1976,7 @@ function ConceptLayoutContent({
       {!isPresentationMode && (
         <div style={{ display: 'flex', gap: '32px' }}>
           {!hideSidebar && (
-            <ConceptSubMenu serviceId={serviceId} conceptId={conceptId} currentSubMenuId={currentSubMenu} />
+          <ConceptSubMenu serviceId={serviceId} conceptId={conceptId} currentSubMenuId={currentSubMenu} />
           )}
           <div style={{ 
             flex: 1, 
@@ -1988,23 +1988,23 @@ function ConceptLayoutContent({
             marginBottom: '40px',
           }}>
             {!hideSidebar && (
-              <div style={{ marginBottom: '24px' }}>
-                <button
-                  onClick={() => router.push(`/business-plan/services/${serviceId}`)}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--color-primary)',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    marginBottom: '16px',
-                    padding: 0,
-                  }}
-                >
-                  ← {serviceName}に戻る
-                </button>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h2 style={{ marginBottom: '4px' }}>{concept?.name || conceptId}</h2>
+            <div style={{ marginBottom: '24px' }}>
+              <button
+                onClick={() => router.push(`/business-plan/services/${serviceId}`)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  color: 'var(--color-primary)',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  marginBottom: '16px',
+                  padding: 0,
+                }}
+              >
+                ← {serviceName}に戻る
+              </button>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ marginBottom: '4px' }}>{concept?.name || conceptId}</h2>
                 <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                   {showContainers && (
                     <button

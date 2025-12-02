@@ -62,15 +62,22 @@ export default function DashboardPage() {
       console.log('Dashboard: カウント取得開始', { userId });
 
       // 事業企画の数を取得（動的に追加されたもの + 固定サービス）
-      let businessProjectsCount = 0;
+      // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして別途カウント）
+      let dynamicBusinessProjectsCount = 0;
       try {
         const businessProjectsQuery = query(
           collection(db, 'businessProjects'),
           where('userId', '==', userId)
         );
         const businessProjectsSnapshot = await getDocs(businessProjectsQuery);
-        businessProjectsCount = businessProjectsSnapshot.size;
-        console.log('Dashboard: 動的事業企画数', businessProjectsCount, businessProjectsSnapshot.docs.map(d => ({ id: d.id, ...d.data() })));
+        // isFixed: trueのプロジェクトを除外
+        businessProjectsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          if (!data.isFixed) {
+            dynamicBusinessProjectsCount++;
+          }
+        });
+        console.log('Dashboard: 動的事業企画数（isFixed除外後）', dynamicBusinessProjectsCount, businessProjectsSnapshot.docs.filter(d => !d.data().isFixed).map(d => ({ id: d.id, ...d.data() })));
       } catch (error: any) {
         console.error('Dashboard: 事業企画取得エラー:', error);
       }
@@ -78,8 +85,8 @@ export default function DashboardPage() {
       // 固定サービス（SPECIAL_SERVICES）もカウントに含める
       // 自社開発・自社サービス事業、AI駆動開発・DX支援SI事業、プロセス可視化・業務コンサル事業、AI導入ルール設計・人材育成・教育事業
       const fixedServicesCount = 4;
-      const totalBusinessProjects = businessProjectsCount + fixedServicesCount;
-      console.log('Dashboard: 事業企画総数（動的 + 固定）', totalBusinessProjects);
+      const totalBusinessProjects = dynamicBusinessProjectsCount + fixedServicesCount;
+      console.log('Dashboard: 事業企画総数（動的 + 固定）', totalBusinessProjects, { dynamic: dynamicBusinessProjectsCount, fixed: fixedServicesCount });
       setBusinessProjectsCount(totalBusinessProjects);
 
       // 構想の数を取得（動的に追加されたもの + 固定構想）
@@ -118,8 +125,8 @@ export default function DashboardPage() {
                 Object.values(pagesBySubMenu).forEach((pages: any) => {
                   if (Array.isArray(pages)) {
                     conceptsComponentizedPagesCount += pages.length;
-                  }
-                });
+          }
+        });
               }
             } else {
               dynamicConceptsFixedCount++;
@@ -249,8 +256,8 @@ export default function DashboardPage() {
         <div style={{ display: 'flex', flexDirection: 'column', gap: '16px', marginLeft: '48px' }}>
           {/* 事業企画（共通） */}
           <div style={{ display: 'flex', gap: '32px' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
                 {loading ? '-' : businessProjectsCount}
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>事業企画</div>
@@ -264,9 +271,9 @@ export default function DashboardPage() {
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>事業計画</div>
               <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.5)', fontWeight: 400, marginTop: '2px' }}>固定ページ形式</div>
-            </div>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
+          </div>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
                 {loading ? '-' : conceptsFixedCount}
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>構想</div>
@@ -275,8 +282,8 @@ export default function DashboardPage() {
           </div>
           {/* コンポーネント形式 */}
           <div style={{ display: 'flex', gap: '32px' }}>
-            <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
+          <div style={{ textAlign: 'right' }}>
+            <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
                 {loading ? '-' : servicePlansComponentizedCount}
               </div>
               <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>事業計画</div>
@@ -290,8 +297,8 @@ export default function DashboardPage() {
             <div style={{ textAlign: 'right' }}>
               <div style={{ fontSize: '22px', fontWeight: 700, color: 'var(--color-text)', lineHeight: 1.2, marginBottom: '4px' }}>
                 {loading ? '-' : conceptsComponentizedCount}
-              </div>
-              <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>構想</div>
+            </div>
+            <div style={{ fontSize: '12px', color: 'rgba(107, 114, 128, 0.7)', fontWeight: 400 }}>構想</div>
               <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.5)', fontWeight: 400, marginTop: '2px' }}>コンポーネント形式</div>
               {conceptsComponentizedPagesCount > 0 && (
                 <div style={{ fontSize: '10px', color: 'rgba(107, 114, 128, 0.6)', fontWeight: 500, marginTop: '4px' }}>

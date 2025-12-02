@@ -247,18 +247,67 @@ export default function ForceDirectedGraph3D({
         // リンクを作成
         const linksList: GraphLink[] = [];
 
-        // 会社と事業企画のリンク
+        // 会社と事業企画のリンク（linkedPlanIdsで関連）
         const companyNodes = Array.from(nodesMap.values()).filter((n) => n.type === 'company');
         const projectNodes = Array.from(nodesMap.values()).filter((n) => n.type === 'project');
 
-        companyNodes.forEach((companyNode) => {
-          projectNodes.forEach((projectNode) => {
-            linksList.push({
-              source: companyNode.id,
-              target: projectNode.id,
-              type: 'company-project',
+        // 動的に追加された事業企画の場合、linkedPlanIdsを使用してリンクを作成
+        // isFixed: trueのプロジェクトは除外（固定サービスは別途処理されるため）
+        projectsSnapshot.forEach((projectDoc) => {
+          const projectData = projectDoc.data();
+          // isFixed: trueのプロジェクトは除外
+          if (projectData.isFixed) {
+            return;
+          }
+          const projectId = `project-${projectDoc.id}`;
+          const linkedPlanIds = projectData.linkedPlanIds;
+          
+          if (linkedPlanIds && Array.isArray(linkedPlanIds) && linkedPlanIds.length > 0) {
+            linkedPlanIds.forEach((planId: string) => {
+              const companyNodeId = `company-${planId}`;
+              if (nodesMap.has(companyNodeId)) {
+                linksList.push({
+                  source: companyNodeId,
+                  target: projectId,
+                  type: 'company-project',
+                });
+              }
             });
-          });
+          }
+        });
+
+        // 固定サービス（事業企画）の場合、linkedPlanIdsを使用してリンクを作成
+        // 固定サービスのデータをFirestoreから取得
+        projectsSnapshot.forEach((projectDoc) => {
+          const projectData = projectDoc.data();
+          if (projectData.isFixed && projectData.serviceId) {
+            const serviceId = projectData.serviceId;
+            const projectId = `project-${serviceId}`;
+            const linkedPlanIds = projectData.linkedPlanIds;
+            
+            if (linkedPlanIds && Array.isArray(linkedPlanIds) && linkedPlanIds.length > 0) {
+              // linkedPlanIdsが設定されている場合、それを使用
+              linkedPlanIds.forEach((planId: string) => {
+                const companyNodeId = `company-${planId}`;
+                if (nodesMap.has(companyNodeId)) {
+                  linksList.push({
+                    source: companyNodeId,
+                    target: projectId,
+                    type: 'company-project',
+                  });
+                }
+              });
+            } else {
+              // linkedPlanIdsが設定されていない場合、すべての会社ノードにリンク
+              companyNodes.forEach((companyNode) => {
+                linksList.push({
+                  source: companyNode.id,
+                  target: projectId,
+                  type: 'company-project',
+                });
+              });
+            }
+          }
         });
 
         // 事業企画と構想のリンク

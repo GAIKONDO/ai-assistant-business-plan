@@ -57,11 +57,11 @@ export default function ComponentizedCompanyPlanOverview() {
       const currentContent = currentPage?.content || '';
       
       if (autoUpdateConfig.shouldUpdate(currentContent)) {
-        // 自動更新が必要な場合は、ページを再読み込み
-        if (refreshPages) {
-          refreshPages();
-        }
+      // 自動更新が必要な場合は、ページを再読み込み
+      if (refreshPages) {
+        refreshPages();
       }
+    }
     }
   }, [orderedConfigs, currentPageIndex, plan, refreshPages, subMenuId]);
 
