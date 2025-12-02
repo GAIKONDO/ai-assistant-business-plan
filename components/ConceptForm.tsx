@@ -8,6 +8,8 @@ export interface ConceptData {
   name: string;
   description: string;
   conceptId: string; // 自動生成されるID
+  pagesBySubMenu?: { [subMenuId: string]: Array<any> };
+  pageOrderBySubMenu?: { [subMenuId: string]: string[] };
 }
 
 interface ConceptFormProps {

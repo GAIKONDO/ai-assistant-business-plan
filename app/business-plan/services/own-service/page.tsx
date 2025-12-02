@@ -7,6 +7,13 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
+import dynamic from 'next/dynamic';
+
+// DynamicPageを動的にインポート（SSRを無効化）
+const DynamicPage = dynamic(
+  () => import('@/components/pages/component-test/test-concept/DynamicPage'),
+  { ssr: false }
+);
 
 // 固定構想の定義
 // 注意: -componentized版は動的に作成されるため、固定構想からは除外
@@ -24,6 +31,7 @@ export default function OwnServicePage() {
   const [editingConcept, setEditingConcept] = useState<(ConceptData & { id?: string }) | null>(null);
   const [conceptCounts, setConceptCounts] = useState<{ [key: string]: number }>({});
   const [authReady, setAuthReady] = useState(false);
+  const [conceptCoverData, setConceptCoverData] = useState<{ [conceptId: string]: { id: string; pageNumber: number; title: string; content: string } | null }>({});
 
   const loadConcepts = useCallback(async () => {
     if (!auth?.currentUser || !db) return;
@@ -76,6 +84,87 @@ export default function OwnServicePage() {
       const fixedConceptIds = new Set(FIXED_CONCEPTS.map(c => c.id));
       const filteredConcepts = conceptsData.filter(concept => !fixedConceptIds.has(concept.conceptId));
       
+      // コンポーネント形式の構想のカバーデータを取得
+      const coverDataMap: { [conceptId: string]: { id: string; pageNumber: number; title: string; content: string } | null } = {};
+      
+      filteredConcepts.forEach((concept) => {
+        const pagesBySubMenu = concept.pagesBySubMenu;
+        const isComponentized = pagesBySubMenu && 
+          typeof pagesBySubMenu === 'object' && 
+          Object.keys(pagesBySubMenu).length > 0 &&
+          Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+        
+        if (isComponentized) {
+          try {
+            const pageOrderBySubMenu = concept.pageOrderBySubMenu;
+            let targetSubMenuId = 'overview';
+            let pages = pagesBySubMenu[targetSubMenuId];
+            
+            // overviewが存在しない場合は最初のサブメニューを使用
+            if (!pages || !Array.isArray(pages) || pages.length === 0) {
+              const subMenuKeys = Object.keys(pagesBySubMenu);
+              if (subMenuKeys.length > 0) {
+                targetSubMenuId = subMenuKeys[0];
+                pages = pagesBySubMenu[targetSubMenuId];
+              }
+            }
+            
+            if (Array.isArray(pages) && pages.length > 0) {
+              // 順序がある場合はそれを使用、なければ最初のページ
+              let firstPage;
+              if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 0) {
+                const firstPageId = pageOrderBySubMenu[targetSubMenuId][0];
+                firstPage = pages.find((p: any) => p.id === firstPageId) || pages[0];
+              } else {
+                firstPage = pages[0];
+              }
+              
+              if (firstPage) {
+                // 1ページ目がキービジュアルのコンテナかどうかを判定
+                const firstPageContent = firstPage.content || '';
+                const firstPageId = firstPage.id || '';
+                const firstPageTitle = (firstPage.title || '').toLowerCase();
+                
+                const isKeyVisualContainer = 
+                  firstPageId === '0' ||
+                  firstPageId === 'page-0' ||
+                  firstPageId.includes('page-0') ||
+                  firstPage.pageNumber === 0 ||
+                  firstPageContent.includes('data-page-container="0"') ||
+                  firstPageContent.includes("data-page-container='0'") ||
+                  firstPageTitle.includes('キービジュアル') ||
+                  firstPageTitle.includes('keyvisual') ||
+                  firstPageContent.includes('keyVisual') ||
+                  (firstPage.pageNumber === 1 && firstPageContent.includes('<img') && firstPageContent.length < 500);
+                
+                // キービジュアルの場合は2ページ目を使用
+                let targetPage = firstPage;
+                if (isKeyVisualContainer && pages.length > 1) {
+                  if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 1) {
+                    const secondPageId = pageOrderBySubMenu[targetSubMenuId][1];
+                    targetPage = pages.find((p: any) => p.id === secondPageId) || pages[1];
+                  } else {
+                    targetPage = pages[1];
+                  }
+                }
+                
+                if (targetPage) {
+                  coverDataMap[concept.conceptId] = {
+                    id: targetPage.id,
+                    pageNumber: targetPage.pageNumber || 1,
+                    title: targetPage.title || '',
+                    content: targetPage.content || '',
+                  };
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`構想 ${concept.conceptId} のカバー取得エラー:`, error);
+          }
+        }
+      });
+      
+      setConceptCoverData(coverDataMap);
       setConcepts(filteredConcepts);
       loadConceptCounts(filteredConcepts);
     } catch (error) {
@@ -264,7 +353,14 @@ export default function OwnServicePage() {
           ))}
 
           {/* 動的に追加された構想 */}
-          {concepts.map((concept, index) => (
+          {concepts.map((concept, index) => {
+            const coverData = conceptCoverData[concept.conceptId];
+            const isComponentized = concept.pagesBySubMenu && 
+              typeof concept.pagesBySubMenu === 'object' && 
+              Object.keys(concept.pagesBySubMenu).length > 0 &&
+              Object.values(concept.pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+            
+            return (
             <div
               key={concept.id}
               className="card"
@@ -272,8 +368,9 @@ export default function OwnServicePage() {
               style={{
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                padding: '32px',
+                padding: 0,
                 position: 'relative',
+                overflow: 'hidden',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.08)';
@@ -284,6 +381,50 @@ export default function OwnServicePage() {
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
+              {/* カバーエリア（コンポーネント形式の場合） */}
+              {isComponentized && coverData && (
+                <div style={{
+                  width: '100%',
+                  aspectRatio: '16 / 9',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  backgroundColor: '#FFFFFF',
+                  borderBottom: '1px solid #E5E7EB',
+                }}>
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      padding: '12px',
+                      backgroundColor: '#FFFFFF',
+                      transform: 'scale(0.25)',
+                      transformOrigin: 'top left',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                    }}>
+                      <div style={{
+                        width: '400%',
+                        height: '400%',
+                      }}>
+                        <DynamicPage
+                          pageId={coverData.id}
+                          pageNumber={coverData.pageNumber}
+                          title={coverData.title}
+                          content={coverData.content}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              
+              <div style={{ padding: '32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>
                   {FIXED_CONCEPTS.length + index + 1}. {concept.name}
@@ -378,8 +519,10 @@ export default function OwnServicePage() {
                   詳細を見る →
                 </span>
               </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {FIXED_CONCEPTS.length === 0 && concepts.length === 0 && !showConceptForm && (

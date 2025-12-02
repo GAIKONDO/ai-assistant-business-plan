@@ -9,6 +9,13 @@ import Layout from '@/components/Layout';
 import BusinessPlanForm, { BusinessPlanData } from '@/components/BusinessPlanForm';
 import BusinessPlanCard from '@/components/BusinessPlanCard';
 import BusinessProjectForm, { BusinessProjectData } from '@/components/BusinessProjectForm';
+import dynamic from 'next/dynamic';
+
+// DynamicPageを動的にインポート（SSRを無効化）
+const DynamicPage = dynamic(
+  () => import('@/components/pages/component-test/test-concept/DynamicPage'),
+  { ssr: false }
+);
 
 const SPECIAL_SERVICES = [
   { id: 'own-service', name: '自社開発・自社サービス事業', description: '自社開発のサービス事業に関する計画', hasConcepts: true },
@@ -66,6 +73,8 @@ export default function BusinessPlanPage() {
   const [editingProjectModalDescription, setEditingProjectModalDescription] = useState<string>('');
   const [editingProjectModalLinkPlanIds, setEditingProjectModalLinkPlanIds] = useState<Set<string>>(new Set());
   const [allProjects, setAllProjects] = useState<(BusinessProjectData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
+  const [companyPlanFilter, setCompanyPlanFilter] = useState<'all' | 'fixed' | 'componentized'>('all');
+  const [projectCoverData, setProjectCoverData] = useState<{ [serviceId: string]: { id: string; pageNumber: number; title: string; content: string } | null }>({});
 
 
   const loadPlans = async () => {
@@ -117,8 +126,14 @@ export default function BusinessPlanPage() {
         }
       });
       
-      // クライアント側でソート
+      // クライアント側でソート（orderフィールドがある場合はそれを使用、なければcreatedAtで降順）
       plansData.sort((a, b) => {
+        const aOrder = (a as any).order ?? Number.MAX_SAFE_INTEGER;
+        const bOrder = (b as any).order ?? Number.MAX_SAFE_INTEGER;
+        if (aOrder !== bOrder) {
+          return aOrder - bOrder; // orderが小さい順
+        }
+        // orderが同じ場合はcreatedAtで降順
         const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
         const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
         return bTime - aTime; // 降順
@@ -347,6 +362,8 @@ export default function BusinessPlanPage() {
 
       // 構想をサービスIDごとに集計（固定構想と同じconceptIdを持つ構想は除外）
       const dynamicConcepts: { [key: string]: Array<{ id: string; name: string; conceptId: string }> } = {};
+      const coverDataMap: { [serviceId: string]: { id: string; pageNumber: number; title: string; content: string } | null } = {};
+      
       if (conceptsSnapshot) {
         conceptsSnapshot.forEach((doc) => {
           const data = doc.data();
@@ -364,9 +381,88 @@ export default function BusinessPlanPage() {
               name: data.name || '名前なし',
               conceptId: conceptId || 'conceptIdなし'
             });
+            
+            // コンポーネント形式の構想の最初のページをカバーとして取得
+            const pagesBySubMenu = data.pagesBySubMenu;
+            const isComponentized = pagesBySubMenu && 
+              typeof pagesBySubMenu === 'object' && 
+              Object.keys(pagesBySubMenu).length > 0 &&
+              Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+            
+            // まだカバーが設定されていない場合のみ設定
+            if (isComponentized && !coverDataMap[serviceId]) {
+              try {
+                const pageOrderBySubMenu = data.pageOrderBySubMenu;
+                let targetSubMenuId = 'overview';
+                let pages = pagesBySubMenu[targetSubMenuId];
+                
+                // overviewが存在しない場合は最初のサブメニューを使用
+                if (!pages || !Array.isArray(pages) || pages.length === 0) {
+                  const subMenuKeys = Object.keys(pagesBySubMenu);
+                  if (subMenuKeys.length > 0) {
+                    targetSubMenuId = subMenuKeys[0];
+                    pages = pagesBySubMenu[targetSubMenuId];
+                  }
+                }
+                
+                if (Array.isArray(pages) && pages.length > 0) {
+                  // 順序がある場合はそれを使用、なければ最初のページ
+                  let firstPage;
+                  if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 0) {
+                    const firstPageId = pageOrderBySubMenu[targetSubMenuId][0];
+                    firstPage = pages.find((p: any) => p.id === firstPageId) || pages[0];
+                  } else {
+                    firstPage = pages[0];
+                  }
+                  
+                  if (firstPage) {
+                    // 1ページ目がキービジュアルのコンテナかどうかを判定
+                    const firstPageContent = firstPage.content || '';
+                    const firstPageId = firstPage.id || '';
+                    const firstPageTitle = (firstPage.title || '').toLowerCase();
+                    
+                    const isKeyVisualContainer = 
+                      firstPageId === '0' ||
+                      firstPageId === 'page-0' ||
+                      firstPageId.includes('page-0') ||
+                      firstPage.pageNumber === 0 ||
+                      firstPageContent.includes('data-page-container="0"') ||
+                      firstPageContent.includes("data-page-container='0'") ||
+                      firstPageTitle.includes('キービジュアル') ||
+                      firstPageTitle.includes('keyvisual') ||
+                      firstPageContent.includes('keyVisual') ||
+                      (firstPage.pageNumber === 1 && firstPageContent.includes('<img') && firstPageContent.length < 500);
+                    
+                    // キービジュアルの場合は2ページ目を使用
+                    let targetPage = firstPage;
+                    if (isKeyVisualContainer && pages.length > 1) {
+                      if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 1) {
+                        const secondPageId = pageOrderBySubMenu[targetSubMenuId][1];
+                        targetPage = pages.find((p: any) => p.id === secondPageId) || pages[1];
+                      } else {
+                        targetPage = pages[1];
+                      }
+                    }
+                    
+                    if (targetPage) {
+                      coverDataMap[serviceId] = {
+                        id: targetPage.id,
+                        pageNumber: targetPage.pageNumber || 1,
+                        title: targetPage.title || '',
+                        content: targetPage.content || '',
+                      };
+                    }
+                  }
+                }
+              } catch (error) {
+                console.error(`事業企画 ${serviceId} のカバー取得エラー:`, error);
+              }
+            }
           }
         });
       }
+      
+      setProjectCoverData(coverDataMap);
       
       // 動的構想の情報をコンソールに出力
       console.log('動的構想の一覧:', dynamicConcepts);
@@ -481,6 +577,40 @@ export default function BusinessPlanPage() {
     } catch (error) {
       console.error('削除エラー:', error);
       alert('削除に失敗しました');
+    }
+  };
+
+  const handleMovePlanOrder = async (planId: string, direction: 'up' | 'down') => {
+    if (!db || !auth?.currentUser) return;
+
+    try {
+      const currentIndex = companyPlans.findIndex(p => p.id === planId);
+      if (currentIndex === -1) return;
+
+      const newIndex = direction === 'up' ? currentIndex - 1 : currentIndex + 1;
+      if (newIndex < 0 || newIndex >= companyPlans.length) return;
+
+      const currentPlan = companyPlans[currentIndex];
+      const targetPlan = companyPlans[newIndex];
+
+      // orderフィールドを取得（なければインデックスを使用）
+      const currentOrder = (currentPlan as any).order ?? currentIndex;
+      const targetOrder = (targetPlan as any).order ?? newIndex;
+
+      // 順序を入れ替え
+      await updateDoc(doc(db, 'companyBusinessPlan', currentPlan.id), {
+        order: targetOrder,
+        updatedAt: serverTimestamp(),
+      });
+      await updateDoc(doc(db, 'companyBusinessPlan', targetPlan.id), {
+        order: currentOrder,
+        updatedAt: serverTimestamp(),
+      });
+
+      loadPlans();
+    } catch (error) {
+      console.error('順序変更エラー:', error);
+      alert('順序の変更に失敗しました');
     }
   };
 
@@ -787,33 +917,86 @@ export default function BusinessPlanPage() {
               </p>
             </div>
             {!showCompanyForm && (
-              <div style={{ display: 'flex', gap: '12px', alignItems: 'center' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', flexWrap: 'wrap' }}>
                 {companyPlans.length > 0 && (
-                  <button
-                    onClick={() => {
-                      setShowCompanyPlanManagement(true);
-                      setSelectedPlanIds(new Set());
-                    }}
-                    style={{
-                      padding: '10px 20px',
-                      backgroundColor: '#6B7280',
-                      color: '#fff',
-                      border: 'none',
-                      borderRadius: '6px',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      transition: 'all 0.2s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#4B5563';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = '#6B7280';
-                    }}
-                  >
-                    管理
-                  </button>
+                  <>
+                    {/* フィルターボタン */}
+                    <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                      <button
+                        onClick={() => setCompanyPlanFilter('all')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: companyPlanFilter === 'all' ? '#4B5563' : '#F3F4F6',
+                          color: companyPlanFilter === 'all' ? '#fff' : '#374151',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        すべて
+                      </button>
+                      <button
+                        onClick={() => setCompanyPlanFilter('fixed')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: companyPlanFilter === 'fixed' ? '#4B5563' : '#F3F4F6',
+                          color: companyPlanFilter === 'fixed' ? '#fff' : '#374151',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        固定ページ形式
+                      </button>
+                      <button
+                        onClick={() => setCompanyPlanFilter('componentized')}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: companyPlanFilter === 'componentized' ? '#4B5563' : '#F3F4F6',
+                          color: companyPlanFilter === 'componentized' ? '#fff' : '#374151',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s',
+                        }}
+                      >
+                        コンポーネント形式
+                      </button>
+                    </div>
+                    <button
+                      onClick={() => {
+                        setShowCompanyPlanManagement(true);
+                        setSelectedPlanIds(new Set());
+                      }}
+                      style={{
+                        padding: '10px 20px',
+                        backgroundColor: '#6B7280',
+                        color: '#fff',
+                        border: 'none',
+                        borderRadius: '6px',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        transition: 'all 0.2s',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = '#4B5563';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = '#6B7280';
+                      }}
+                    >
+                      管理
+                    </button>
+                  </>
                 )}
                 <button
                   onClick={() => {
@@ -836,28 +1019,50 @@ export default function BusinessPlanPage() {
               type="company"
             />
           ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
-              {companyPlans.length === 0 ? (
-                <div className="card" style={{ textAlign: 'center', padding: '60px', gridColumn: '1 / -1' }}>
-                  <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
-                    会社本体の事業計画がまだ作成されていません
-                  </p>
-                  <button onClick={() => setShowCompanyForm(true)} className="button">
-                    作成する
-                  </button>
+            (() => {
+              // フィルタリングされたリストを取得
+              const filteredPlans = companyPlans.filter(plan => {
+                if (companyPlanFilter === 'all') return true;
+                const pagesBySubMenu = (plan as any).pagesBySubMenu;
+                const isComponentized = pagesBySubMenu && 
+                  typeof pagesBySubMenu === 'object' && 
+                  Object.keys(pagesBySubMenu).length > 0 &&
+                  Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+                if (companyPlanFilter === 'fixed') return !isComponentized;
+                if (companyPlanFilter === 'componentized') return isComponentized;
+                return true;
+              });
+
+              return (
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '24px' }}>
+                  {filteredPlans.length === 0 ? (
+                    <div className="card" style={{ textAlign: 'center', padding: '60px', gridColumn: '1 / -1' }}>
+                      <p style={{ color: 'var(--color-text-light)', fontSize: '14px', marginBottom: '16px' }}>
+                        {companyPlans.length === 0 
+                          ? '会社本体の事業計画がまだ作成されていません'
+                          : `フィルタ条件に一致する事業計画がありません（${companyPlanFilter === 'fixed' ? '固定ページ形式' : companyPlanFilter === 'componentized' ? 'コンポーネント形式' : 'すべて'}）`
+                        }
+                      </p>
+                      {companyPlans.length === 0 && (
+                        <button onClick={() => setShowCompanyForm(true)} className="button">
+                          作成する
+                        </button>
+                      )}
+                    </div>
+                  ) : (
+                    filteredPlans.map((plan) => (
+                      <BusinessPlanCard
+                        key={plan.id}
+                        plan={plan}
+                        onEdit={() => handleEditCompanyPlan(plan)}
+                        onDelete={() => handleDeleteCompanyPlan(plan.id)}
+                        type="company"
+                      />
+                    ))
+                  )}
                 </div>
-              ) : (
-                companyPlans.map((plan) => (
-                  <BusinessPlanCard
-                    key={plan.id}
-                    plan={plan}
-                    onEdit={() => handleEditCompanyPlan(plan)}
-                    onDelete={() => handleDeleteCompanyPlan(plan.id)}
-                    type="company"
-                  />
-                ))
-              )}
-            </div>
+              );
+            })()
           )}
         </div>
 
@@ -1141,7 +1346,56 @@ export default function BusinessPlanPage() {
                               }
                             </div>
                           </div>
-                          <div style={{ display: 'flex', gap: '8px' }}>
+                          <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
+                            {/* 順序変更ボタン */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                              <button
+                                onClick={() => handleMovePlanOrder(plan.id, 'up')}
+                                disabled={companyPlans.findIndex(p => p.id === plan.id) === 0}
+                                style={{
+                                  padding: '4px',
+                                  backgroundColor: companyPlans.findIndex(p => p.id === plan.id) === 0 ? '#F3F4F6' : '#F3F4F6',
+                                  color: companyPlans.findIndex(p => p.id === plan.id) === 0 ? '#9CA3AF' : '#374151',
+                                  border: '1px solid #D1D5DB',
+                                  borderRadius: '4px',
+                                  cursor: companyPlans.findIndex(p => p.id === plan.id) === 0 ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '24px',
+                                  height: '20px',
+                                  opacity: companyPlans.findIndex(p => p.id === plan.id) === 0 ? 0.5 : 1,
+                                }}
+                                title="上に移動"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="18 15 12 9 6 15"></polyline>
+                                </svg>
+                              </button>
+                              <button
+                                onClick={() => handleMovePlanOrder(plan.id, 'down')}
+                                disabled={companyPlans.findIndex(p => p.id === plan.id) === companyPlans.length - 1}
+                                style={{
+                                  padding: '4px',
+                                  backgroundColor: companyPlans.findIndex(p => p.id === plan.id) === companyPlans.length - 1 ? '#F3F4F6' : '#F3F4F6',
+                                  color: companyPlans.findIndex(p => p.id === plan.id) === companyPlans.length - 1 ? '#9CA3AF' : '#374151',
+                                  border: '1px solid #D1D5DB',
+                                  borderRadius: '4px',
+                                  cursor: companyPlans.findIndex(p => p.id === plan.id) === companyPlans.length - 1 ? 'not-allowed' : 'pointer',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  width: '24px',
+                                  height: '20px',
+                                  opacity: companyPlans.findIndex(p => p.id === plan.id) === companyPlans.length - 1 ? 0.5 : 1,
+                                }}
+                                title="下に移動"
+                              >
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                                  <polyline points="6 9 12 15 18 9"></polyline>
+                                </svg>
+                              </button>
+                            </div>
                             <button
                               onClick={() => {
                                 setEditingPlanId(plan.id);
@@ -1422,6 +1676,9 @@ export default function BusinessPlanPage() {
               : projects
             ).map((project, index) => {
               const isFixedProject = (project as any).isFixed;
+              const serviceId = (project as any).serviceId;
+              const coverData = serviceId ? projectCoverData[serviceId] : null;
+              
               return (
               <div
                 key={project.id}
@@ -1436,8 +1693,9 @@ export default function BusinessPlanPage() {
                 style={{
                   cursor: showProjectManagement ? 'default' : 'pointer',
                   transition: 'all 0.2s ease',
-                  padding: '32px',
+                  padding: 0,
                   position: 'relative',
+                  overflow: 'hidden',
                 }}
                 onMouseEnter={(e) => {
                   if (!showProjectManagement) {
@@ -1452,6 +1710,50 @@ export default function BusinessPlanPage() {
                   }
                 }}
               >
+                {/* カバーエリア（コンポーネント形式の構想がある場合） */}
+                {coverData && (
+                  <div style={{
+                    width: '100%',
+                    aspectRatio: '16 / 9',
+                    position: 'relative',
+                    overflow: 'hidden',
+                    backgroundColor: '#FFFFFF',
+                    borderBottom: '1px solid #E5E7EB',
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      overflow: 'hidden',
+                      position: 'relative',
+                    }}>
+                      <div style={{
+                        width: '100%',
+                        height: '100%',
+                        padding: '12px',
+                        backgroundColor: '#FFFFFF',
+                        transform: 'scale(0.25)',
+                        transformOrigin: 'top left',
+                        position: 'absolute',
+                        top: 0,
+                        left: 0,
+                      }}>
+                        <div style={{
+                          width: '400%',
+                          height: '400%',
+                        }}>
+                          <DynamicPage
+                            pageId={coverData.id}
+                            pageNumber={coverData.pageNumber}
+                            title={coverData.title}
+                            content={coverData.content}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
+                <div style={{ padding: '32px' }}>
                 {showProjectManagement && (
                   <div className="project-management-buttons" style={{ position: 'absolute', top: '12px', right: '12px', display: 'flex', gap: '8px', flexDirection: 'column', alignItems: 'flex-end' }}>
                     <div style={{ display: 'flex', gap: '8px' }}>
@@ -1554,6 +1856,7 @@ export default function BusinessPlanPage() {
                   <span style={{ fontSize: '14px', color: 'var(--color-primary)', fontWeight: 500 }}>
                     詳細を見る →
                   </span>
+                </div>
                 </div>
               </div>
               );

@@ -7,6 +7,13 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
+import dynamic from 'next/dynamic';
+
+// DynamicPageを動的にインポート（SSRを無効化）
+const DynamicPage = dynamic(
+  () => import('@/components/pages/component-test/test-concept/DynamicPage'),
+  { ssr: false }
+);
 
 
 const SERVICE_NAMES: { [key: string]: string } = {
@@ -48,14 +55,24 @@ export default function ServiceDetailPage() {
   const fixedConcepts = FIXED_CONCEPTS[serviceId] || [];
 
   const [concepts, setConcepts] = useState<(ConceptData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
+  
+  // デバッグ: コンポーネントがレンダリングされているか確認
+  useEffect(() => {
+    console.log('ServiceDetailPage マウント:', { serviceId, serviceName });
+  }, [serviceId, serviceName]);
   const [loading, setLoading] = useState(true);
   const [showConceptForm, setShowConceptForm] = useState(false);
   const [editingConcept, setEditingConcept] = useState<(ConceptData & { id?: string }) | null>(null);
   const [conceptCounts, setConceptCounts] = useState<{ [key: string]: number }>({});
   const [authReady, setAuthReady] = useState(false);
+  const [conceptCoverData, setConceptCoverData] = useState<{ [conceptId: string]: { id: string; pageNumber: number; title: string; content: string } | null }>({});
 
   const loadConcepts = useCallback(async () => {
-    if (!auth?.currentUser || !db || !serviceId) return;
+    console.log('loadConcepts開始:', { serviceId, hasAuth: !!auth?.currentUser, hasDb: !!db });
+    if (!auth?.currentUser || !db || !serviceId) {
+      console.log('loadConcepts: 条件未満足でスキップ');
+      return;
+    }
 
     try {
       setLoading(true);
@@ -105,6 +122,112 @@ export default function ServiceDetailPage() {
       const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
       const filteredConcepts = conceptsData.filter(concept => !fixedConceptIds.has(concept.conceptId));
       
+      console.log('loadConcepts: 構想データ取得完了', {
+        totalConcepts: conceptsData.length,
+        filteredConcepts: filteredConcepts.length,
+        filteredConceptIds: filteredConcepts.map(c => c.conceptId),
+      });
+      
+      // コンポーネント形式の構想のカバーデータを取得
+      const coverDataMap: { [conceptId: string]: { id: string; pageNumber: number; title: string; content: string } | null } = {};
+      
+      filteredConcepts.forEach((concept) => {
+        const pagesBySubMenu = concept.pagesBySubMenu;
+        const isComponentized = pagesBySubMenu && 
+          typeof pagesBySubMenu === 'object' && 
+          Object.keys(pagesBySubMenu).length > 0 &&
+          Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+        
+        console.log('構想カバー取得チェック:', {
+          conceptId: concept.conceptId,
+          conceptName: concept.name,
+          hasPagesBySubMenu: !!pagesBySubMenu,
+          pagesBySubMenuKeys: pagesBySubMenu ? Object.keys(pagesBySubMenu) : [],
+          isComponentized,
+        });
+        
+        if (isComponentized) {
+          try {
+            const pageOrderBySubMenu = concept.pageOrderBySubMenu;
+            let targetSubMenuId = 'overview';
+            let pages = pagesBySubMenu[targetSubMenuId];
+            
+            // overviewが存在しない場合は最初のサブメニューを使用
+            if (!pages || !Array.isArray(pages) || pages.length === 0) {
+              const subMenuKeys = Object.keys(pagesBySubMenu);
+              if (subMenuKeys.length > 0) {
+                targetSubMenuId = subMenuKeys[0];
+                pages = pagesBySubMenu[targetSubMenuId];
+              }
+            }
+            
+            if (Array.isArray(pages) && pages.length > 0) {
+              // 順序がある場合はそれを使用、なければ最初のページ
+              let firstPage;
+              if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 0) {
+                const firstPageId = pageOrderBySubMenu[targetSubMenuId][0];
+                firstPage = pages.find((p: any) => p.id === firstPageId) || pages[0];
+              } else {
+                firstPage = pages[0];
+              }
+              
+              if (firstPage) {
+                // 1ページ目がキービジュアルのコンテナかどうかを判定
+                const firstPageContent = firstPage.content || '';
+                const firstPageId = firstPage.id || '';
+                const firstPageTitle = (firstPage.title || '').toLowerCase();
+                
+                const isKeyVisualContainer = 
+                  firstPageId === '0' ||
+                  firstPageId === 'page-0' ||
+                  firstPageId.includes('page-0') ||
+                  firstPage.pageNumber === 0 ||
+                  firstPageContent.includes('data-page-container="0"') ||
+                  firstPageContent.includes("data-page-container='0'") ||
+                  firstPageTitle.includes('キービジュアル') ||
+                  firstPageTitle.includes('keyvisual') ||
+                  firstPageContent.includes('keyVisual') ||
+                  (firstPage.pageNumber === 1 && firstPageContent.includes('<img') && firstPageContent.length < 500);
+                
+                // キービジュアルの場合は2ページ目を使用
+                let targetPage = firstPage;
+                if (isKeyVisualContainer && pages.length > 1) {
+                  if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 1) {
+                    const secondPageId = pageOrderBySubMenu[targetSubMenuId][1];
+                    targetPage = pages.find((p: any) => p.id === secondPageId) || pages[1];
+                  } else {
+                    targetPage = pages[1];
+                  }
+                }
+                
+                if (targetPage) {
+                  coverDataMap[concept.conceptId] = {
+                    id: targetPage.id,
+                    pageNumber: targetPage.pageNumber || 1,
+                    title: targetPage.title || '',
+                    content: targetPage.content || '',
+                  };
+                  console.log('構想カバーデータ設定:', {
+                    conceptId: concept.conceptId,
+                    coverData: coverDataMap[concept.conceptId],
+                  });
+                } else {
+                  console.log('構想カバー: ターゲットページが見つかりません', {
+                    conceptId: concept.conceptId,
+                    pagesLength: pages.length,
+                  });
+                }
+              }
+            }
+          } catch (error) {
+            console.error(`構想 ${concept.conceptId} のカバー取得エラー:`, error);
+          }
+        }
+      });
+      
+      console.log('構想カバーデータマップ:', coverDataMap);
+      console.log('構想カバーデータマップのキー:', Object.keys(coverDataMap));
+      setConceptCoverData(coverDataMap);
       setConcepts(filteredConcepts);
       loadConceptCounts(filteredConcepts);
     } catch (error) {
@@ -133,8 +256,12 @@ export default function ServiceDetailPage() {
 
   // 認証が完了し、serviceIdが変更されたときにデータを読み込む
   useEffect(() => {
+    console.log('useEffect実行:', { authReady, hasAuth: !!auth?.currentUser, serviceId });
     if (authReady && auth?.currentUser && serviceId) {
+      console.log('loadConceptsを呼び出します');
       loadConcepts();
+    } else {
+      console.log('useEffect: 条件未満足でスキップ', { authReady, hasAuth: !!auth?.currentUser, serviceId });
     }
   }, [authReady, serviceId, loadConcepts]);
 
@@ -297,7 +424,25 @@ export default function ServiceDetailPage() {
           ))}
 
           {/* 動的に追加された構想 */}
-          {concepts.map((concept, index) => (
+          {concepts.map((concept, index) => {
+            const coverData = conceptCoverData[concept.conceptId];
+            const isComponentized = concept.pagesBySubMenu && 
+              typeof concept.pagesBySubMenu === 'object' && 
+              Object.keys(concept.pagesBySubMenu).length > 0 &&
+              Object.values(concept.pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+            
+            console.log('構想カード表示:', {
+              conceptId: concept.conceptId,
+              conceptName: concept.name,
+              hasCoverData: !!coverData,
+              coverData: coverData,
+              isComponentized,
+              pagesBySubMenu: concept.pagesBySubMenu,
+              coverDataKeys: Object.keys(conceptCoverData),
+              willRenderCover: isComponentized && coverData,
+            });
+            
+            return (
             <div
               key={concept.id}
               className="card"
@@ -305,8 +450,9 @@ export default function ServiceDetailPage() {
               style={{
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
-                padding: '32px',
+                padding: 0,
                 position: 'relative',
+                overflow: 'hidden',
               }}
               onMouseEnter={(e) => {
                 e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.08)';
@@ -317,6 +463,72 @@ export default function ServiceDetailPage() {
                 e.currentTarget.style.transform = 'translateY(0)';
               }}
             >
+              {/* カバーエリア（コンポーネント形式の場合） */}
+              {isComponentized && coverData && (
+                <div style={{
+                  width: '100%',
+                  aspectRatio: '16 / 9',
+                  position: 'relative',
+                  overflow: 'hidden',
+                  backgroundColor: '#FFFFFF',
+                  borderBottom: '1px solid #E5E7EB',
+                }}>
+                  {(() => {
+                    console.log('カバーエリアレンダリング:', {
+                      conceptId: concept.conceptId,
+                      coverData,
+                      isComponentized,
+                    });
+                    return null;
+                  })()}
+                  <div style={{
+                    width: '100%',
+                    height: '100%',
+                    overflow: 'hidden',
+                    position: 'relative',
+                  }}>
+                    <div style={{
+                      width: '100%',
+                      height: '100%',
+                      padding: '12px',
+                      backgroundColor: '#FFFFFF',
+                      transform: 'scale(0.25)',
+                      transformOrigin: 'top left',
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                    }}>
+                      <div style={{
+                        width: '400%',
+                        height: '400%',
+                      }}>
+                        <DynamicPage
+                          pageId={coverData.id}
+                          pageNumber={coverData.pageNumber}
+                          title={coverData.title}
+                          content={coverData.content}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {isComponentized && !coverData && (
+                <div style={{
+                  width: '100%',
+                  aspectRatio: '16 / 9',
+                  backgroundColor: '#F3F4F6',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  color: '#9CA3AF',
+                  fontSize: '14px',
+                }}>
+                  カバー読み込み中...
+                </div>
+              )}
+              
+              <div style={{ padding: '32px' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
                 <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text)', flex: 1 }}>
                   {fixedConcepts.length + index + 1}. {concept.name}
@@ -407,8 +619,10 @@ export default function ServiceDetailPage() {
                   詳細を見る →
                 </span>
               </div>
+              </div>
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {fixedConcepts.length === 0 && concepts.length === 0 && !showConceptForm && (

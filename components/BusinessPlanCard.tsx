@@ -1,7 +1,15 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import { useState, useEffect } from 'react';
+import dynamic from 'next/dynamic';
 import { BusinessPlanData } from './BusinessPlanForm';
+
+// DynamicPageを動的にインポート（SSRを無効化）
+const DynamicPage = dynamic(
+  () => import('./pages/component-test/test-concept/DynamicPage'),
+  { ssr: false }
+);
 
 interface BusinessPlanCardProps {
   plan: BusinessPlanData & { id: string; createdAt?: Date; updatedAt?: Date };
@@ -12,6 +20,7 @@ interface BusinessPlanCardProps {
 
 export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: BusinessPlanCardProps) {
   const router = useRouter();
+  const [firstPageData, setFirstPageData] = useState<{ id: string; pageNumber: number; title: string; content: string } | null>(null);
 
   // コンポーネント化版かどうかを判定
   // pagesBySubMenuが存在し、かつ空でないオブジェクトで、少なくとも1つのサブメニューにページが存在する場合のみコンポーネント化版と判定
@@ -20,6 +29,145 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
     typeof pagesBySubMenu === 'object' && 
     Object.keys(pagesBySubMenu).length > 0 &&
     Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+  
+  // 最初のページのデータを取得（コンポーネント形式の場合）
+  useEffect(() => {
+    if (!isComponentized || !pagesBySubMenu) {
+      console.log('BusinessPlanCard - カバー表示スキップ:', { isComponentized, hasPagesBySubMenu: !!pagesBySubMenu });
+      setFirstPageData(null);
+      return;
+    }
+
+    try {
+      console.log('BusinessPlanCard - カバーページデータ取得開始:', {
+        planId: plan.id,
+        planTitle: plan.title,
+        pagesBySubMenuKeys: Object.keys(pagesBySubMenu),
+      });
+
+      // 概要・コンセプト（overview）サブメニューを優先的に取得
+      const pageOrderBySubMenu = (plan as any).pageOrderBySubMenu;
+      let targetSubMenuId = 'overview';
+      let pages = pagesBySubMenu[targetSubMenuId];
+      
+      console.log('BusinessPlanCard - overviewサブメニュー確認:', {
+        hasOverview: !!pages,
+        overviewPagesCount: Array.isArray(pages) ? pages.length : 0,
+      });
+      
+      // overviewが存在しない場合は最初のサブメニューを使用
+      if (!pages || !Array.isArray(pages) || pages.length === 0) {
+        const subMenuKeys = Object.keys(pagesBySubMenu);
+        console.log('BusinessPlanCard - overviewが見つからない、最初のサブメニューを使用:', subMenuKeys);
+        if (subMenuKeys.length === 0) {
+          setFirstPageData(null);
+          return;
+        }
+        targetSubMenuId = subMenuKeys[0];
+        pages = pagesBySubMenu[targetSubMenuId];
+      }
+      
+      if (!Array.isArray(pages) || pages.length === 0) {
+        console.log('BusinessPlanCard - ページが見つかりません:', { targetSubMenuId, pages });
+        setFirstPageData(null);
+        return;
+      }
+
+      console.log('BusinessPlanCard - ページデータ:', {
+        targetSubMenuId,
+        pagesCount: pages.length,
+        firstPage: pages[0],
+        pageOrderBySubMenu: pageOrderBySubMenu?.[targetSubMenuId],
+      });
+
+      // 順序がある場合はそれを使用、なければ最初のページ
+      let firstPage;
+      if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 0) {
+        const firstPageId = pageOrderBySubMenu[targetSubMenuId][0];
+        firstPage = pages.find((p: any) => p.id === firstPageId) || pages[0];
+        console.log('BusinessPlanCard - 順序から取得:', { firstPageId, foundPage: !!firstPage });
+      } else {
+        firstPage = pages[0];
+        console.log('BusinessPlanCard - 最初のページを使用:', firstPage);
+      }
+
+      if (!firstPage) {
+        console.log('BusinessPlanCard - 最初のページが見つかりません');
+        setFirstPageData(null);
+        return;
+      }
+
+      // 1ページ目がキービジュアルのコンテナかどうかを判定
+      // キービジュアルのコンテナは以下のいずれかに該当：
+      // 1. pageIdが'0'または'page-0'
+      // 2. pageNumberが0
+      // 3. コンテンツにdata-page-container="0"が含まれる
+      // 4. タイトルやコンテンツにキービジュアル関連の文字列が含まれる
+      const firstPageContent = firstPage.content || '';
+      const firstPageId = firstPage.id || '';
+      const firstPageTitle = (firstPage.title || '').toLowerCase();
+      
+      const isKeyVisualContainer = 
+        firstPageId === '0' ||
+        firstPageId === 'page-0' ||
+        firstPageId.includes('page-0') ||
+        firstPage.pageNumber === 0 ||
+        firstPageContent.includes('data-page-container="0"') ||
+        firstPageContent.includes("data-page-container='0'") ||
+        firstPageTitle.includes('キービジュアル') ||
+        firstPageTitle.includes('keyvisual') ||
+        firstPageContent.includes('keyVisual') ||
+        (firstPage.pageNumber === 1 && firstPageContent.includes('<img') && firstPageContent.length < 500); // 短いコンテンツで画像のみの場合はキービジュアルの可能性が高い
+
+      console.log('BusinessPlanCard - 1ページ目がキービジュアルか:', {
+        isKeyVisualContainer,
+        pageId: firstPageId,
+        pageNumber: firstPage.pageNumber,
+        title: firstPage.title,
+        hasDataPageContainer0: firstPageContent.includes('data-page-container="0"'),
+        hasImage: firstPageContent.includes('<img'),
+        contentLength: firstPageContent.length,
+      });
+
+      // キービジュアルの場合は2ページ目を使用
+      let targetPage = firstPage;
+      if (isKeyVisualContainer && pages.length > 1) {
+        // 順序がある場合は2番目のページIDを使用
+        if (pageOrderBySubMenu && pageOrderBySubMenu[targetSubMenuId] && pageOrderBySubMenu[targetSubMenuId].length > 1) {
+          const secondPageId = pageOrderBySubMenu[targetSubMenuId][1];
+          targetPage = pages.find((p: any) => p.id === secondPageId) || pages[1];
+          console.log('BusinessPlanCard - キービジュアル検出、2ページ目を使用（順序から）:', { secondPageId, foundPage: !!targetPage });
+        } else {
+          targetPage = pages[1];
+          console.log('BusinessPlanCard - キービジュアル検出、2ページ目を使用:', targetPage);
+        }
+      }
+
+      if (!targetPage) {
+        console.log('BusinessPlanCard - カバー用のページが見つかりません');
+        setFirstPageData(null);
+        return;
+      }
+
+      console.log('BusinessPlanCard - カバーページデータ設定:', {
+        id: targetPage.id,
+        pageNumber: targetPage.pageNumber,
+        title: targetPage.title,
+        contentLength: (targetPage.content || '').length,
+        isKeyVisualSkipped: isKeyVisualContainer,
+      });
+
+      setFirstPageData({
+        id: targetPage.id,
+        pageNumber: targetPage.pageNumber || 1,
+        title: targetPage.title || '',
+        content: targetPage.content || '',
+      });
+    } catch (error) {
+      console.error('最初のページデータ取得エラー:', error);
+      setFirstPageData(null);
+    }
+  }, [isComponentized, pagesBySubMenu, plan]);
   
   // デバッグログ（開発時のみ）
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
@@ -65,6 +213,10 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
         transition: 'all 0.2s ease',
         backgroundColor: isComponentized ? '#F0F9FF' : '#FFFFFF', // コンポーネント化版は薄い青、固定版は白
         border: isComponentized ? '1px solid #BFDBFE' : '1px solid var(--color-border-color)', // コンポーネント化版は青い枠線
+        overflow: 'hidden',
+        display: 'flex',
+        flexDirection: 'column',
+        padding: 0,
       }}
       onMouseEnter={(e) => {
         e.currentTarget.style.boxShadow = '0 4px 8px rgba(0, 0, 0, 0.08)';
@@ -75,7 +227,56 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
         e.currentTarget.style.transform = 'translateY(0)';
       }}
     >
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '16px' }}>
+      {/* カバーエリア（コンポーネント形式の場合） */}
+      {isComponentized && firstPageData && (
+        <div style={{
+          width: '100%',
+          aspectRatio: '16 / 9',
+          position: 'relative',
+          overflow: 'hidden',
+          backgroundColor: '#FFFFFF',
+          borderBottom: '1px solid #E5E7EB',
+        }}>
+          <div style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              padding: '12px',
+              backgroundColor: '#FFFFFF',
+              transform: 'scale(0.25)',
+              transformOrigin: 'top left',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}>
+              <div style={{
+                width: '400%',
+                height: '400%',
+              }}>
+                <DynamicPage
+                  pageId={firstPageData.id}
+                  pageNumber={firstPageData.pageNumber}
+                  title={firstPageData.title}
+                  content={firstPageData.content}
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      <div style={{ 
+        display: 'flex', 
+        justifyContent: 'space-between', 
+        alignItems: 'flex-start', 
+        marginBottom: '16px', 
+        padding: isComponentized && firstPageData ? '16px 16px 0' : '16px 16px 0' 
+      }}>
         <div style={{ flex: 1 }}>
           <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>
             {plan.title}
@@ -167,14 +368,14 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
         </div>
       </div>
 
-      <div style={{ marginBottom: '16px' }}>
+      <div style={{ marginBottom: '16px', padding: '0 16px' }}>
         <p style={{ marginTop: '4px', color: 'var(--color-text)', lineHeight: '1.6', fontSize: '14px' }}>
           {plan.description}
         </p>
       </div>
 
       {plan.createdAt && (
-        <div style={{ marginTop: '16px', paddingTop: '16px', borderTop: '1px solid var(--color-border-color)', fontSize: '12px', color: 'var(--color-text-light)' }}>
+        <div style={{ marginTop: '16px', paddingTop: '16px', paddingLeft: '16px', paddingRight: '16px', paddingBottom: '16px', borderTop: '1px solid var(--color-border-color)', fontSize: '12px', color: 'var(--color-text-light)' }}>
           作成日: {formatDate(plan.createdAt)}
           {plan.updatedAt && (() => {
             try {
