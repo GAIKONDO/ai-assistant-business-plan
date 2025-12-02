@@ -39,6 +39,7 @@ export interface BusinessPlanData {
   footerText?: string; // PDFフッターテキスト
   pagesBySubMenu?: { [subMenuId: string]: Array<any> }; // サブメニューごとのページ
   pageOrderBySubMenu?: { [subMenuId: string]: string[] }; // サブメニューごとのページ順序
+  isFavorite?: boolean; // お気に入り
 }
 
 interface BusinessPlanFormProps {

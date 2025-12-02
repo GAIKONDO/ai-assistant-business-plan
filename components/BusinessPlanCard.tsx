@@ -16,9 +16,10 @@ interface BusinessPlanCardProps {
   onEdit: () => void;
   onDelete: () => void;
   type: 'company' | 'project';
+  onToggleFavorite?: (planId: string, currentFavorite: boolean) => void;
 }
 
-export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: BusinessPlanCardProps) {
+export default function BusinessPlanCard({ plan, onEdit, onDelete, type, onToggleFavorite }: BusinessPlanCardProps) {
   const router = useRouter();
   const [firstPageData, setFirstPageData] = useState<{ id: string; pageNumber: number; title: string; content: string } | null>(null);
 
@@ -274,66 +275,40 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
         display: 'flex', 
         justifyContent: 'space-between', 
         alignItems: 'flex-start', 
-        marginBottom: '16px', 
-        padding: isComponentized && firstPageData ? '16px 16px 0' : '16px 16px 0' 
+        marginBottom: '12px', 
+        padding: isComponentized && firstPageData ? '12px 12px 0' : '12px 12px 0' 
       }}>
-        <div style={{ flex: 1 }}>
-          <h3 style={{ margin: 0, fontSize: '18px', fontWeight: 600, color: 'var(--color-text)', marginBottom: '4px' }}>
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <h3 style={{ 
+            margin: 0, 
+            fontSize: '16px', 
+            fontWeight: 600, 
+            color: 'var(--color-text)', 
+            marginBottom: '4px',
+            display: '-webkit-box',
+            WebkitLineClamp: 2,
+            WebkitBoxOrient: 'vertical',
+            overflow: 'hidden',
+            textOverflow: 'ellipsis',
+            lineHeight: '1.4',
+          }}>
             {plan.title}
           </h3>
           {type === 'project' && (
-            <span style={{ fontSize: '12px', color: 'var(--color-text-light)' }}>事業企画</span>
+            <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>事業企画</span>
           )}
         </div>
         <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-          <button
-            onClick={(e) => {
-              e.stopPropagation();
-              onEdit();
-            }}
-            style={{
-              background: 'rgba(31, 41, 51, 0.05)',
-              border: '1px solid rgba(31, 41, 51, 0.1)',
-              color: 'var(--color-text)',
-              cursor: 'pointer',
-              padding: '6px',
-              borderRadius: '6px',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              transition: 'all 0.2s ease',
-              boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'rgba(31, 41, 51, 0.08)';
-              e.currentTarget.style.borderColor = 'rgba(31, 41, 51, 0.2)';
-              e.currentTarget.style.transform = 'translateY(-1px)';
-              e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.08)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'rgba(31, 41, 51, 0.05)';
-              e.currentTarget.style.borderColor = 'rgba(31, 41, 51, 0.1)';
-              e.currentTarget.style.transform = 'translateY(0)';
-              e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
-            }}
-            title="編集"
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
-              <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
-            </svg>
-          </button>
-          {/* 固定形式の場合はゴミ箱アイコンを表示しない */}
-          {isComponentized && (
+          {type === 'company' && onToggleFavorite && (
             <button
               onClick={(e) => {
                 e.stopPropagation();
-                onDelete();
+                onToggleFavorite(plan.id, (plan as any).isFavorite || false);
               }}
               style={{
-                background: 'rgba(220, 53, 69, 0.08)',
-                border: '1px solid rgba(220, 53, 69, 0.2)',
-                color: '#dc3545',
+                background: 'transparent',
+                border: 'none',
+                color: (plan as any).isFavorite ? '#F59E0B' : '#9CA3AF',
                 cursor: 'pointer',
                 padding: '6px',
                 borderRadius: '6px',
@@ -341,41 +316,136 @@ export default function BusinessPlanCard({ plan, onEdit, onDelete, type }: Busin
                 alignItems: 'center',
                 justifyContent: 'center',
                 transition: 'all 0.2s ease',
-                boxShadow: '0 1px 2px rgba(220, 53, 69, 0.1)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(220, 53, 69, 0.12)';
-                e.currentTarget.style.borderColor = 'rgba(220, 53, 69, 0.3)';
-                e.currentTarget.style.transform = 'translateY(-1px)';
-                e.currentTarget.style.boxShadow = '0 2px 4px rgba(220, 53, 69, 0.15)';
+                e.currentTarget.style.color = '#F59E0B';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(220, 53, 69, 0.08)';
-                e.currentTarget.style.borderColor = 'rgba(220, 53, 69, 0.2)';
-                e.currentTarget.style.transform = 'translateY(0)';
-                e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 53, 69, 0.1)';
+                e.currentTarget.style.color = (plan as any).isFavorite ? '#F59E0B' : '#9CA3AF';
               }}
-              title="削除"
+              title={(plan as any).isFavorite ? 'お気に入りを解除' : 'お気に入りに追加'}
             >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <polyline points="3 6 5 6 21 6"></polyline>
-                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                <line x1="10" y1="11" x2="10" y2="17"></line>
-                <line x1="14" y1="11" x2="14" y2="17"></line>
+              <svg width="18" height="18" viewBox="0 0 24 24" fill={(plan as any).isFavorite ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
               </svg>
             </button>
+          )}
+          {type !== 'company' && (
+            <>
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onEdit();
+                }}
+                style={{
+                  background: 'rgba(31, 41, 51, 0.05)',
+                  border: '1px solid rgba(31, 41, 51, 0.1)',
+                  color: 'var(--color-text)',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 1px 2px rgba(0, 0, 0, 0.03)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(31, 41, 51, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(31, 41, 51, 0.2)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(0, 0, 0, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(31, 41, 51, 0.05)';
+                  e.currentTarget.style.borderColor = 'rgba(31, 41, 51, 0.1)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.03)';
+                }}
+              title="編集"
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
+            </button>
+            {/* 固定形式の場合はゴミ箱アイコンを表示しない */}
+            {isComponentized && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onDelete();
+                }}
+                style={{
+                  background: 'rgba(220, 53, 69, 0.08)',
+                  border: '1px solid rgba(220, 53, 69, 0.2)',
+                  color: '#dc3545',
+                  cursor: 'pointer',
+                  padding: '6px',
+                  borderRadius: '6px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 1px 2px rgba(220, 53, 69, 0.1)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(220, 53, 69, 0.12)';
+                  e.currentTarget.style.borderColor = 'rgba(220, 53, 69, 0.3)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                  e.currentTarget.style.boxShadow = '0 2px 4px rgba(220, 53, 69, 0.15)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(220, 53, 69, 0.08)';
+                  e.currentTarget.style.borderColor = 'rgba(220, 53, 69, 0.2)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 1px 2px rgba(220, 53, 69, 0.1)';
+                }}
+                title="削除"
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <polyline points="3 6 5 6 21 6"></polyline>
+                  <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                  <line x1="10" y1="11" x2="10" y2="17"></line>
+                  <line x1="14" y1="11" x2="14" y2="17"></line>
+                </svg>
+              </button>
+            )}
+            </>
           )}
         </div>
       </div>
 
-      <div style={{ marginBottom: '16px', padding: '0 16px' }}>
-        <p style={{ marginTop: '4px', color: 'var(--color-text)', lineHeight: '1.6', fontSize: '14px' }}>
+      <div style={{ marginBottom: '12px', padding: '0 12px' }}>
+        <p style={{ 
+          marginTop: '4px', 
+          color: 'var(--color-text)', 
+          lineHeight: '1.5', 
+          fontSize: '13px',
+          display: '-webkit-box',
+          WebkitLineClamp: 3,
+          WebkitBoxOrient: 'vertical',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
           {plan.description}
         </p>
       </div>
 
       {plan.createdAt && (
-        <div style={{ marginTop: '16px', paddingTop: '16px', paddingLeft: '16px', paddingRight: '16px', paddingBottom: '16px', borderTop: '1px solid var(--color-border-color)', fontSize: '12px', color: 'var(--color-text-light)' }}>
+        <div style={{ 
+          marginTop: '12px', 
+          paddingTop: '12px', 
+          paddingLeft: '12px', 
+          paddingRight: '12px', 
+          paddingBottom: '12px', 
+          borderTop: '1px solid var(--color-border-color)', 
+          fontSize: '10px', 
+          color: 'var(--color-text-light)',
+          whiteSpace: 'nowrap',
+          overflow: 'hidden',
+          textOverflow: 'ellipsis',
+        }}>
           作成日: {formatDate(plan.createdAt)}
           {plan.updatedAt && (() => {
             try {
