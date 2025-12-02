@@ -598,7 +598,7 @@ export default function OwnServicePage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleFavorite(concept.id, fixedConceptDates[concept.id]?.isFavorite || false, true);
+                  handleToggleFavorite(concept.id, fixedConceptDates[concept.id]?.isFavorite || false);
                 }}
                 style={{
                   position: 'absolute',
@@ -682,18 +682,21 @@ export default function OwnServicePage() {
                       textOverflow: 'ellipsis',
                     }}>
                       作成日: {new Date(fixedConceptDates[concept.id].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
-                      {fixedConceptDates[concept.id]?.updatedAt && (() => {
-                        try {
-                          const createdAtDate = fixedConceptDates[concept.id].createdAt instanceof Date ? fixedConceptDates[concept.id].createdAt : new Date(fixedConceptDates[concept.id].createdAt!);
-                          const updatedAtDate = fixedConceptDates[concept.id].updatedAt instanceof Date ? fixedConceptDates[concept.id].updatedAt : new Date(fixedConceptDates[concept.id].updatedAt!);
+                    {fixedConceptDates[concept.id]?.updatedAt && (() => {
+                      try {
+                        const conceptDates = fixedConceptDates[concept.id];
+                        if (conceptDates?.createdAt && conceptDates?.updatedAt) {
+                          const createdAtDate = conceptDates.createdAt instanceof Date ? conceptDates.createdAt : new Date(conceptDates.createdAt);
+                          const updatedAtDate = conceptDates.updatedAt instanceof Date ? conceptDates.updatedAt : new Date(conceptDates.updatedAt);
                           if (!isNaN(createdAtDate.getTime()) && !isNaN(updatedAtDate.getTime()) && updatedAtDate.getTime() !== createdAtDate.getTime()) {
-                            return <> | 更新日: {new Date(fixedConceptDates[concept.id].updatedAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</>;
+                            return <> | 更新日: {new Date(conceptDates.updatedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</>;
                           }
-                        } catch (e) {
-                          // エラーが発生した場合は更新日を表示しない
                         }
-                        return null;
-                      })()}
+                      } catch (e) {
+                        // エラーが発生した場合は更新日を表示しない
+                      }
+                      return null;
+                    })()}
                     </div>
                   )}
                 </div>

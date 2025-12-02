@@ -614,7 +614,7 @@ export default function ServiceDetailPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleFavorite(concept.id, fixedConceptDates[concept.id]?.isFavorite || false, true);
+                  handleToggleFavorite(concept.id, fixedConceptDates[concept.id]?.isFavorite || false);
                 }}
                 style={{
                   position: 'absolute',
@@ -698,13 +698,20 @@ export default function ServiceDetailPage() {
                     overflow: 'hidden',
                     textOverflow: 'ellipsis',
                   }}>
-                    作成日: {new Date(fixedConceptDates[concept.id].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    作成日: {fixedConceptDates[concept.id]?.createdAt ? (() => {
+                      const createdAt = fixedConceptDates[concept.id]!.createdAt;
+                      if (!createdAt) return '';
+                      return createdAt instanceof Date ? createdAt.toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' }) : new Date(createdAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' });
+                    })() : ''}
                     {fixedConceptDates[concept.id]?.updatedAt && (() => {
                       try {
-                        const createdAtDate = fixedConceptDates[concept.id].createdAt instanceof Date ? fixedConceptDates[concept.id].createdAt : new Date(fixedConceptDates[concept.id].createdAt!);
-                        const updatedAtDate = fixedConceptDates[concept.id].updatedAt instanceof Date ? fixedConceptDates[concept.id].updatedAt : new Date(fixedConceptDates[concept.id].updatedAt!);
-                        if (!isNaN(createdAtDate.getTime()) && !isNaN(updatedAtDate.getTime()) && updatedAtDate.getTime() !== createdAtDate.getTime()) {
-                          return <> | 更新日: {new Date(fixedConceptDates[concept.id].updatedAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</>;
+                        const conceptDates = fixedConceptDates[concept.id];
+                        if (conceptDates?.createdAt && conceptDates?.updatedAt) {
+                          const createdAtDate = conceptDates.createdAt instanceof Date ? conceptDates.createdAt : new Date(conceptDates.createdAt);
+                          const updatedAtDate = conceptDates.updatedAt instanceof Date ? conceptDates.updatedAt : new Date(conceptDates.updatedAt);
+                          if (!isNaN(createdAtDate.getTime()) && !isNaN(updatedAtDate.getTime()) && updatedAtDate.getTime() !== createdAtDate.getTime()) {
+                            return <> | 更新日: {new Date(conceptDates.updatedAt).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}</>;
+                          }
                         }
                       } catch (e) {
                         // エラーが発生した場合は更新日を表示しない
@@ -841,7 +848,7 @@ export default function ServiceDetailPage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleFavorite(concept.id, (concept as any).isFavorite || false, false);
+                  handleToggleFavorite(concept.id, (concept as any).isFavorite || false);
                 }}
                 style={{
                   position: 'absolute',
