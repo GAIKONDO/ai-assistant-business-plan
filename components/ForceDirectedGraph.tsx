@@ -130,12 +130,14 @@ export default function ForceDirectedGraph({
     company: boolean;
     project: boolean;
     concept: boolean;
+    servicePlan: boolean;
     subMenu: boolean;
     page: boolean;
   }>({
     company: true,
     project: true,
     concept: true,
+    servicePlan: true,
     subMenu: false,
     page: false,
   });
@@ -906,7 +908,8 @@ export default function ForceDirectedGraph({
     
     // 階層フィルター（ノードタイプ）
     filtered = filtered.filter(node => {
-      return nodeTypeFilters[node.type];
+      const nodeType = node.type as keyof typeof nodeTypeFilters;
+      return nodeTypeFilters[nodeType] ?? true;
     });
     
     // 事業企画フィルター

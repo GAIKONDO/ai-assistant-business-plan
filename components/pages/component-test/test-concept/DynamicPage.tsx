@@ -43,7 +43,7 @@ export default function DynamicPage({ pageId, pageNumber, title, content }: Dyna
   // useContainerVisibilityを取得（コンテキストが存在する場合）
   // コンテキストが存在しない場合はデフォルト値を使用
   // React Hooksのルールに準拠するため、useContextを常に呼び出す
-  const contextValue = useContext(ContainerVisibilityContext);
+  const contextValue = useContext(ContainerVisibilityContext) as { showContainers?: boolean } | undefined;
   const showContainers = contextValue?.showContainers ?? false;
   
   const contentRef = useRef<HTMLDivElement>(null);

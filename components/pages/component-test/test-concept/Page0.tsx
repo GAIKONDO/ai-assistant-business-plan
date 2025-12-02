@@ -56,37 +56,41 @@ export default function Page0() {
   const planValue = useContext(PlanContext);
   
   // useContainerVisibilityはオプショナル（コンテキストが存在しない場合があるため）
-  const showContainers = containerVisibilityValue?.showContainers ?? false;
+  const showContainers = (containerVisibilityValue as { showContainers?: boolean } | undefined)?.showContainers ?? false;
   
   // useConceptもオプショナル
   // 会社本体の事業計画の場合はusePlanを使用
   // useMemoを使ってconceptオブジェクトをメモ化し、planValue.planの変更を監視
   const concept = useMemo(() => {
-    if (serviceId && conceptId && conceptValue) {
-      return conceptValue.concept;
-    } else if (planId && planValue?.plan) {
+    const typedConceptValue = conceptValue as { concept?: any; reloadConcept?: () => Promise<void> } | undefined;
+    const typedPlanValue = planValue as { plan?: any; reloadPlan?: () => Promise<void> } | undefined;
+    if (serviceId && conceptId && typedConceptValue) {
+      return typedConceptValue.concept;
+    } else if (planId && typedPlanValue?.plan) {
       // 会社本体の事業計画の場合
       // planをconcept形式に変換
       return {
-        id: planValue.plan.id,
-        keyVisualUrl: planValue.plan.keyVisualUrl || '',
-        keyVisualHeight: planValue.plan.keyVisualHeight || 56.25,
-        keyVisualScale: planValue.plan.keyVisualScale || 100,
-        keyVisualLogoUrl: planValue.plan.keyVisualLogoUrl || null,
-        keyVisualMetadata: planValue.plan.keyVisualMetadata || undefined,
+        id: typedPlanValue.plan.id,
+        keyVisualUrl: typedPlanValue.plan.keyVisualUrl || '',
+        keyVisualHeight: typedPlanValue.plan.keyVisualHeight || 56.25,
+        keyVisualScale: typedPlanValue.plan.keyVisualScale || 100,
+        keyVisualLogoUrl: typedPlanValue.plan.keyVisualLogoUrl || null,
+        keyVisualMetadata: typedPlanValue.plan.keyVisualMetadata || undefined,
       };
     }
     return null;
-  }, [serviceId, conceptId, conceptValue, planId, planValue?.plan]);
+  }, [serviceId, conceptId, conceptValue, planId, planValue]);
   
   const reloadConcept = useMemo(() => {
-    if (serviceId && conceptId && conceptValue) {
-      return conceptValue.reloadConcept;
-    } else if (planId && planValue) {
+    const typedConceptValue = conceptValue as { concept?: any; reloadConcept?: () => Promise<void> } | undefined;
+    const typedPlanValue = planValue as { plan?: any; reloadPlan?: () => Promise<void> } | undefined;
+    if (serviceId && conceptId && typedConceptValue) {
+      return typedConceptValue.reloadConcept;
+    } else if (planId && typedPlanValue) {
       return async () => {
         // planの再読み込みを実行
-        if (planValue.reloadPlan) {
-          await planValue.reloadPlan();
+        if (typedPlanValue?.reloadPlan) {
+          await typedPlanValue.reloadPlan();
         }
       };
     }
@@ -96,9 +100,10 @@ export default function Page0() {
   // デバッグ: planValueとconceptの状態を確認
   useEffect(() => {
     console.log('Page0: planId:', planId);
+    const typedPlanValue = planValue as { plan?: any; reloadPlan?: () => Promise<void> } | undefined;
     console.log('Page0: planValue:', planValue);
-    console.log('Page0: planValue?.plan:', planValue?.plan);
-    console.log('Page0: planValue?.plan?.keyVisualUrl:', planValue?.plan?.keyVisualUrl);
+    console.log('Page0: planValue?.plan:', typedPlanValue?.plan);
+    console.log('Page0: planValue?.plan?.keyVisualUrl:', typedPlanValue?.plan?.keyVisualUrl);
     console.log('Page0: concept:', concept);
     console.log('Page0: concept?.keyVisualUrl:', concept?.keyVisualUrl);
   }, [planId, planValue, concept]);

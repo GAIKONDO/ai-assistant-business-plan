@@ -811,7 +811,6 @@ export default function VisualizationsPage() {
             width={1800}
             height={900}
             title="事業計画・エコシステム設計：技術キーワード → 技術カテゴリ → サービス → 産業"
-            subtitle="From Technology to Industry"
           />
         ) : (
           <ChartSkeleton height={900} />

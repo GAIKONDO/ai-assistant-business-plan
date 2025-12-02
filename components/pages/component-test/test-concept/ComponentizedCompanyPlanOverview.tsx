@@ -44,13 +44,26 @@ export default function ComponentizedCompanyPlanOverview() {
     if (!currentPageConfig || !plan) return;
 
     const autoUpdateConfig = pageAutoUpdateConfigs.find(config => config.pageId === currentPageConfig.id);
-    if (autoUpdateConfig && autoUpdateConfig.shouldUpdate(plan)) {
-      // 自動更新が必要な場合は、ページを再読み込み
-      if (refreshPages) {
-        refreshPages();
+    if (autoUpdateConfig && autoUpdateConfig.shouldUpdate) {
+      // planから現在のページのコンテンツを取得
+      const pagesBySubMenu = plan.pagesBySubMenu as { [key: string]: Array<{
+        id: string;
+        pageNumber: number;
+        title: string;
+        content: string;
+      }> } | undefined;
+      const currentSubMenuPages = pagesBySubMenu?.[subMenuId || 'overview'] || [];
+      const currentPage = currentSubMenuPages.find(page => page.id === currentPageConfig.id);
+      const currentContent = currentPage?.content || '';
+      
+      if (autoUpdateConfig.shouldUpdate(currentContent)) {
+        // 自動更新が必要な場合は、ページを再読み込み
+        if (refreshPages) {
+          refreshPages();
+        }
       }
     }
-  }, [orderedConfigs, currentPageIndex, plan, refreshPages]);
+  }, [orderedConfigs, currentPageIndex, plan, refreshPages, subMenuId]);
 
   // planIdが存在しない場合はエラーを表示
   if (!planId) {
@@ -97,9 +110,6 @@ export default function ComponentizedCompanyPlanOverview() {
                 pageNumber={page.pageNumber}
                 title={page.title}
                 content={page.content}
-                planId={planId}
-                subMenuId={subMenuId}
-                onPageUpdated={refreshPagesCallback}
               />
             ),
           }));

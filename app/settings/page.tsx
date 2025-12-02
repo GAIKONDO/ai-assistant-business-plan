@@ -208,6 +208,9 @@ export default function SettingsPage() {
 
       // Firestoreからユーザーデータを削除
       try {
+        if (!db) {
+          throw new Error('Firestore is not initialized');
+        }
         const userDocRef = doc(db, 'users', targetUid);
         await deleteDoc(userDocRef);
       } catch (err) {
@@ -228,7 +231,7 @@ export default function SettingsPage() {
   };
 
   const handleDeleteOwnAccount = async () => {
-    if (!auth.currentUser) {
+    if (!auth || !auth.currentUser) {
       setError('ログインしていません。');
       return;
     }
@@ -256,6 +259,9 @@ export default function SettingsPage() {
 
       // Firestoreからユーザーデータを削除
       try {
+        if (!db || !auth.currentUser) {
+          throw new Error('Firestore or auth is not initialized');
+        }
         const userDocRef = doc(db, 'users', auth.currentUser.uid);
         await deleteDoc(userDocRef);
       } catch (err) {
@@ -263,6 +269,9 @@ export default function SettingsPage() {
       }
 
       // Firebase Authenticationからユーザーを削除
+      if (!auth.currentUser) {
+        throw new Error('User is not authenticated');
+      }
       await deleteUser(auth.currentUser);
       setSuccess('アカウントが削除されました。');
       
@@ -308,7 +317,7 @@ export default function SettingsPage() {
   };
 
   const handleApproveUser = async (userId: string, email: string | null) => {
-    if (!isAdmin || !db || !auth.currentUser) {
+    if (!isAdmin || !db || !auth || !auth.currentUser) {
       setError('管理者権限がありません。');
       return;
     }
@@ -345,7 +354,7 @@ export default function SettingsPage() {
   };
 
   const handleRejectUser = async (userId: string, email: string | null) => {
-    if (!isAdmin || !db || !auth.currentUser) {
+    if (!isAdmin || !db || !auth || !auth.currentUser) {
       setError('管理者権限がありません。');
       return;
     }

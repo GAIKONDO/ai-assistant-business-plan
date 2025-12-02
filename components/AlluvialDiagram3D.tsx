@@ -309,7 +309,7 @@ export default function AlluvialDiagram3D({
           if (mesh.geometry) mesh.geometry.dispose();
           if (mesh.material) {
             if (Array.isArray(mesh.material)) {
-              mesh.material.forEach(m => m.dispose());
+              mesh.material.forEach((m: any) => m.dispose());
             } else {
               mesh.material.dispose();
             }
