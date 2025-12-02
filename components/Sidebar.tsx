@@ -14,7 +14,6 @@ const SPECIAL_SERVICES = [
   { id: 'education-training', name: 'AI導入ルール設計・人材育成・教育事業', description: '人材育成、教育、AI導入ルール設計に関する計画', hasConcepts: true },
   { id: 'consulting', name: 'プロセス可視化・業務コンサル事業', description: '業務コンサルティングとプロセス改善に関する計画', hasConcepts: true },
   { id: 'ai-dx', name: 'AI駆動開発・DX支援SI事業', description: 'AI技術を活用した開発・DX支援に関する計画', hasConcepts: true },
-  { id: 'component-test', name: '5. コンポーネント化test', description: 'コンポーネント化のテスト用事業企画', hasConcepts: true },
 ];
 
 interface SidebarProps {
@@ -48,9 +47,6 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
     { id: 'corporate-ai-training', name: '大企業向けAI人材育成・教育', description: '企業内AI人材の育成、AI活用スキル研修、AI導入教育プログラムの提供' },
     { id: 'ai-governance', name: 'AI導入ルール設計・ガバナンス支援', description: '企業のAI導入におけるルール設計、ガバナンス構築、コンプライアンス対応支援' },
     { id: 'sme-ai-education', name: '中小企業向けAI導入支援・教育', description: '中小企業向けのAI導入支援、実践的なAI教育、導入ルール設計支援、助成金活用支援' },
-  ],
-  'component-test': [
-    { id: 'test-concept', name: 'テスト構想', description: 'コンポーネント化のテスト用構想' },
   ],
 };
 
@@ -253,31 +249,9 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           return;
         }
 
-        // 通常の事業計画ページの場合、会社の事業計画と事業企画を表示
-        // 会社の事業計画を取得
-        let companyPlansSnapshot;
-        try {
-          if (!db || !auth?.currentUser) return;
-          const companyQuery = query(
-            collection(db, 'companyBusinessPlan'),
-            where('userId', '==', auth.currentUser.uid),
-            orderBy('createdAt', 'desc')
-          );
-          companyPlansSnapshot = await getDocs(companyQuery);
-        } catch (error: any) {
-          if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
-            if (!db || !auth?.currentUser) return;
-            const companyQueryWithoutOrder = query(
-              collection(db, 'companyBusinessPlan'),
-              where('userId', '==', auth.currentUser.uid)
-            );
-            companyPlansSnapshot = await getDocs(companyQueryWithoutOrder);
-          } else {
-            throw error;
-          }
-        }
-
+        // 通常の事業計画ページの場合、事業企画のみを表示
         // 事業企画を取得
+        if (!db || !auth?.currentUser) return;
         let projectsSnapshot;
         try {
           const projectsQuery = query(
@@ -321,17 +295,6 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
         const items: ContentItem[] = [];
 
-        // 会社の事業計画を追加
-        const companyPlans: Array<{ id: string; title: string; createdAt: Date | null }> = [];
-        companyPlansSnapshot.forEach((doc) => {
-          const data = doc.data();
-          companyPlans.push({
-            id: doc.id,
-            title: data.title || '会社事業計画',
-            createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
-          });
-        });
-
         // 事業企画を追加
         const projects: Array<{ id: string; title: string; createdAt: Date | null }> = [];
         console.log('📋 事業企画取得結果:', {
@@ -343,6 +306,11 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         });
         projectsSnapshot.forEach((doc) => {
           const data = doc.data();
+          // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして表示されるため）
+          if (data.isFixed) {
+            console.log('📋 固定プロジェクトをスキップ:', { id: doc.id, name: data.name || data.title });
+            return;
+          }
           console.log('📋 事業企画データ:', {
             id: doc.id,
             name: data.name,
@@ -360,28 +328,13 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         });
 
         // 作成日時でソート（降順）
-        companyPlans.sort((a, b) => {
-          const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
-          const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
-          return bTime - aTime;
-        });
-
         projects.sort((a, b) => {
           const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
           const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
           return bTime - aTime;
         });
 
-        // アイテムに変換
-        companyPlans.forEach((plan) => {
-          items.push({
-            id: plan.id,
-            title: plan.title,
-            type: 'company-plan',
-            path: `/business-plan/company/${plan.id}/overview`,
-          });
-        });
-
+        // アイテムに変換（事業企画のみ）
         projects.forEach((project) => {
           items.push({
             id: project.id,
@@ -401,9 +354,8 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           });
         });
 
-        console.log('✅ 最終的なコンテンツアイテム:', {
+        console.log('✅ 最終的なコンテンツアイテム（事業企画のみ）:', {
           totalItems: items.length,
-          companyPlans: items.filter(i => i.type === 'company-plan').length,
           projects: items.filter(i => i.type === 'project').length,
           staticServices: SPECIAL_SERVICES.length,
           items: items.map(i => ({ type: i.type, title: i.title })),

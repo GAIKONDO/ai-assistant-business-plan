@@ -11,6 +11,41 @@ import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
 import { SUB_MENU_ITEMS } from '@/components/ConceptSubMenu';
 
+// ページコンテンツチェックのキャッシュ（メモリキャッシュ）
+interface PageContentCache {
+  hasContent: boolean;
+  timestamp: number;
+}
+
+const pageContentCache = new Map<string, PageContentCache>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5分
+
+// キャッシュからページコンテンツの有無を取得
+const getCachedPageContent = (pageUrl: string): boolean | null => {
+  const cached = pageContentCache.get(pageUrl);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.hasContent;
+  }
+  return null;
+};
+
+// ページコンテンツの有無をキャッシュに保存
+const setCachedPageContent = (pageUrl: string, hasContent: boolean): void => {
+  pageContentCache.set(pageUrl, {
+    hasContent,
+    timestamp: Date.now(),
+  });
+};
+
+// キャッシュをクリア（ページ保存時に呼び出す）
+export const clearPageContentCache = (pageUrl?: string): void => {
+  if (pageUrl) {
+    pageContentCache.delete(pageUrl);
+  } else {
+    pageContentCache.clear();
+  }
+};
+
 // DynamicPageを動的インポート（SSRを回避）
 const DynamicPage = dynamic(
   () => import('@/components/pages/component-test/test-concept/DynamicPage'),
@@ -123,9 +158,10 @@ export default function ForceDirectedGraph({
   const [nodes, setNodes] = useState<GraphNode[]>([]);
   const [links, setLinks] = useState<GraphLink[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadingAdditionalNodes, setLoadingAdditionalNodes] = useState(false);
   const [tooltip, setTooltip] = useState<{ x: number; y: number; data: GraphNode } | null>(null);
   const simulationRef = useRef<any>(null);
-  const [filterMode, setFilterMode] = useState<'all' | 'fixed' | 'componentized'>('all');
+  const [filterMode, setFilterMode] = useState<'fixed' | 'componentized'>('componentized');
   const [nodeTypeFilters, setNodeTypeFilters] = useState<{
     company: boolean;
     project: boolean;
@@ -291,11 +327,35 @@ export default function ForceDirectedGraph({
                 const subMenuNodeId = `subMenu-company-fixed-${doc.id}-${subMenuItem.id}`;
                 const pageUrl = `/business-plan/company/${doc.id}/${subMenuItem.id}`;
                 
+                // キャッシュから取得を試みる
+                const cachedResult = getCachedPageContent(pageUrl);
+                if (cachedResult !== null) {
+                  // キャッシュに結果がある場合
+                  if (!cachedResult) {
+                    return null; // コンテンツなし
+                  }
+                  // コンテンツありの場合のみノードを作成
+                  return {
+                    id: subMenuNodeId,
+                    label: subMenuItem.label,
+                    type: 'subMenu' as const,
+                    data: {
+                      planId: doc.id,
+                      subMenuId: subMenuItem.id,
+                      subMenuLabel: subMenuItem.label,
+                      pages: [],
+                      isComponentized: false,
+                      isCompanyPlan: true,
+                    },
+                  };
+                }
+                
                 // ページの内容をチェック（非同期）
                 try {
                   const response = await fetch(pageUrl);
                   if (!response || !response.ok) {
                     // ページが存在しない場合は除外
+                    setCachedPageContent(pageUrl, false);
                     return null;
                   }
                   
@@ -322,13 +382,18 @@ export default function ForceDirectedGraph({
                       cardContent.includes(pattern) && cardContent.trim().length < 200
                     );
                     if (isOnlyPlaceholder) {
+                      setCachedPageContent(pageUrl, false);
                       return null;
                     }
                   }
                   
                   if (!hasRealContent) {
+                    setCachedPageContent(pageUrl, false);
                     return null;
                   }
+                  
+                  // コンテンツありをキャッシュに保存
+                  setCachedPageContent(pageUrl, true);
                   
                   // ページが存在し、コンテンツがある場合のみノードを作成
                   return {
@@ -347,6 +412,7 @@ export default function ForceDirectedGraph({
                 } catch (error) {
                   // エラーの場合は表示対象外にする（ページが存在しない場合など）
                   console.log('会社事業計画のページ内容のチェックエラー:', pageUrl, error);
+                  setCachedPageContent(pageUrl, false);
                   return null;
                 }
               });
@@ -474,11 +540,36 @@ export default function ForceDirectedGraph({
               const subMenuNodeId = `subMenu-${doc.id}-${subMenuItem.id}`;
               const pageUrl = `/business-plan/services/${data.serviceId}/${conceptId}/${subMenuItem.id}`;
               
+              // キャッシュから取得を試みる
+              const cachedResult = getCachedPageContent(pageUrl);
+              if (cachedResult !== null) {
+                // キャッシュに結果がある場合
+                if (!cachedResult) {
+                  return null; // コンテンツなし
+                }
+                // コンテンツありの場合のみノードを作成
+                return {
+                  id: subMenuNodeId,
+                  label: subMenuItem.label,
+                  type: 'subMenu' as const,
+                  data: {
+                    conceptId: conceptId,
+                    conceptDocId: doc.id,
+                    serviceId: data.serviceId,
+                    subMenuId: subMenuItem.id,
+                    subMenuLabel: subMenuItem.label,
+                    pages: [],
+                    isComponentized: false,
+                  },
+                };
+              }
+              
               // ページの内容をチェック（非同期）
               try {
                 const response = await fetch(pageUrl);
                 if (!response || !response.ok) {
                   // ページが存在しない場合は除外
+                  setCachedPageContent(pageUrl, false);
                   return null;
                 }
                 
@@ -505,13 +596,18 @@ export default function ForceDirectedGraph({
                     cardContent.includes(pattern) && cardContent.trim().length < 200
                   );
                   if (isOnlyPlaceholder) {
+                    setCachedPageContent(pageUrl, false);
                     return null;
                   }
                 }
                 
                 if (!hasRealContent) {
+                  setCachedPageContent(pageUrl, false);
                   return null;
                 }
+                
+                // コンテンツありをキャッシュに保存
+                setCachedPageContent(pageUrl, true);
                 
                 // ページが存在し、コンテンツがある場合のみノードを作成
                 return {
@@ -531,6 +627,7 @@ export default function ForceDirectedGraph({
               } catch (error) {
                 // エラーの場合は表示対象外にする（ページが存在しない場合など）
                 console.log('ページ内容のチェックエラー:', pageUrl, error);
+                setCachedPageContent(pageUrl, false);
                 return null;
               }
             });
@@ -577,11 +674,36 @@ export default function ForceDirectedGraph({
                   const subMenuNodeId = `subMenu-fixed-${serviceId}-${concept.id}-${subMenuItem.id}`;
                   const pageUrl = `/business-plan/services/${serviceId}/${concept.id}/${subMenuItem.id}`;
                   
+                  // キャッシュから取得を試みる
+                  const cachedResult = getCachedPageContent(pageUrl);
+                  if (cachedResult !== null) {
+                    // キャッシュに結果がある場合
+                    if (!cachedResult) {
+                      return null; // コンテンツなし
+                    }
+                    // コンテンツありの場合のみノードを作成
+                    return {
+                      id: subMenuNodeId,
+                      label: subMenuItem.label,
+                      type: 'subMenu' as const,
+                      data: {
+                        conceptId: concept.id,
+                        serviceId: serviceId,
+                        subMenuId: subMenuItem.id,
+                        subMenuLabel: subMenuItem.label,
+                        pages: [],
+                        isComponentized: false,
+                        isFixed: true,
+                      },
+                    };
+                  }
+                  
                   // ページの内容をチェック（非同期）
                   try {
                     const response = await fetch(pageUrl);
                     if (!response || !response.ok) {
                       // ページが存在しない場合は除外
+                      setCachedPageContent(pageUrl, false);
                       return null;
                     }
                     
@@ -608,13 +730,18 @@ export default function ForceDirectedGraph({
                         cardContent.includes(pattern) && cardContent.trim().length < 200
                       );
                       if (isOnlyPlaceholder) {
+                        setCachedPageContent(pageUrl, false);
                         return null;
                       }
                     }
                     
                     if (!hasRealContent) {
+                      setCachedPageContent(pageUrl, false);
                       return null;
                     }
+                    
+                    // コンテンツありをキャッシュに保存
+                    setCachedPageContent(pageUrl, true);
                     
                     // ページが存在し、コンテンツがある場合のみノードを作成
                     return {
@@ -634,6 +761,7 @@ export default function ForceDirectedGraph({
                   } catch (error) {
                     // エラーの場合は表示対象外にする（ページが存在しない場合など）
                     console.log('ページ内容のチェックエラー:', pageUrl, error);
+                    setCachedPageContent(pageUrl, false);
                     return null;
                   }
                 });
@@ -1052,15 +1180,45 @@ export default function ForceDirectedGraph({
         });
 
 
-        // デバッグ用ログ
-        console.log('ノード数:', nodesMap.size);
-        console.log('ノード一覧:', Array.from(nodesMap.values()).map(n => ({ id: n.id, label: n.label, type: n.type })));
-        console.log('リンク数:', linksList.length);
-        console.log('リンク一覧:', linksList.map(l => ({ source: typeof l.source === 'string' ? l.source : l.source.id, target: typeof l.target === 'string' ? l.target : l.target.id, type: l.type })));
+        // 基本ノード（会社、事業企画、構想）とリンクを先に表示
+        const basicNodes = Array.from(nodesMap.values()).filter(node => 
+          node.type === 'company' || node.type === 'project' || node.type === 'concept'
+        );
+        const additionalNodes = Array.from(nodesMap.values()).filter(node => 
+          node.type === 'subMenu' || node.type === 'page'
+        );
 
-        setNodes(Array.from(nodesMap.values()));
+        console.log('基本ノード数:', basicNodes.length);
+        console.log('追加ノード数:', additionalNodes.length);
+        console.log('リンク数:', linksList.length);
+
+        // 基本ノードとリンクを先に表示
+        setNodes(basicNodes);
         setLinks(linksList);
         setLoading(false);
+
+        // 追加ノード（サブメニューとページ）を後から追加（プログレッシブローディング）
+        if (additionalNodes.length > 0) {
+          setLoadingAdditionalNodes(true);
+          
+          // バッチ処理で100msごとにまとめて追加
+          const batchSize = 50; // 一度に追加するノード数
+          const delay = 100; // 100msごとに追加
+          
+          for (let i = 0; i < additionalNodes.length; i += batchSize) {
+            const batch = additionalNodes.slice(i, i + batchSize);
+            await new Promise(resolve => setTimeout(resolve, delay));
+            
+            setNodes(prevNodes => {
+              const existingIds = new Set(prevNodes.map(n => n.id));
+              const newNodes = batch.filter(n => !existingIds.has(n.id));
+              return [...prevNodes, ...newNodes];
+            });
+          }
+          
+          setLoadingAdditionalNodes(false);
+          console.log('追加ノードの読み込みが完了しました');
+        }
       } catch (error) {
         console.error('データ取得エラー:', error);
         setLoading(false);
@@ -1076,21 +1234,19 @@ export default function ForceDirectedGraph({
     
     // 形式フィルター（固定ページ形式/コンポーネント形式）
     // 事業企画ノードは形式の区別がないので常に表示
-    if (filterMode !== 'all') {
-      filtered = filtered.filter(node => {
-        // 事業企画ノードは常に表示
-        if (node.type === 'project') {
-          return true;
-        }
-        
-        const isComponentized = node.data?.isComponentized ?? false;
-        if (filterMode === 'componentized') {
-          return isComponentized;
-        } else { // filterMode === 'fixed'
-          return !isComponentized;
-        }
-      });
-    }
+    filtered = filtered.filter(node => {
+      // 事業企画ノードは常に表示
+      if (node.type === 'project') {
+        return true;
+      }
+      
+      const isComponentized = node.data?.isComponentized ?? false;
+      if (filterMode === 'componentized') {
+        return isComponentized;
+      } else { // filterMode === 'fixed'
+        return !isComponentized;
+      }
+    });
     
     // 階層フィルター（ノードタイプ）
     filtered = filtered.filter(node => {
@@ -1928,6 +2084,26 @@ export default function ForceDirectedGraph({
     );
   }
 
+  // 追加ノードの読み込み中のインジケーター
+  const additionalNodesLoadingIndicator = loadingAdditionalNodes ? (
+    <div
+      style={{
+        position: 'absolute',
+        top: '10px',
+        right: '10px',
+        backgroundColor: 'rgba(255, 255, 255, 0.9)',
+        padding: '8px 16px',
+        borderRadius: '8px',
+        boxShadow: '0 2px 8px rgba(0, 0, 0, 0.1)',
+        fontSize: '14px',
+        color: '#666',
+        zIndex: 1000,
+      }}
+    >
+      詳細ノードを読み込み中...
+    </div>
+  ) : null;
+
   if (nodes.length === 0) {
     return (
       <div style={{ width: '100%', padding: '40px', textAlign: 'center' }}>
@@ -1982,22 +2158,6 @@ export default function ForceDirectedGraph({
               </div>
             </div>
             <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setFilterMode('all')}
-                style={{
-                  padding: '8px 16px',
-                  backgroundColor: filterMode === 'all' ? '#4A90E2' : '#f0f0f0',
-                  color: filterMode === 'all' ? '#fff' : '#333',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
-                  fontSize: '14px',
-                  fontWeight: 500,
-                  transition: 'all 0.2s',
-                }}
-              >
-                すべて
-              </button>
               <button
                 onClick={() => setFilterMode('fixed')}
                 style={{
@@ -2175,11 +2335,10 @@ export default function ForceDirectedGraph({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', padding: '8px', border: '1px solid #e0e0e0', borderRadius: '6px', backgroundColor: '#fff', flex: 1 }}>
                     {nodes.filter(n => {
                       if (n.type !== 'company') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).map(companyNode => {
                       const companyId = companyNode.id.replace('company-', '');
                       const isSelected = selectedCompanyIds.has(companyId) || selectedCompanyIds.has(companyNode.id);
@@ -2207,11 +2366,10 @@ export default function ForceDirectedGraph({
                     })}
                     {nodes.filter(n => {
                       if (n.type !== 'company') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).length === 0 && (
                       <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>会社がありません</span>
                     )}
@@ -2257,11 +2415,10 @@ export default function ForceDirectedGraph({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', padding: '8px', border: '1px solid #e0e0e0', borderRadius: '6px', backgroundColor: '#fff', flex: 1 }}>
                     {nodes.filter(n => {
                       if (n.type !== 'concept') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).map(conceptNode => {
                       const conceptDocId = conceptNode.data?.docId;
                       const conceptId = conceptNode.data?.conceptId || conceptNode.id.replace('concept-', '').replace('fixed-concept-', '');
@@ -2292,11 +2449,10 @@ export default function ForceDirectedGraph({
                     })}
                     {nodes.filter(n => {
                       if (n.type !== 'concept') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).length === 0 && (
                       <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>構想がありません</span>
                     )}
@@ -2308,11 +2464,10 @@ export default function ForceDirectedGraph({
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', maxHeight: '150px', overflowY: 'auto', padding: '8px', border: '1px solid #e0e0e0', borderRadius: '6px', backgroundColor: '#fff', flex: 1 }}>
                     {nodes.filter(n => {
                       if (n.type !== 'subMenu') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).map(subMenuNode => {
                       const subMenuId = subMenuNode.id;
                       const isSelected = selectedSubMenuIds.has(subMenuId);
@@ -2338,11 +2493,10 @@ export default function ForceDirectedGraph({
                     })}
                     {nodes.filter(n => {
                       if (n.type !== 'subMenu') return false;
-                      if (filterMode === 'all') return true;
                       const isComponentized = n.data?.isComponentized ?? false;
                       if (filterMode === 'componentized') return isComponentized;
                       if (filterMode === 'fixed') return !isComponentized;
-                      return true;
+                      return false;
                     }).length === 0 && (
                       <span style={{ fontSize: '12px', color: '#999', fontStyle: 'italic' }}>サブメニューがありません</span>
                     )}
@@ -2354,6 +2508,7 @@ export default function ForceDirectedGraph({
         </div>
       )}
       <div style={{ width: '100%', maxWidth: `${width}px`, margin: '0 auto', position: 'relative', overflow: 'hidden' }}>
+        {additionalNodesLoadingIndicator}
         <svg
           ref={svgRef}
           width="100%"

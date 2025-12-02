@@ -280,6 +280,27 @@ export default function BusinessPlanPage() {
       });
       setFixedServiceLinkedPlanIds(fixedServiceLinks);
       
+      // component-testが含まれていないか確認
+      const hasComponentTest = allProjectsData.some(p => 
+        p.serviceId === 'component-test' || 
+        p.id === 'component-test' || 
+        p.name === '5. コンポーネント化test' || 
+        p.name === '5.5. コンポーネント化test'
+      );
+      
+      if (hasComponentTest) {
+        console.warn('⚠️ 警告: component-testプロジェクトがFirestoreに残っています！');
+        const componentTestProjects = allProjectsData.filter(p => 
+          p.serviceId === 'component-test' || 
+          p.id === 'component-test' || 
+          p.name === '5. コンポーネント化test' || 
+          p.name === '5.5. コンポーネント化test'
+        );
+        console.warn('残っているcomponent-testプロジェクト:', componentTestProjects.map(p => ({ id: p.id, name: p.name, serviceId: p.serviceId })));
+      } else {
+        console.log('✅ component-testプロジェクトはFirestoreに存在しません（削除済み）');
+      }
+      
       console.log('=== 事業企画一覧 ===');
       console.log(`\n【Firestoreから取得したデータ】`);
       console.log(`総数: ${projectsSnapshot.size}件`);
@@ -601,6 +622,49 @@ export default function BusinessPlanPage() {
           }
         } catch (error) {
           console.error('構想削除エラー:', error);
+        }
+        
+        // component-testプロジェクトを削除（ゴミデータのクリーンアップ）
+        try {
+          const projectsQuery = query(
+            collection(db, 'businessProjects'),
+            where('userId', '==', user.uid)
+          );
+          const projectsSnapshot = await getDocs(projectsQuery);
+          
+          const componentTestProjects = projectsSnapshot.docs.filter(doc => {
+            const data = doc.data();
+            // serviceIdが'component-test'または、idが'component-test'のプロジェクトを削除
+            return data.serviceId === 'component-test' || doc.id === 'component-test' || data.name === '5. コンポーネント化test' || data.name === '5.5. コンポーネント化test';
+          });
+          
+          if (componentTestProjects.length > 0) {
+            console.log(`🗑️ component-testプロジェクトを${componentTestProjects.length}件削除します:`, componentTestProjects.map(d => ({ id: d.id, name: d.data().name || d.data().title, serviceId: d.data().serviceId })));
+            const deletePromises = componentTestProjects.map(doc => deleteDoc(doc.ref));
+            await Promise.all(deletePromises);
+            console.log('✅ component-testプロジェクトの削除が完了しました');
+            
+            // 削除後の確認
+            const verifyQuery = query(
+              collection(db, 'businessProjects'),
+              where('userId', '==', user.uid)
+            );
+            const verifySnapshot = await getDocs(verifyQuery);
+            const remainingComponentTest = verifySnapshot.docs.filter(doc => {
+              const data = doc.data();
+              return data.serviceId === 'component-test' || doc.id === 'component-test' || data.name === '5. コンポーネント化test' || data.name === '5.5. コンポーネント化test';
+            });
+            
+            if (remainingComponentTest.length === 0) {
+              console.log('✅ 確認: component-testプロジェクトは完全に削除されました');
+            } else {
+              console.warn(`⚠️ 警告: ${remainingComponentTest.length}件のcomponent-testプロジェクトがまだ残っています`);
+            }
+          } else {
+            console.log('✅ component-testプロジェクトは既に削除済みです（Firestoreに存在しません）');
+          }
+        } catch (error) {
+          console.error('❌ component-testプロジェクト削除エラー:', error);
         }
         
         setLoading(true);

@@ -856,6 +856,18 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
       const verifyData = verifyDoc.data();
       console.log('保存後の確認:', verifyData?.pageOrderBySubMenu?.[subMenuId]);
       
+      // キャッシュを無効化（2Dグラフのページコンテンツチェック用）
+      if (typeof window !== 'undefined' && serviceId && conceptId && subMenuId) {
+        const pageUrl = `/business-plan/services/${serviceId}/${conceptId}/${subMenuId}`;
+        import('@/components/ForceDirectedGraph').then((module) => {
+          if (module.clearPageContentCache) {
+            module.clearPageContentCache(pageUrl);
+          }
+        }).catch(() => {
+          // インポートエラーは無視（キャッシュクリアはオプショナル）
+        });
+      }
+      
       // ComponentizedPageContextのページをリフレッシュしてUIを更新
       if (refreshPages) {
         console.log('ページをリフレッシュします');
@@ -953,6 +965,18 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         pageOrderBySubMenu: updatedPageOrderBySubMenu,
         updatedAt: serverTimestamp(),
       });
+      
+      // キャッシュを無効化（2Dグラフのページコンテンツチェック用）
+      if (typeof window !== 'undefined' && planId && subMenuId) {
+        const pageUrl = `/business-plan/company/${planId}/${subMenuId}`;
+        import('@/components/ForceDirectedGraph').then((module) => {
+          if (module.clearPageContentCache) {
+            module.clearPageContentCache(pageUrl);
+          }
+        }).catch(() => {
+          // インポートエラーは無視（キャッシュクリアはオプショナル）
+        });
+      }
       
       if (refreshPages) {
         refreshPages();
@@ -1137,6 +1161,18 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         },
         { merge: true }
       );
+      
+      // キャッシュを無効化（2Dグラフのページコンテンツチェック用）
+      if (typeof window !== 'undefined' && planId && subMenuId) {
+        const pageUrl = `/business-plan/company/${planId}/${subMenuId}`;
+        import('@/components/ForceDirectedGraph').then((module) => {
+          if (module.clearPageContentCache) {
+            module.clearPageContentCache(pageUrl);
+          }
+        }).catch(() => {
+          // インポートエラーは無視（キャッシュクリアはオプショナル）
+        });
+      }
       
       // ローカル状態からも削除
       setOrderedConfigs(prev => prev.filter(config => config.id !== pageId));

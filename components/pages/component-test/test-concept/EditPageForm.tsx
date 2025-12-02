@@ -436,6 +436,19 @@ export default function EditPageForm({
       // Firestoreに保存
       await updateDoc(doc(db, 'concepts', conceptDoc.id), updateData);
       
+      // キャッシュを無効化（2Dグラフのページコンテンツチェック用）
+      if (typeof window !== 'undefined') {
+        const pageUrl = `/business-plan/services/${serviceId}/${conceptId}/${subMenuId}`;
+        // 動的にインポートしてキャッシュクリア関数を呼び出す
+        import('@/components/ForceDirectedGraph').then((module) => {
+          if (module.clearPageContentCache) {
+            module.clearPageContentCache(pageUrl);
+          }
+        }).catch(() => {
+          // インポートエラーは無視（キャッシュクリアはオプショナル）
+        });
+      }
+      
       onPageUpdated();
       onClose();
     } catch (error: any) {

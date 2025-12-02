@@ -14,6 +14,13 @@ const FIXED_CONCEPTS = [
 
 export default function ComponentTestPage() {
   const router = useRouter();
+  
+  // component-testは削除済みなので、事業計画ページにリダイレクト
+  useEffect(() => {
+    router.replace('/business-plan');
+  }, [router]);
+  
+  return null;
   const [concepts, setConcepts] = useState<(ConceptData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
   const [loading, setLoading] = useState(true);
   const [showConceptForm, setShowConceptForm] = useState(false);
