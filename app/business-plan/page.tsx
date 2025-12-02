@@ -101,6 +101,8 @@ export default function BusinessPlanPage() {
   const [allProjects, setAllProjects] = useState<(BusinessProjectData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
   const [companyPlanFilter, setCompanyPlanFilter] = useState<'all' | 'fixed' | 'componentized' | 'favorite'>('all');
   const [projectCoverData, setProjectCoverData] = useState<{ [serviceId: string]: { id: string; pageNumber: number; title: string; content: string } | null }>({});
+  const [selectedPlanFilterIds, setSelectedPlanFilterIds] = useState<Set<string>>(new Set());
+  const [showPlanFilterModal, setShowPlanFilterModal] = useState(false);
 
 
   const loadPlans = async () => {
@@ -1143,6 +1145,50 @@ export default function BusinessPlanPage() {
                         </svg>
                         お気に入り
                       </button>
+                      <button
+                        onClick={() => setShowPlanFilterModal(true)}
+                        style={{
+                          padding: '8px 16px',
+                          backgroundColor: selectedPlanFilterIds.size > 0 ? '#3B82F6' : '#F3F4F6',
+                          color: selectedPlanFilterIds.size > 0 ? '#fff' : '#374151',
+                          border: '1px solid #D1D5DB',
+                          borderRadius: '6px',
+                          cursor: 'pointer',
+                          fontSize: '13px',
+                          fontWeight: 500,
+                          transition: 'all 0.2s',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '4px',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (selectedPlanFilterIds.size === 0) {
+                            e.currentTarget.style.backgroundColor = '#E5E7EB';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (selectedPlanFilterIds.size === 0) {
+                            e.currentTarget.style.backgroundColor = '#F3F4F6';
+                          }
+                        }}
+                      >
+                        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"></polygon>
+                        </svg>
+                        事業企画フィルター
+                        {selectedPlanFilterIds.size > 0 && (
+                          <span style={{
+                            backgroundColor: selectedPlanFilterIds.size > 0 ? '#fff' : 'transparent',
+                            color: selectedPlanFilterIds.size > 0 ? '#3B82F6' : 'inherit',
+                            borderRadius: '10px',
+                            padding: '2px 6px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                          }}>
+                            {selectedPlanFilterIds.size}
+                          </span>
+                        )}
+                      </button>
                     </div>
                     <button
                       onClick={() => {
@@ -1194,20 +1240,28 @@ export default function BusinessPlanPage() {
           ) : (
             (() => {
               // フィルタリングされたリストを取得
-              const filteredPlans = companyPlans.filter(plan => {
-                if (companyPlanFilter === 'all') return true;
-                if (companyPlanFilter === 'favorite') {
-                  return (plan as any).isFavorite === true;
-                }
-                const pagesBySubMenu = (plan as any).pagesBySubMenu;
-                const isComponentized = pagesBySubMenu && 
-                  typeof pagesBySubMenu === 'object' && 
-                  Object.keys(pagesBySubMenu).length > 0 &&
-                  Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-                if (companyPlanFilter === 'fixed') return !isComponentized;
-                if (companyPlanFilter === 'componentized') return isComponentized;
-                return true;
-              });
+              let filteredPlans = companyPlans;
+              
+              // 特定の事業計画フィルターが選択されている場合
+              if (selectedPlanFilterIds.size > 0) {
+                filteredPlans = companyPlans.filter(plan => selectedPlanFilterIds.has(plan.id));
+              } else {
+                // 会社全体の事業計画のフィルターと連動
+                filteredPlans = companyPlans.filter(plan => {
+                  if (companyPlanFilter === 'all') return true;
+                  if (companyPlanFilter === 'favorite') {
+                    return (plan as any).isFavorite === true;
+                  }
+                  const pagesBySubMenu = (plan as any).pagesBySubMenu;
+                  const isComponentized = pagesBySubMenu && 
+                    typeof pagesBySubMenu === 'object' && 
+                    Object.keys(pagesBySubMenu).length > 0 &&
+                    Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+                  if (companyPlanFilter === 'fixed') return !isComponentized;
+                  if (companyPlanFilter === 'componentized') return isComponentized;
+                  return true;
+                });
+              }
               
               // フィルタリングされた事業計画のIDセットを作成（事業企画カードのフィルタリング用）
               const filteredPlanIds = new Set(filteredPlans.map(p => p.id));
@@ -1893,30 +1947,16 @@ export default function BusinessPlanPage() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(250px, 1fr))', gap: '20px', marginTop: showProjectForm ? '24px' : '0' }}>
               {/* 特別なサービス（自社開発・自社サービス事業など） */}
               {SPECIAL_SERVICES.filter((service) => {
-                // 会社全体の事業計画のフィルターと連動
-                if (companyPlanFilter === 'all') return true;
+                // 特定の事業計画フィルターが選択されている場合
+                if (selectedPlanFilterIds.size > 0) {
+                  const fixedServiceData = projects.find(p => (p as any).serviceId === service.id && (p as any).isFixed);
+                  const serviceLinkedPlanIds = fixedServiceData ? ((fixedServiceData as any).linkedPlanIds || []) : (fixedServiceLinkedPlanIds[service.id] || []);
+                  // 選択された事業計画にリンクしている場合のみ表示
+                  return serviceLinkedPlanIds.some((planId: string) => selectedPlanFilterIds.has(planId));
+                }
                 
-                const fixedServiceData = projects.find(p => (p as any).serviceId === service.id && (p as any).isFixed);
-                const serviceLinkedPlanIds = fixedServiceData ? ((fixedServiceData as any).linkedPlanIds || []) : (fixedServiceLinkedPlanIds[service.id] || []);
-                
-                // リンクしている事業計画がフィルタリングされたリストに含まれているか確認
-                const filteredPlanIds = companyPlans.filter(plan => {
-                  if (companyPlanFilter === 'all') return true;
-                  if (companyPlanFilter === 'favorite') {
-                    return (plan as any).isFavorite === true;
-                  }
-                  const pagesBySubMenu = (plan as any).pagesBySubMenu;
-                  const isComponentized = pagesBySubMenu && 
-                    typeof pagesBySubMenu === 'object' && 
-                    Object.keys(pagesBySubMenu).length > 0 &&
-                    Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-                  if (companyPlanFilter === 'fixed') return !isComponentized;
-                  if (companyPlanFilter === 'componentized') return isComponentized;
-                  return true;
-                }).map(p => p.id);
-                
-                // リンクしている事業計画が少なくとも1つフィルタリングされたリストに含まれている場合のみ表示
-                return serviceLinkedPlanIds.some((planId: string) => filteredPlanIds.includes(planId));
+                // フィルターが選択されていない場合はすべて表示
+                return true;
               }).map((service, index) => {
                 const fixedServiceData = projects.find(p => (p as any).serviceId === service.id && (p as any).isFixed);
                 const serviceLinkedPlanIds = fixedServiceData ? ((fixedServiceData as any).linkedPlanIds || []) : (fixedServiceLinkedPlanIds[service.id] || []);
@@ -2068,30 +2108,15 @@ export default function BusinessPlanPage() {
                 })
               : projects
             ).filter((project) => {
-              // 会社全体の事業計画のフィルターと連動
-              if (companyPlanFilter === 'all') return true;
+              // 特定の事業計画フィルターが選択されている場合
+              if (selectedPlanFilterIds.size > 0) {
+                const projectLinkedPlanIds = (project as any).linkedPlanIds || [];
+                // 選択された事業計画にリンクしている場合のみ表示
+                return projectLinkedPlanIds.some((planId: string) => selectedPlanFilterIds.has(planId));
+              }
               
-              const projectLinkedPlanIds = (project as any).linkedPlanIds || [];
-              if (projectLinkedPlanIds.length === 0) return false;
-              
-              // フィルタリングされた事業計画のIDセットを作成
-              const filteredPlanIds = companyPlans.filter(plan => {
-                if (companyPlanFilter === 'all') return true;
-                if (companyPlanFilter === 'favorite') {
-                  return (plan as any).isFavorite === true;
-                }
-                const pagesBySubMenu = (plan as any).pagesBySubMenu;
-                const isComponentized = pagesBySubMenu && 
-                  typeof pagesBySubMenu === 'object' && 
-                  Object.keys(pagesBySubMenu).length > 0 &&
-                  Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
-                if (companyPlanFilter === 'fixed') return !isComponentized;
-                if (companyPlanFilter === 'componentized') return isComponentized;
-                return true;
-              }).map(p => p.id);
-              
-              // リンクしている事業計画が少なくとも1つフィルタリングされたリストに含まれている場合のみ表示
-              return projectLinkedPlanIds.some((planId: string) => filteredPlanIds.includes(planId));
+              // フィルターが選択されていない場合はすべて表示
+              return true;
             }).map((project, index) => {
               const isFixedProject = (project as any).isFixed;
               const serviceId = (project as any).serviceId;
@@ -2751,6 +2776,216 @@ export default function BusinessPlanPage() {
                 }}
               >
                 保存
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 事業計画フィルターモーダル */}
+      {showPlanFilterModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 2000,
+            padding: '20px',
+          }}
+          onClick={(e) => {
+            if (e.target === e.currentTarget) {
+              setShowPlanFilterModal(false);
+            }
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '600px',
+              width: '100%',
+              maxHeight: '80vh',
+              overflow: 'auto',
+              boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+              <h3 style={{ margin: 0, fontSize: '20px', fontWeight: 600, color: '#111827' }}>
+                事業計画でフィルター
+              </h3>
+              <button
+                onClick={() => setShowPlanFilterModal(false)}
+                style={{
+                  background: 'transparent',
+                  border: 'none',
+                  cursor: 'pointer',
+                  padding: '4px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <line x1="18" y1="6" x2="6" y2="18"></line>
+                  <line x1="6" y1="6" x2="18" y2="18"></line>
+                </svg>
+              </button>
+            </div>
+            
+            <p style={{ marginBottom: '20px', fontSize: '14px', color: '#6B7280' }}>
+              表示する事業企画を、リンクしている事業計画で絞り込みます。
+            </p>
+            
+            <div style={{ marginBottom: '20px', maxHeight: '400px', overflowY: 'auto' }}>
+              {companyPlans.length === 0 ? (
+                <p style={{ textAlign: 'center', color: '#9CA3AF', padding: '40px 0' }}>
+                  事業計画がまだ作成されていません
+                </p>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                  {companyPlans.map((plan) => {
+                    const isSelected = selectedPlanFilterIds.has(plan.id);
+                    const pagesBySubMenu = (plan as any).pagesBySubMenu;
+                    const isComponentized = pagesBySubMenu && 
+                      typeof pagesBySubMenu === 'object' && 
+                      Object.keys(pagesBySubMenu).length > 0 &&
+                      Object.values(pagesBySubMenu).some((pages: any) => Array.isArray(pages) && pages.length > 0);
+                    
+                    return (
+                      <label
+                        key={plan.id}
+                        style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          padding: '12px',
+                          borderRadius: '8px',
+                          border: `2px solid ${isSelected ? '#3B82F6' : '#E5E7EB'}`,
+                          backgroundColor: isSelected ? '#EFF6FF' : '#fff',
+                          cursor: 'pointer',
+                          transition: 'all 0.2s',
+                        }}
+                        onMouseEnter={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.borderColor = '#9CA3AF';
+                          }
+                        }}
+                        onMouseLeave={(e) => {
+                          if (!isSelected) {
+                            e.currentTarget.style.borderColor = '#E5E7EB';
+                          }
+                        }}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={isSelected}
+                          onChange={(e) => {
+                            const newSet = new Set(selectedPlanFilterIds);
+                            if (e.target.checked) {
+                              newSet.add(plan.id);
+                            } else {
+                              newSet.delete(plan.id);
+                            }
+                            setSelectedPlanFilterIds(newSet);
+                          }}
+                          style={{
+                            width: '18px',
+                            height: '18px',
+                            marginRight: '12px',
+                            cursor: 'pointer',
+                          }}
+                        />
+                        <div style={{ flex: 1 }}>
+                          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                            <span style={{ fontSize: '14px', fontWeight: 600, color: '#111827' }}>
+                              {plan.title}
+                            </span>
+                            <span
+                              style={{
+                                fontSize: '11px',
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontWeight: 500,
+                                color: isComponentized ? '#4A90E2' : '#D97706',
+                                backgroundColor: isComponentized ? '#E3F2FD' : '#FEF3C7',
+                              }}
+                            >
+                              {isComponentized ? 'コンポーネント形式' : '固定ページ形式'}
+                            </span>
+                          </div>
+                          {plan.description && (
+                            <p style={{ margin: 0, fontSize: '12px', color: '#6B7280', lineHeight: '1.5' }}>
+                              {plan.description}
+                            </p>
+                          )}
+                        </div>
+                      </label>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+            
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '12px', paddingTop: '20px', borderTop: '1px solid #E5E7EB' }}>
+              <button
+                onClick={() => {
+                  setSelectedPlanFilterIds(new Set());
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#F3F4F6',
+                  color: '#374151',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  transition: 'all 0.2s',
+                }}
+                disabled={selectedPlanFilterIds.size === 0}
+                onMouseEnter={(e) => {
+                  if (selectedPlanFilterIds.size > 0) {
+                    e.currentTarget.style.backgroundColor = '#E5E7EB';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  if (selectedPlanFilterIds.size > 0) {
+                    e.currentTarget.style.backgroundColor = '#F3F4F6';
+                  }
+                }}
+              >
+                すべて解除
+              </button>
+              <button
+                onClick={() => setShowPlanFilterModal(false)}
+                style={{
+                  padding: '10px 24px',
+                  backgroundColor: '#3B82F6',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  cursor: 'pointer',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#2563EB';
+                  e.currentTarget.style.boxShadow = '0 4px 6px -1px rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#3B82F6';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                適用
               </button>
             </div>
           </div>
