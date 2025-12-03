@@ -17,9 +17,6 @@ import { ComponentizedCompanyPlanPageProvider, useComponentizedCompanyPlanPageOp
 import { PlanContext, usePlan } from './hooks/usePlan';
 import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
 
-// Page0コンポーネントから使用できるようにエクスポート
-export { usePlan, useContainerVisibility };
-
 declare global {
   interface Window {
     html2pdf?: any;

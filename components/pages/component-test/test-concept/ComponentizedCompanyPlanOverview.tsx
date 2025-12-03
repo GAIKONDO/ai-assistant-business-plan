@@ -10,7 +10,7 @@ import { pageConfigs, PageConfig } from './pageConfig';
 import PageOrderManager from './PageOrderManager';
 import { useComponentizedCompanyPlanPage } from './ComponentizedCompanyPlanPageContext';
 import { usePresentationMode } from '@/components/PresentationModeContext';
-import { usePlan } from '@/app/business-plan/company/[planId]/layout';
+import { usePlan } from '@/app/business-plan/company/[planId]/hooks/usePlan';
 import AddPageForm from './AddPageForm';
 import { pageAutoUpdateConfigs, PageAutoUpdateConfig } from './pageAutoUpdateConfig';
 import DynamicPage from './DynamicPage';
