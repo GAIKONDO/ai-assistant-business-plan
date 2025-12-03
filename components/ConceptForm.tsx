@@ -3,12 +3,13 @@
 import { useState, useEffect } from 'react';
 import { doc, addDoc, updateDoc, serverTimestamp, collection } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { PageMetadata } from '@/types/pageMetadata';
 
 export interface ConceptData {
   name: string;
   description: string;
   conceptId: string; // 自動生成されるID
-  pagesBySubMenu?: { [subMenuId: string]: Array<any> };
+  pagesBySubMenu?: { [subMenuId: string]: Array<PageMetadata> }; // メタデータ付きページ
   pageOrderBySubMenu?: { [subMenuId: string]: string[] };
 }
 

@@ -104,6 +104,7 @@ export default function ComponentizedCompanyPlanOverview() {
             id: page.id,
             pageNumber: page.pageNumber,
             title: page.title,
+            content: page.content, // プレビュー用にcontentを追加
             component: () => (
               <DynamicPage
                 pageId={page.id}

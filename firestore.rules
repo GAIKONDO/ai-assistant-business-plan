@@ -87,6 +87,30 @@ service cloud.firestore {
       // 削除: 管理者のみ
       allow delete: if isAdmin();
     }
+    
+    // ページ埋め込み（ベクトル埋め込みデータ）
+    match /pageEmbeddings/{pageId} {
+      // 認証済みユーザーであれば読み書き可能
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ページ構造データ（コンテンツ構造、関連性、フォーマットパターン）
+    match /pageStructures/{pageId} {
+      // 認証済みユーザーであれば読み書き可能
+      allow read, write: if isAuthenticated();
+    }
+    
+    // ページテンプレート
+    match /pageTemplates/{templateId} {
+      // 読み取り: 認証済みユーザー（自分のテンプレートのみ）
+      allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // 作成: 認証済みユーザー（自分のテンプレートのみ）
+      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // 更新: 認証済みユーザー（自分のテンプレートのみ）
+      allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
+      // 削除: 認証済みユーザー（自分のテンプレートのみ）
+      allow delete: if isAuthenticated() && resource.data.userId == request.auth.uid;
+    }
   }
 }
 

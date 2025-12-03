@@ -4,6 +4,10 @@ import { useState } from 'react';
 import { collection, query, where, getDocs, doc, getDoc, setDoc, addDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
+import { generatePageMetadata } from '@/lib/pageMetadataUtils';
+import { PageMetadata } from '@/types/pageMetadata';
+import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
+import { savePageStructureAsync } from '@/lib/pageStructure';
 
 // Monaco Editorを動的インポート（SSRを回避）
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { 
@@ -57,12 +61,7 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
       const planData = planDoc.data();
       
       // サブメニューごとのページデータを取得
-      const pagesBySubMenu = planData.pagesBySubMenu as { [key: string]: Array<{
-        id: string;
-        pageNumber: number;
-        title: string;
-        content: string;
-      }> } | undefined || {};
+      const pagesBySubMenu = planData.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined || {};
       
       const pageOrderBySubMenu = planData.pageOrderBySubMenu as { [key: string]: string[] } | undefined || {};
       
@@ -73,14 +72,51 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
       const newPageId = `page-${Date.now()}`;
       const pageNumber = currentSubMenuPages.length;
       
-      // 新しいページを追加
-      const newPage = {
+      // 基本ページデータを作成
+      const basePage = {
         id: newPageId,
         pageNumber: pageNumber,
         title: title.trim(),
         content: content.trim() || '<p>コンテンツを入力してください。</p>',
         createdAt: new Date().toISOString(),
       };
+      
+      // メタデータを自動生成
+      const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
+      const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
+      
+      // メタデータをコンソールに出力（デバッグ用）
+      console.log('📝 ページ作成（会社計画） - 生成されたメタデータ:', {
+        pageId: newPage.id,
+        title: newPage.title,
+        metadata: {
+          tags: newPage.tags,
+          contentType: newPage.contentType,
+          semanticCategory: newPage.semanticCategory,
+          keywords: newPage.keywords,
+          sectionType: newPage.sectionType,
+          importance: newPage.importance,
+        }
+      });
+      
+      // ベクトル埋め込みを非同期で生成・保存
+      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, planId);
+      
+      // 構造データを非同期で生成・保存
+      const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+        id: p.id,
+        pageNumber: p.pageNumber,
+        subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+      }));
+      savePageStructureAsync(
+        newPage.id,
+        newPage.content,
+        newPage.title,
+        allPages,
+        subMenuId,
+        newPage.semanticCategory,
+        newPage.keywords
+      );
       
       const updatedPages = [...currentSubMenuPages, newPage];
       
@@ -214,12 +250,7 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
       }
       
       // サブメニューごとのページデータを取得
-      const pagesBySubMenu = conceptData.pagesBySubMenu as { [key: string]: Array<{
-        id: string;
-        pageNumber: number;
-        title: string;
-        content: string;
-      }> } | undefined || {};
+      const pagesBySubMenu = conceptData.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined || {};
       
       const pageOrderBySubMenu = conceptData.pageOrderBySubMenu as { [key: string]: string[] } | undefined || {};
       
@@ -230,15 +261,51 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
       const newPageId = `page-${Date.now()}`;
       const pageNumber = currentSubMenuPages.length;
       
-      // 新しいページを追加
-      // 注意: 配列内のオブジェクトにはserverTimestamp()を使用できないため、Dateオブジェクトを使用
-      const newPage = {
+      // 基本ページデータを作成
+      const basePage = {
         id: newPageId,
         pageNumber: pageNumber,
         title: title.trim(),
         content: content.trim() || '<p>コンテンツを入力してください。</p>',
         createdAt: new Date().toISOString(),
       };
+      
+      // メタデータを自動生成
+      const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
+      const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
+      
+      // メタデータをコンソールに出力（デバッグ用）
+      console.log('📝 ページ作成（構想） - 生成されたメタデータ:', {
+        pageId: newPage.id,
+        title: newPage.title,
+        metadata: {
+          tags: newPage.tags,
+          contentType: newPage.contentType,
+          semanticCategory: newPage.semanticCategory,
+          keywords: newPage.keywords,
+          sectionType: newPage.sectionType,
+          importance: newPage.importance,
+        }
+      });
+      
+      // ベクトル埋め込みを非同期で生成・保存
+      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, undefined, conceptId);
+      
+      // 構造データを非同期で生成・保存
+      const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+        id: p.id,
+        pageNumber: p.pageNumber,
+        subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+      }));
+      savePageStructureAsync(
+        newPage.id,
+        newPage.content,
+        newPage.title,
+        allPages,
+        subMenuId,
+        newPage.semanticCategory,
+        newPage.keywords
+      );
       
       const updatedPages = [...currentSubMenuPages, newPage];
       

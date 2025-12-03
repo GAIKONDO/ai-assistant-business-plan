@@ -7,6 +7,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { pageConfigs, PageConfig } from './pageConfig';
 import DynamicPage from './DynamicPage';
+import { generatePageMetadata } from '@/lib/pageMetadataUtils';
+import { PageMetadata } from '@/types/pageMetadata';
+import { updateDoc, serverTimestamp } from 'firebase/firestore';
+import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
 import { SUB_MENU_ITEMS } from '@/components/ConceptSubMenu';
 
 interface ComponentizedPageContextType {
@@ -119,39 +123,80 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
           const data = conceptDoc.data();
           
           // サブメニューごとのページデータを取得
-          const pagesBySubMenu = data.pagesBySubMenu as { [key: string]: Array<{
-            id: string;
-            pageNumber: number;
-            title: string;
-            content: string;
-          }> } | undefined;
+          let pagesBySubMenu = data.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined;
           
           const pageOrderBySubMenu = data.pageOrderBySubMenu as { [key: string]: string[] } | undefined;
           
           // 現在のサブメニューのページデータを取得
-          const currentSubMenuPages = pagesBySubMenu?.[subMenuId] || [];
+          let currentSubMenuPages = (pagesBySubMenu?.[subMenuId] || []) as PageMetadata[];
           const currentSubMenuPageOrder = pageOrderBySubMenu?.[subMenuId];
           
           // overviewの場合は、後方互換性のために古い形式もチェック
           let savedPageOrder: string[] | undefined;
-          let dynamicPages: Array<{
-            id: string;
-            pageNumber: number;
-            title: string;
-            content: string;
-          }> | undefined;
+          let dynamicPages: Array<PageMetadata> | undefined;
           
           if (subMenuId === 'overview') {
             savedPageOrder = currentSubMenuPageOrder || (data.pageOrder as string[] | undefined);
-            dynamicPages = currentSubMenuPages.length > 0 ? currentSubMenuPages : (data.pages as Array<{
-              id: string;
-              pageNumber: number;
-              title: string;
-              content: string;
-            }> | undefined);
+            const oldPages = (data.pages as Array<PageMetadata>) || [];
+            dynamicPages = currentSubMenuPages.length > 0 ? currentSubMenuPages : oldPages;
           } else {
             savedPageOrder = currentSubMenuPageOrder;
             dynamicPages = currentSubMenuPages;
+          }
+          
+          // 既存のページにメタデータがない場合は自動生成して保存
+          if (dynamicPages && dynamicPages.length > 0) {
+            const totalPages = Object.values(pagesBySubMenu || {}).reduce((sum, pages) => sum + pages.length, 0);
+            let needsUpdate = false;
+            const updatedPages = dynamicPages.map((page) => {
+              // メタデータがない場合は生成
+              if (!page.tags && !page.contentType && !page.semanticCategory) {
+                needsUpdate = true;
+                return generatePageMetadata({
+                  id: page.id,
+                  pageNumber: page.pageNumber,
+                  title: page.title,
+                  content: page.content,
+                  createdAt: page.createdAt || new Date().toISOString(),
+                }, subMenuId, totalPages);
+              }
+              return page;
+            });
+            
+            // メタデータを更新する必要がある場合はFirestoreに保存
+            if (needsUpdate && db && conceptDoc) {
+              try {
+                const updatedPagesBySubMenu = {
+                  ...pagesBySubMenu,
+                  [subMenuId]: updatedPages,
+                };
+                
+                const updateData: any = {
+                  pagesBySubMenu: updatedPagesBySubMenu,
+                  updatedAt: serverTimestamp(),
+                };
+                
+                // overviewの場合は後方互換性のために古い形式も更新
+                if (subMenuId === 'overview') {
+                  updateData.pages = updatedPages;
+                }
+                
+                await updateDoc(conceptDoc.ref, updateData);
+                console.log('✅ 既存ページにメタデータを自動付与しました:', updatedPages.length, 'ページ');
+                
+                // ベクトル埋め込みも非同期で生成
+                for (const page of updatedPages) {
+                  savePageEmbeddingAsync(page.id, page.title, page.content, undefined, conceptId);
+                }
+                
+                // 更新後のデータを使用
+                dynamicPages = updatedPages;
+                currentSubMenuPages = updatedPages;
+                pagesBySubMenu = updatedPagesBySubMenu;
+              } catch (error) {
+                console.error('メタデータ自動付与エラー:', error);
+              }
+            }
           }
           
           // 動的ページをPageConfigに変換
@@ -159,6 +204,7 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
             id: page.id,
             pageNumber: page.pageNumber,
             title: page.title,
+            content: page.content, // プレビュー用にcontentを追加
             component: () => (
               <DynamicPage
                 pageId={page.id}

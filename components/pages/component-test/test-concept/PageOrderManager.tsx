@@ -23,8 +23,18 @@ import { db, auth } from '@/lib/firebase';
 import { pageConfigs, PageConfig } from './pageConfig';
 import DynamicPage from './DynamicPage';
 import EditPageForm from './EditPageForm';
+import PageMetadataViewer from './PageMetadataViewer';
+import SimilarPagesSearch from './SimilarPagesSearch';
+import PageStructureViewer from './PageStructureViewer';
+import GeneratePageFromSimilar from './GeneratePageFromSimilar';
 import { useComponentizedPageOptional } from './ComponentizedPageContext';
 import { useComponentizedCompanyPlanPageOptional } from './ComponentizedCompanyPlanPageContext';
+import { PageMetadata } from '@/types/pageMetadata';
+import { generatePageMetadata } from '@/lib/pageMetadataUtils';
+import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
+import { savePageStructureAsync } from '@/lib/pageStructure';
+import { savePageTemplate, getUserTemplates } from '@/lib/pageTemplates';
+import './pageStyles.css';
 
 interface PageOrderManagerProps {
   serviceId?: string;
@@ -36,17 +46,27 @@ interface PageOrderManagerProps {
   onPageUpdated?: () => void;
 }
 
+interface SortablePageItemProps {
+  config: PageConfig;
+  index: number;
+  onDelete?: (pageId: string) => void;
+  onEdit?: (pageId: string) => void;
+  onViewMetadata?: (pageId: string) => void;
+  onViewStructure?: (pageId: string) => void;
+  onRegisterAsTemplate?: (pageId: string) => void;
+  isTemplateRegistered?: boolean;
+}
+
 function SortablePageItem({ 
   config, 
   index, 
   onDelete,
-  onEdit
-}: { 
-  config: PageConfig; 
-  index: number;
-  onDelete?: (pageId: string) => void;
-  onEdit?: (pageId: string) => void;
-}) {
+  onEdit,
+  onViewMetadata,
+  onViewStructure,
+  onRegisterAsTemplate,
+  isTemplateRegistered = false
+}: SortablePageItemProps) {
   const {
     attributes,
     listeners,
@@ -131,6 +151,9 @@ function SortablePageItem({
     },
   };
 
+  // プレビュー用のcontentを取得
+  const pageContent = (config as any).content;
+
   return (
     <div
       ref={setNodeRef}
@@ -151,6 +174,69 @@ function SortablePageItem({
       {...attributes}
       {...dragHandleListeners}
     >
+      {/* プレビュー */}
+      {pageContent && (
+        <div
+          style={{
+            width: '120px',
+            aspectRatio: '16 / 9',
+            flexShrink: 0,
+            position: 'relative',
+            overflow: 'hidden',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '6px',
+            border: '1px solid #E5E7EB',
+          }}
+          onClick={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+          onMouseDown={(e) => {
+            e.stopPropagation();
+            e.preventDefault();
+          }}
+        >
+          <div style={{
+            width: '100%',
+            height: '100%',
+            overflow: 'hidden',
+            position: 'relative',
+          }}>
+            <div style={{
+              width: '100%',
+              height: '100%',
+              padding: '12px',
+              backgroundColor: '#FFFFFF',
+              transform: 'scale(0.25)',
+              transformOrigin: 'top left',
+              position: 'absolute',
+              top: 0,
+              left: 0,
+            }}>
+              <div style={{
+                width: '400%',
+                height: '400%',
+              }}>
+                <style>{`
+                  .page-preview-container .page-content {
+                    margin-bottom: 0 !important;
+                    width: 100% !important;
+                    max-width: 100% !important;
+                  }
+                `}</style>
+                <div className="page-preview-container">
+                  <DynamicPage
+                    pageId={config.id}
+                    pageNumber={config.pageNumber}
+                    title={(config as any).title || `ページ ${config.pageNumber}`}
+                    content={pageContent}
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
       <div
         style={{
           width: '24px',
@@ -285,6 +371,180 @@ function SortablePageItem({
       </div>
       {!isFixedPage && (
         <div style={{ display: 'flex', gap: '4px' }}>
+          {onViewMetadata && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+                onViewMetadata(config.id);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+              }}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: '#fff',
+                color: '#6B7280',
+                border: '1px solid #E5E7EB',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+                pointerEvents: 'auto',
+                zIndex: 10,
+                position: 'relative',
+                minWidth: '32px',
+                height: '32px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB';
+                e.currentTarget.style.borderColor = '#D1D5DB';
+                e.currentTarget.style.color = '#374151';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.borderColor = '#E5E7EB';
+                e.currentTarget.style.color = '#6B7280';
+              }}
+              title="メタデータを表示"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10"></line>
+                <line x1="12" y1="20" x2="12" y2="4"></line>
+                <line x1="6" y1="20" x2="6" y2="14"></line>
+              </svg>
+            </button>
+          )}
+          {onViewStructure && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+                onViewStructure(config.id);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+              }}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: '#fff',
+                color: '#6B7280',
+                border: '1px solid #E5E7EB',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '12px',
+                fontWeight: 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+                pointerEvents: 'auto',
+                zIndex: 10,
+                position: 'relative',
+                minWidth: '32px',
+                height: '32px',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.backgroundColor = '#F9FAFB';
+                e.currentTarget.style.borderColor = '#D1D5DB';
+                e.currentTarget.style.color = '#374151';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.borderColor = '#E5E7EB';
+                e.currentTarget.style.color = '#6B7280';
+              }}
+              title="構造データを表示"
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+                <line x1="9" y1="3" x2="9" y2="21"></line>
+                <line x1="3" y1="9" x2="21" y2="9"></line>
+              </svg>
+            </button>
+          )}
+          {onRegisterAsTemplate && (
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+                onRegisterAsTemplate(config.id);
+              }}
+              onMouseDown={(e) => {
+                e.stopPropagation();
+                e.preventDefault();
+                if (e.nativeEvent && typeof (e.nativeEvent as any).stopImmediatePropagation === 'function') {
+                  (e.nativeEvent as any).stopImmediatePropagation();
+                }
+              }}
+              style={{
+                padding: '6px 10px',
+                backgroundColor: isTemplateRegistered ? '#FEF3C7' : '#fff',
+                color: isTemplateRegistered ? '#D97706' : '#6B7280',
+                border: isTemplateRegistered ? '1px solid #FCD34D' : '1px solid #E5E7EB',
+                borderRadius: '6px',
+                cursor: 'pointer',
+                fontSize: '16px',
+                fontWeight: isTemplateRegistered ? 600 : 500,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '4px',
+                transition: 'all 0.2s',
+                pointerEvents: 'auto',
+                zIndex: 10,
+                position: 'relative',
+                minWidth: '32px',
+                height: '32px',
+              }}
+              onMouseEnter={(e) => {
+                if (!isTemplateRegistered) {
+                  e.currentTarget.style.backgroundColor = '#F9FAFB';
+                  e.currentTarget.style.borderColor = '#D1D5DB';
+                  e.currentTarget.style.color = '#374151';
+                } else {
+                  e.currentTarget.style.backgroundColor = '#FDE68A';
+                  e.currentTarget.style.borderColor = '#FBBF24';
+                }
+              }}
+              onMouseLeave={(e) => {
+                if (!isTemplateRegistered) {
+                  e.currentTarget.style.backgroundColor = '#fff';
+                  e.currentTarget.style.borderColor = '#E5E7EB';
+                  e.currentTarget.style.color = '#6B7280';
+                } else {
+                  e.currentTarget.style.backgroundColor = '#FEF3C7';
+                  e.currentTarget.style.borderColor = '#FCD34D';
+                }
+              }}
+              title={isTemplateRegistered ? "テンプレートとして登録済み" : "テンプレートとして登録"}
+            >
+              {isTemplateRegistered ? '★' : '☆'}
+            </button>
+          )}
           {onEdit && (
             <button
               onClick={(e) => {
@@ -321,31 +581,41 @@ function SortablePageItem({
                 }
               }}
               style={{
-                padding: '4px 8px',
-                backgroundColor: '#3B82F6',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
+                padding: '6px 10px',
+                backgroundColor: '#fff',
+                color: '#6B7280',
+                border: '1px solid #E5E7EB',
+                borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '4px',
-                transition: 'background-color 0.2s',
+                transition: 'all 0.2s',
                 pointerEvents: 'auto',
                 zIndex: 10,
                 position: 'relative',
+                minWidth: '32px',
+                height: '32px',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#2563EB';
+                e.currentTarget.style.backgroundColor = '#F9FAFB';
+                e.currentTarget.style.borderColor = '#D1D5DB';
+                e.currentTarget.style.color = '#374151';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#3B82F6';
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.borderColor = '#E5E7EB';
+                e.currentTarget.style.color = '#6B7280';
               }}
               title="ページを編集"
             >
-              ✏️
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path>
+                <path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path>
+              </svg>
             </button>
           )}
           {onDelete && (
@@ -354,30 +624,42 @@ function SortablePageItem({
               onMouseDown={handleDeleteMouseDown}
               onPointerDown={handleDeleteMouseDown}
               style={{
-                padding: '4px 8px',
-                backgroundColor: '#EF4444',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
+                padding: '6px 10px',
+                backgroundColor: '#fff',
+                color: '#6B7280',
+                border: '1px solid #E5E7EB',
+                borderRadius: '6px',
                 cursor: 'pointer',
                 fontSize: '12px',
                 fontWeight: 500,
                 display: 'flex',
                 alignItems: 'center',
+                justifyContent: 'center',
                 gap: '4px',
-                transition: 'background-color 0.2s',
+                transition: 'all 0.2s',
                 pointerEvents: 'auto',
                 zIndex: 10,
+                minWidth: '32px',
+                height: '32px',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.backgroundColor = '#DC2626';
+                e.currentTarget.style.backgroundColor = '#FEF2F2';
+                e.currentTarget.style.borderColor = '#FCA5A5';
+                e.currentTarget.style.color = '#DC2626';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.backgroundColor = '#EF4444';
+                e.currentTarget.style.backgroundColor = '#fff';
+                e.currentTarget.style.borderColor = '#E5E7EB';
+                e.currentTarget.style.color = '#6B7280';
               }}
               title="ページを削除"
             >
-              ×
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                <line x1="10" y1="11" x2="10" y2="17"></line>
+                <line x1="14" y1="11" x2="14" y2="17"></line>
+              </svg>
             </button>
           )}
         </div>
@@ -423,6 +705,16 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageTitle, setEditingPageTitle] = useState('');
   const [editingPageContent, setEditingPageContent] = useState('');
+  const [viewingMetadataPageId, setViewingMetadataPageId] = useState<string | null>(null);
+  const [viewingMetadataPage, setViewingMetadataPage] = useState<PageMetadata | null>(null);
+  const [viewingStructurePageId, setViewingStructurePageId] = useState<string | null>(null);
+  const [showSimilarPagesSearch, setShowSimilarPagesSearch] = useState(false);
+  const [showGeneratePage, setShowGeneratePage] = useState(false);
+  const [registeringTemplatePageId, setRegisteringTemplatePageId] = useState<string | null>(null);
+  const [templateName, setTemplateName] = useState('');
+  const [templateDescription, setTemplateDescription] = useState('');
+  const [registeringTemplate, setRegisteringTemplate] = useState(false);
+  const [registeredTemplatePageIds, setRegisteredTemplatePageIds] = useState<Set<string>>(new Set());
 
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const sensors = useSensors(
@@ -542,6 +834,7 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
             id: page.id,
             pageNumber: page.pageNumber,
             title: page.title,
+            content: page.content, // プレビュー用にcontentを追加
             component: () => (
               <DynamicPage
                 pageId={page.id}
@@ -661,6 +954,7 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         id: page.id,
         pageNumber: page.pageNumber,
         title: page.title,
+        content: page.content, // プレビュー用にcontentを追加
         component: () => (
           <DynamicPage
             pageId={page.id}
@@ -1318,6 +1612,299 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
     }
   };
 
+  // メタデータを表示
+  const handleViewMetadata = async (pageId: string) => {
+    if (!db || !auth?.currentUser) {
+      console.error('Firebaseが初期化されていません');
+      return;
+    }
+
+    try {
+      let pageData: PageMetadata | null = null;
+
+      if (isCompanyPlan && planId) {
+        // 会社本体の事業計画の場合
+        const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+        if (planDoc.exists()) {
+          const planData = planDoc.data();
+          const pagesBySubMenu = (planData.pagesBySubMenu || {}) as { [key: string]: Array<PageMetadata> };
+          const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+          pageData = currentSubMenuPages.find((p: PageMetadata) => p.id === pageId) || null;
+        }
+      } else if (serviceId && conceptId) {
+        // 構想の場合
+        const conceptsQuery = query(
+          collection(db, 'concepts'),
+          where('userId', '==', auth.currentUser.uid),
+          where('serviceId', '==', serviceId),
+          where('conceptId', '==', conceptId)
+        );
+        const conceptsSnapshot = await getDocs(conceptsQuery);
+        if (!conceptsSnapshot.empty) {
+          const conceptData = conceptsSnapshot.docs[0].data();
+          const pagesBySubMenu = (conceptData.pagesBySubMenu || {}) as { [key: string]: Array<PageMetadata> };
+          const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+          pageData = currentSubMenuPages.find((p: PageMetadata) => p.id === pageId) || null;
+        }
+      }
+
+      if (pageData) {
+        setViewingMetadataPage(pageData);
+        setViewingMetadataPageId(pageId);
+      } else {
+        alert('ページのメタデータが見つかりませんでした');
+      }
+    } catch (error) {
+      console.error('メタデータ取得エラー:', error);
+      alert('メタデータの取得に失敗しました');
+    }
+  };
+
+  // 構造データを表示
+  const handleViewStructure = (pageId: string) => {
+    setViewingStructurePageId(pageId);
+  };
+
+  // テンプレートとして登録
+  const handleRegisterAsTemplate = (pageId: string) => {
+    setRegisteringTemplatePageId(pageId);
+    setTemplateName('');
+    setTemplateDescription('');
+  };
+
+  const handleSaveTemplate = async () => {
+    if (!registeringTemplatePageId || !templateName.trim()) {
+      alert('テンプレート名を入力してください');
+      return;
+    }
+
+    try {
+      setRegisteringTemplate(true);
+      await savePageTemplate(
+        registeringTemplatePageId,
+        templateName.trim(),
+        templateDescription.trim(),
+        planId,
+        conceptId
+      );
+      
+      // 登録されたページIDを追加
+      setRegisteredTemplatePageIds(prev => new Set([...prev, registeringTemplatePageId]));
+      
+      alert('テンプレートを登録しました');
+      setRegisteringTemplatePageId(null);
+      setTemplateName('');
+      setTemplateDescription('');
+    } catch (error: any) {
+      console.error('テンプレート登録エラー:', error);
+      alert(`テンプレートの登録に失敗しました: ${error.message}`);
+    } finally {
+      setRegisteringTemplate(false);
+    }
+  };
+
+  // テンプレート一覧を取得して登録状態を確認
+  useEffect(() => {
+    const loadTemplates = async () => {
+      try {
+        const templates = await getUserTemplates(planId, conceptId);
+        const registeredIds = new Set(templates.map(t => t.pageId));
+        setRegisteredTemplatePageIds(registeredIds);
+      } catch (error) {
+        console.error('テンプレート一覧の取得エラー:', error);
+      }
+    };
+
+    if (auth?.currentUser) {
+      loadTemplates();
+    }
+  }, [planId, conceptId, auth?.currentUser, refreshTrigger]);
+
+  // 生成されたページを保存
+  const handlePageGenerated = async (title: string, content: string) => {
+    if (!auth?.currentUser || !db) {
+      alert('Firebaseが初期化されていません');
+      return;
+    }
+
+    try {
+      setSaving(true);
+
+      // 会社本体の事業計画の場合の処理
+      if (isCompanyPlan && planId) {
+        const planDoc = await getDoc(doc(db, 'companyBusinessPlan', planId));
+        
+        if (!planDoc.exists()) {
+          alert('事業計画が見つかりませんでした。');
+          setSaving(false);
+          return;
+        }
+
+        const planData = planDoc.data();
+        const pagesBySubMenu = planData.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined || {};
+        const pageOrderBySubMenu = planData.pageOrderBySubMenu as { [key: string]: string[] } | undefined || {};
+        const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+        
+        const newPageId = `page-${Date.now()}`;
+        const pageNumber = currentSubMenuPages.length;
+        
+        const basePage = {
+          id: newPageId,
+          pageNumber: pageNumber,
+          title: title.trim(),
+          content: content.trim() || '<p>コンテンツを入力してください。</p>',
+          createdAt: new Date().toISOString(),
+        };
+        
+        const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
+        const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
+        
+        savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, planId);
+        
+        const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+          id: p.id,
+          pageNumber: p.pageNumber,
+          subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+        }));
+        savePageStructureAsync(
+          newPage.id,
+          newPage.content,
+          newPage.title,
+          allPages,
+          subMenuId,
+          newPage.semanticCategory,
+          newPage.keywords
+        );
+        
+        const updatedPages = [...currentSubMenuPages, newPage];
+        let currentSubMenuPageOrder = pageOrderBySubMenu[subMenuId] || [];
+        
+        if (subMenuId === 'overview' && !currentSubMenuPageOrder.includes('page-0')) {
+          currentSubMenuPageOrder = ['page-0', ...currentSubMenuPageOrder];
+        }
+        
+        const updatedPageOrder = [...currentSubMenuPageOrder, newPageId];
+        
+        await setDoc(
+          doc(db, 'companyBusinessPlan', planId),
+          {
+            ...planData,
+            pagesBySubMenu: {
+              ...pagesBySubMenu,
+              [subMenuId]: updatedPages,
+            },
+            pageOrderBySubMenu: {
+              ...pageOrderBySubMenu,
+              [subMenuId]: updatedPageOrder,
+            },
+            updatedAt: serverTimestamp(),
+          },
+          { merge: true }
+        );
+        
+        handlePageUpdated();
+        setShowGeneratePage(false);
+        return;
+      }
+
+      // 事業企画の場合の処理
+      if (!serviceId || !conceptId) {
+        alert('必要な情報が不足しています。');
+        setSaving(false);
+        return;
+      }
+
+      const conceptsQuery = query(
+        collection(db, 'concepts'),
+        where('userId', '==', auth.currentUser.uid),
+        where('serviceId', '==', serviceId),
+        where('conceptId', '==', conceptId)
+      );
+      
+      const conceptsSnapshot = await getDocs(conceptsQuery);
+      
+      if (conceptsSnapshot.empty) {
+        alert('構想ドキュメントが見つかりません');
+        setSaving(false);
+        return;
+      }
+
+      const conceptDoc = conceptsSnapshot.docs[0];
+      const conceptData = conceptDoc.data();
+      const pagesBySubMenu = conceptData.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined || {};
+      const pageOrderBySubMenu = conceptData.pageOrderBySubMenu as { [key: string]: string[] } | undefined || {};
+      const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
+      
+      const newPageId = `page-${Date.now()}`;
+      const pageNumber = currentSubMenuPages.length;
+      
+      const basePage = {
+        id: newPageId,
+        pageNumber: pageNumber,
+        title: title.trim(),
+        content: content.trim() || '<p>コンテンツを入力してください。</p>',
+        createdAt: new Date().toISOString(),
+      };
+      
+      const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
+      const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
+      
+      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, undefined, conceptId);
+      
+      const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+        id: p.id,
+        pageNumber: p.pageNumber,
+        subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+      }));
+      savePageStructureAsync(
+        newPage.id,
+        newPage.content,
+        newPage.title,
+        allPages,
+        subMenuId,
+        newPage.semanticCategory,
+        newPage.keywords
+      );
+      
+      const updatedPages = [...currentSubMenuPages, newPage];
+      const currentSubMenuPageOrder = pageOrderBySubMenu[subMenuId] || [];
+      const updatedPageOrder = [...currentSubMenuPageOrder, newPageId];
+      
+      const updateData: any = {
+        pagesBySubMenu: {
+          ...pagesBySubMenu,
+          [subMenuId]: updatedPages,
+        },
+        pageOrderBySubMenu: {
+          ...pageOrderBySubMenu,
+          [subMenuId]: updatedPageOrder,
+        },
+        updatedAt: serverTimestamp(),
+      };
+      
+      if (subMenuId === 'overview') {
+        const oldPages = conceptData.pages || [];
+        const oldPageOrder = conceptData.pageOrder as string[] | undefined;
+        updateData.pages = [...oldPages, newPage];
+        updateData.pageOrder = oldPageOrder ? [...oldPageOrder, newPageId] : [newPageId];
+      }
+      
+      await setDoc(
+        doc(db, 'concepts', conceptDoc.id),
+        updateData,
+        { merge: true }
+      );
+      
+      handlePageUpdated();
+      setShowGeneratePage(false);
+    } catch (error: any) {
+      console.error('ページ保存エラー:', error);
+      alert(`ページの保存に失敗しました: ${error.message}`);
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) {
     return (
       <div style={{ textAlign: 'center', padding: '40px' }}>
@@ -1343,14 +1930,118 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         />
       )}
 
+      {/* メタデータ表示モーダル */}
+      {viewingMetadataPage && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}
+        onClick={() => {
+          setViewingMetadataPage(null);
+          setViewingMetadataPageId(null);
+        }}
+        >
+          <div onClick={(e) => e.stopPropagation()}>
+            <PageMetadataViewer
+              page={viewingMetadataPage}
+              onClose={() => {
+                setViewingMetadataPage(null);
+                setViewingMetadataPageId(null);
+              }}
+            />
+          </div>
+        </div>
+      )}
+
+      {/* 構造データビューア */}
+      {viewingStructurePageId && (
+        <PageStructureViewer
+          pageId={viewingStructurePageId}
+          onClose={() => {
+            setViewingStructurePageId(null);
+          }}
+        />
+      )}
+
       <div style={{ marginBottom: '16px' }}>
-        <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px', color: 'var(--color-text)' }}>
-          ページの順序を変更
-        </h4>
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
+          <h4 style={{ fontSize: '14px', fontWeight: 600, color: 'var(--color-text)' }}>
+            ページの順序を変更
+          </h4>
+          <div style={{ display: 'flex', gap: '8px' }}>
+            <button
+              onClick={() => setShowGeneratePage(!showGeneratePage)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: showGeneratePage ? '#8B5CF6' : '#F3F4F6',
+                color: showGeneratePage ? '#fff' : 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              🤖 AIでページ生成
+            </button>
+            <button
+              onClick={() => setShowSimilarPagesSearch(!showSimilarPagesSearch)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: showSimilarPagesSearch ? 'var(--color-primary)' : '#F3F4F6',
+                color: showSimilarPagesSearch ? '#fff' : 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '6px',
+                fontSize: '12px',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+            >
+              {showSimilarPagesSearch ? '検索を閉じる' : '🔍 類似ページ検索'}
+            </button>
+          </div>
+        </div>
+        
+        {/* AIページ生成フォーム */}
+        {showGeneratePage && (
+          <GeneratePageFromSimilar
+            serviceId={serviceId}
+            conceptId={conceptId}
+            planId={planId}
+            subMenuId={subMenuId}
+            onClose={() => setShowGeneratePage(false)}
+            onPageGenerated={handlePageGenerated}
+          />
+        )}
         <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginBottom: '16px' }}>
           ドラッグ&ドロップでページの順序を変更できます
         </p>
       </div>
+
+      {/* 類似ページ検索 */}
+      {showSimilarPagesSearch && (
+        <div style={{ marginBottom: '24px' }}>
+          <SimilarPagesSearch
+            planId={planId}
+            conceptId={conceptId}
+            currentPageId={editingPageId || undefined}
+            onPageSelect={(pageId) => {
+              // 選択されたページを編集モードで開く
+              handleEditPage(pageId);
+              setShowSimilarPagesSearch(false);
+            }}
+          />
+        </div>
+      )}
 
       <DndContext
         sensors={sensors}
@@ -1362,16 +2053,138 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
           strategy={verticalListSortingStrategy}
         >
           {orderedConfigs.map((config, index) => (
-            <SortablePageItem 
+            <SortablePageItem
               key={config.id} 
               config={config} 
               index={index}
               onDelete={handleDeletePage}
               onEdit={handleEditPage}
+              onViewMetadata={handleViewMetadata}
+              onViewStructure={handleViewStructure}
+              onRegisterAsTemplate={handleRegisterAsTemplate}
+              isTemplateRegistered={registeredTemplatePageIds.has(config.id)}
             />
           ))}
         </SortableContext>
       </DndContext>
+
+      {/* テンプレート登録モーダル */}
+      {registeringTemplatePageId && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+          padding: '20px',
+        }}
+        onClick={() => {
+          if (!registeringTemplate) {
+            setRegisteringTemplatePageId(null);
+            setTemplateName('');
+            setTemplateDescription('');
+          }
+        }}
+        >
+          <div 
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              backgroundColor: '#fff',
+              borderRadius: '8px',
+              padding: '24px',
+              maxWidth: '500px',
+              width: '100%',
+            }}
+          >
+            <h3 style={{ marginBottom: '16px', fontSize: '18px', fontWeight: 600 }}>
+              📋 テンプレートとして登録
+            </h3>
+            <p style={{ marginBottom: '16px', fontSize: '14px', color: 'var(--color-text-light)' }}>
+              ページID: {registeringTemplatePageId}
+            </p>
+            <div style={{ marginBottom: '16px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                テンプレート名 *
+              </label>
+              <input
+                type="text"
+                value={templateName}
+                onChange={(e) => setTemplateName(e.target.value)}
+                placeholder="例: 概要ページテンプレート"
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--color-border-color)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                }}
+                disabled={registeringTemplate}
+              />
+            </div>
+            <div style={{ marginBottom: '20px' }}>
+              <label style={{ display: 'block', marginBottom: '8px', fontSize: '14px', fontWeight: 500 }}>
+                説明（任意）
+              </label>
+              <textarea
+                value={templateDescription}
+                onChange={(e) => setTemplateDescription(e.target.value)}
+                placeholder="このテンプレートの説明を入力"
+                rows={3}
+                style={{
+                  width: '100%',
+                  padding: '8px 12px',
+                  border: '1px solid var(--color-border-color)',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  resize: 'vertical',
+                }}
+                disabled={registeringTemplate}
+              />
+            </div>
+            <div style={{ display: 'flex', gap: '12px', justifyContent: 'flex-end' }}>
+              <button
+                onClick={() => {
+                  setRegisteringTemplatePageId(null);
+                  setTemplateName('');
+                  setTemplateDescription('');
+                }}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#F3F4F6',
+                  border: '1px solid #D1D5DB',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  cursor: registeringTemplate ? 'not-allowed' : 'pointer',
+                }}
+                disabled={registeringTemplate}
+              >
+                キャンセル
+              </button>
+              <button
+                onClick={handleSaveTemplate}
+                style={{
+                  padding: '8px 16px',
+                  backgroundColor: '#F59E0B',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '6px',
+                  fontSize: '14px',
+                  cursor: registeringTemplate ? 'not-allowed' : 'pointer',
+                  opacity: registeringTemplate ? 0.6 : 1,
+                }}
+                disabled={registeringTemplate}
+              >
+                {registeringTemplate ? '登録中...' : '登録'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {saving && (
         <div style={{ marginTop: '16px', textAlign: 'center', fontSize: '12px', color: 'var(--color-text-light)' }}>

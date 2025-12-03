@@ -215,6 +215,135 @@ graph TB
     style Stakeholders fill:#DDA0DD,stroke:#9370DB,stroke-width:2px,color:#000
 </div>`;
 
+// タスク実行型エージェントのシーケンス図用のMermaid図コンテンツ
+const taskExecutionSequenceContent = `<div class="mermaid">
+sequenceDiagram
+    participant User as ユーザー
+    participant System as システム
+    participant Agent as タスク実行型エージェント
+    participant Executor as 実行エンジン
+    participant Validator as 検証モジュール
+    
+    User->>System: タスクリクエスト送信
+    System->>Agent: タスク受信・解析
+    Agent->>Agent: タスク要件の理解
+    Agent->>Agent: 実行計画の作成
+    Agent->>Executor: 実行計画の送信
+    Executor->>Executor: タスク実行
+    Executor->>Validator: 実行結果の送信
+    Validator->>Validator: 結果の検証
+    Validator->>Agent: 検証結果の返却
+    Agent->>Agent: 結果の評価・処理
+    Agent->>System: 完了報告
+    System->>User: タスク完了通知
+</div>`;
+
+// タスク実行型エージェントの環境構築アーキテクチャ図用のMermaid図コンテンツ
+const taskExecutionArchitectureContent = `<div class="mermaid">
+graph TB
+    subgraph "クライアント層"
+        WebApp["Webアプリケーション<br/>React/Next.js"]
+        MobileApp["モバイルアプリ<br/>iOS/Android"]
+        API["REST API<br/>GraphQL"]
+    end
+    
+    subgraph "API Gateway層"
+        Gateway["API Gateway<br/>認証・ルーティング<br/>レート制限"]
+        LoadBalancer["ロードバランサー<br/>SSL終端"]
+    end
+    
+    subgraph "アプリケーション層"
+        subgraph "タスク実行エージェント"
+            AgentCore["エージェントコア<br/>タスク解析・計画"]
+            TaskQueue["タスクキュー<br/>RabbitMQ/Kafka"]
+            Executor["実行エンジン<br/>Docker/Kubernetes"]
+            Validator["検証モジュール<br/>結果検証・品質チェック"]
+        end
+        
+        subgraph "オーケストレーション"
+            Orchestrator["オーケストレーター<br/>ワークフロー管理"]
+            Scheduler["スケジューラー<br/>Cron/Job管理"]
+        end
+    end
+    
+    subgraph "データ層"
+        PostgreSQL["PostgreSQL<br/>メタデータ・設定"]
+        Redis["Redis<br/>キャッシュ・セッション"]
+        MongoDB["MongoDB<br/>タスクログ・履歴"]
+        S3["Object Storage<br/>S3/Blob Storage<br/>ファイル・アーティファクト"]
+    end
+    
+    subgraph "AI/ML層"
+        LLMService["LLMサービス<br/>GPT/Claude API"]
+        EmbeddingService["埋め込みサービス<br/>ベクトル検索"]
+        ModelRegistry["モデルレジストリ<br/>ドメイン特化モデル"]
+    end
+    
+    subgraph "モニタリング・ロギング"
+        Prometheus["Prometheus<br/>メトリクス収集"]
+        Grafana["Grafana<br/>可視化・ダッシュボード"]
+        ELK["ELK Stack<br/>ログ集約・分析"]
+        AlertManager["アラートマネージャー<br/>通知・エスカレーション"]
+    end
+    
+    subgraph "セキュリティ層"
+        AuthService["認証サービス<br/>OAuth2/JWT"]
+        Vault["シークレット管理<br/>HashiCorp Vault"]
+        WAF["Web Application Firewall<br/>DDoS保護"]
+    end
+    
+    subgraph "インフラストラクチャ"
+        Kubernetes["Kubernetes<br/>コンテナオーケストレーション"]
+        CloudProvider["クラウドプロバイダー<br/>AWS/Azure/GCP"]
+        CDN["CDN<br/>コンテンツ配信"]
+    end
+    
+    WebApp --> Gateway
+    MobileApp --> Gateway
+    API --> Gateway
+    Gateway --> LoadBalancer
+    LoadBalancer --> AgentCore
+    
+    AgentCore --> TaskQueue
+    TaskQueue --> Executor
+    Executor --> Validator
+    Validator --> AgentCore
+    
+    Orchestrator --> AgentCore
+    Orchestrator --> Executor
+    Scheduler --> Orchestrator
+    
+    AgentCore --> PostgreSQL
+    AgentCore --> Redis
+    Executor --> MongoDB
+    Executor --> S3
+    
+    AgentCore --> LLMService
+    AgentCore --> EmbeddingService
+    AgentCore --> ModelRegistry
+    
+    Executor --> Prometheus
+    AgentCore --> ELK
+    Prometheus --> Grafana
+    Prometheus --> AlertManager
+    
+    Gateway --> AuthService
+    AgentCore --> Vault
+    Gateway --> WAF
+    
+    Kubernetes --> CloudProvider
+    Executor --> Kubernetes
+    Gateway --> CDN
+    
+    style WebApp fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style Gateway fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style AgentCore fill:#e8f5e9,stroke:#388e3c,stroke-width:3px
+    style Executor fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style PostgreSQL fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style LLMService fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    style Kubernetes fill:#e0f2f1,stroke:#00796b,stroke-width:2px
+</div>`;
+
 export default function OverviewPage() {
   const { plan, loading, reloadPlan } = usePlan();
   const params = useParams();
@@ -2366,6 +2495,897 @@ export default function OverviewPage() {
                   }}>
                     <strong>AWS、Microsoft、Google Cloud Platform、Databricks</strong>などの主要マーケットプレイスで利用可能。エンタープライズ環境内で直接デプロイ、統合、スケールが可能です。
                   </p>
+                </div>
+              </div>
+            </div>
+
+            {/* コンテナ6: AIAgentの機能分類 */}
+            <div 
+              data-page-container="6"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  AIAgentの機能分類
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  6
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  AIAgentの機能分類と役割
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  AIAgentは、その機能と役割に応じて複数のカテゴリに分類され、それぞれが異なる目的と能力を持っています
+                </p>
+                <p className="body-text-emphasis">
+                  AIAgentの機能分類を理解することで、適切なエージェントを選択し、効果的なAIシステムを構築できます。
+                </p>
+              </div>
+
+              {/* 機能分類の詳細 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <div style={{ 
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(4, 1fr)',
+                  gap: '20px',
+                  marginBottom: '32px',
+                }}>
+                  {/* 分類1: タスク実行型エージェント */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#e3f2fd',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <polyline points="20 6 9 17 4 12"></polyline>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      タスク実行型エージェント
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      特定のタスクを実行するために設計されたエージェント。単一の目的に特化し、効率的に作業を完了します。
+                    </p>
+                  </div>
+
+                  {/* 分類2: 意思決定型エージェント */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#e8f5e9',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="10"></circle>
+                        <circle cx="12" cy="12" r="6"></circle>
+                        <circle cx="12" cy="12" r="2"></circle>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      意思決定型エージェント
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      複数の選択肢から最適な判断を行うエージェント。データ分析と推論に基づいて意思決定をサポートします。
+                    </p>
+                  </div>
+
+                  {/* 分類3: 協調型エージェント */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#fff3e0',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <circle cx="12" cy="12" r="3"></circle>
+                        <path d="M12 1v6m0 6v6M5.64 5.64l4.24 4.24m4.24 4.24l4.24 4.24M1 12h6m6 0h6M5.64 18.36l4.24-4.24m4.24-4.24l4.24-4.24"></path>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      協調型エージェント
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      他のエージェントやシステムと協調して動作するエージェント。複雑なタスクを複数のエージェントで分担します。
+                    </p>
+                  </div>
+
+                  {/* 分類4: 学習型エージェント */}
+                  <div style={{
+                    padding: '20px',
+                    textAlign: 'center',
+                  }}>
+                    <div style={{
+                      width: '96px',
+                      height: '96px',
+                      margin: '0 auto 20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      backgroundColor: '#f3e5f5',
+                      borderRadius: '50%',
+                    }}>
+                      <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="var(--color-primary)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                        <path d="M15 6l3 3"></path>
+                      </svg>
+                    </div>
+                    <h4 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      学習型エージェント
+                    </h4>
+                    <p style={{
+                      fontSize: '12px',
+                      color: 'var(--color-text-light)',
+                      lineHeight: '1.6',
+                      margin: 0,
+                    }}>
+                      経験から学習し、パフォーマンスを継続的に改善するエージェント。機械学習アルゴリズムを活用します。
+                    </p>
+                  </div>
+                </div>
+
+                {/* 機能分類の統合的な説明 */}
+                <div style={{
+                  marginTop: '32px',
+                  padding: '24px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '8px',
+                  borderLeft: '4px solid var(--color-primary)',
+                }}>
+                  <h4 style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: 'var(--color-text)',
+                    marginBottom: '12px',
+                  }}>
+                    AIAgentの機能分類の重要性
+                  </h4>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'var(--color-text)',
+                    lineHeight: '1.8',
+                    margin: 0,
+                  }}>
+                    AIAgentの機能分類を理解することで、ビジネス要件に最適なエージェントを選択し、効果的なAIシステムを構築できます。各分類は相互に排他的ではなく、複数の機能を組み合わせたハイブリッド型エージェントも存在します。Articul8プラットフォームでは、これらの機能分類を統合し、エンタープライズ規模でのAI活用を実現しています。
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* コンテナ7: タスク実行型エージェントのシーケンス */}
+            <div 
+              data-page-container="7"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  タスク実行型エージェントの実行フロー
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  7
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  効率的なタスク実行を実現するシーケンス設計
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  タスク実行型エージェントは、受信から完了まで一貫したプロセスでタスクを処理し、確実な実行と検証を実現します
+                </p>
+                <p className="body-text-emphasis">
+                  シーケンス図は、ユーザーからのタスクリクエストから完了通知までの全プロセスを可視化し、各コンポーネント間の相互作用を明確に示します。
+                </p>
+                <p className="body-text-small">
+                  タスク実行型エージェントは、タスクの受信、解析、計画作成、実行、検証、報告という6つの主要ステップを通じて、効率的かつ信頼性の高いタスク処理を実現します。
+                </p>
+              </div>
+
+              {/* シーケンス図 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <MermaidContent content={taskExecutionSequenceContent} />
+              </div>
+
+              {/* 各ステップの詳細説明 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--color-text)',
+                  marginBottom: '20px',
+                  borderLeft: '3px solid var(--color-primary)',
+                  paddingLeft: '8px',
+                }}>
+                  シーケンスの各ステップ
+                </h4>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '20px',
+                  marginBottom: '24px',
+                }}>
+                  {/* ステップ1: タスク受信・解析 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <div style={{
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      1. タスク受信・解析
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      ユーザーからのタスクリクエストを受信し、タスクの要件を解析して理解します。タスクの種類、優先度、必要なリソースを特定します。
+                    </p>
+                  </div>
+
+                  {/* ステップ2: 実行計画作成 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <div style={{
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      2. 実行計画作成
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      タスクの要件に基づいて、最適な実行計画を作成します。実行順序、必要なリソース、予想される実行時間を計画します。
+                    </p>
+                  </div>
+
+                  {/* ステップ3: タスク実行 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <div style={{
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      3. タスク実行
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      実行エンジンが計画に従ってタスクを実行します。実行中は進捗状況を監視し、必要に応じて調整を行います。
+                    </p>
+                  </div>
+
+                  {/* ステップ4: 結果検証 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <div style={{
+                      fontSize: '24px',
+                      fontWeight: 700,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      4. 結果検証
+                    </div>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      実行結果を検証モジュールで検証し、期待される結果と一致するか確認します。問題があれば再実行や修正を行います。
+                    </p>
+                  </div>
+                </div>
+
+                {/* 完了報告の説明 */}
+                <div style={{
+                  marginTop: '24px',
+                  padding: '20px',
+                  backgroundColor: '#f0f9ff',
+                  borderRadius: '8px',
+                  borderLeft: '4px solid var(--color-primary)',
+                }}>
+                  <h4 style={{
+                    fontSize: '16px',
+                    fontWeight: 600,
+                    color: 'var(--color-text)',
+                    marginBottom: '12px',
+                  }}>
+                    5. 完了報告と通知
+                  </h4>
+                  <p style={{
+                    fontSize: '14px',
+                    color: 'var(--color-text)',
+                    lineHeight: '1.8',
+                    margin: 0,
+                  }}>
+                    検証が完了したら、エージェントは結果を評価・処理し、システムを通じてユーザーにタスク完了を通知します。実行結果の詳細やログも提供され、透明性と追跡可能性が確保されます。
+                  </p>
+                </div>
+              </div>
+
+              {/* シーケンスの利点 */}
+              <div style={{
+                marginTop: '32px',
+                padding: '24px',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                borderLeft: '4px solid var(--color-primary)',
+              }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--color-text)',
+                  marginBottom: '12px',
+                }}>
+                  シーケンス設計の利点
+                </h4>
+                <ul style={{
+                  fontSize: '14px',
+                  color: 'var(--color-text)',
+                  lineHeight: '1.8',
+                  margin: 0,
+                  paddingLeft: '20px',
+                }}>
+                  <li style={{ marginBottom: '8px' }}>
+                    <strong>明確な責任分離:</strong> 各コンポーネントが明確な役割を持ち、システム全体の保守性が向上します
+                  </li>
+                  <li style={{ marginBottom: '8px' }}>
+                    <strong>エラーハンドリング:</strong> 各ステップで検証を行うことで、早期に問題を発見し、適切に対処できます
+                  </li>
+                  <li style={{ marginBottom: '8px' }}>
+                    <strong>スケーラビリティ:</strong> モジュール化された設計により、個別のコンポーネントを拡張・最適化できます
+                  </li>
+                  <li>
+                    <strong>トレーサビリティ:</strong> 各ステップのログを記録することで、実行プロセスの完全な追跡が可能です
+                  </li>
+                </ul>
+              </div>
+            </div>
+
+            {/* コンテナ8: タスク実行型エージェントの環境構築アーキテクチャ */}
+            <div 
+              data-page-container="8"
+              style={{
+                marginBottom: '24px',
+                position: 'relative',
+                ...(showContainers ? {
+                  border: '4px dashed #000000',
+                  boxShadow: '0 0 0 1px rgba(0, 0, 0, 0.1)',
+                  borderRadius: '8px',
+                  padding: '16px',
+                  pageBreakInside: 'avoid',
+                  breakInside: 'avoid',
+                  backgroundColor: 'transparent',
+                } : {}),
+              }}
+            >
+              <div style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <h3 
+                  data-pdf-title-h3="true"
+                  style={{
+                    fontSize: '16px', 
+                    fontWeight: 600, 
+                    color: 'var(--color-text)',
+                    borderLeft: '3px solid var(--color-primary)',
+                    paddingLeft: '8px',
+                    margin: 0,
+                    flex: 1,
+                  }}>
+                  タスク実行型エージェントの環境構築アーキテクチャ
+                </h3>
+                <span 
+                  className="container-page-number"
+                  style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: 'var(--color-text-light)',
+                    marginLeft: '16px',
+                  }}>
+                  8
+                </span>
+              </div>
+              
+              <div className="key-message-container" style={{ marginBottom: '24px' }}>
+                <h2 className="key-message-title">
+                  スケーラブルで信頼性の高いエンタープライズ環境構築
+                </h2>
+                <p className="key-message-subtitle" style={{ marginBottom: '20px' }}>
+                  タスク実行型エージェントを実装するための包括的なアーキテクチャ設計。クラウドネイティブな設計により、高い可用性、スケーラビリティ、セキュリティを実現します
+                </p>
+                <p className="body-text-emphasis">
+                  このアーキテクチャは、マイクロサービス、コンテナオーケストレーション、イベント駆動アーキテクチャのベストプラクティスを組み合わせて設計されています。
+                </p>
+                <p className="body-text-small">
+                  各レイヤーは独立してスケール可能で、障害に強く、モニタリングとロギングにより完全な可観測性を提供します。
+                </p>
+              </div>
+
+              {/* アーキテクチャ図 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <MermaidContent content={taskExecutionArchitectureContent} />
+              </div>
+
+              {/* アーキテクチャレイヤーの説明 */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--color-text)',
+                  marginBottom: '20px',
+                  borderLeft: '3px solid var(--color-primary)',
+                  paddingLeft: '8px',
+                }}>
+                  アーキテクチャレイヤーの詳細
+                </h4>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '20px',
+                  marginBottom: '24px',
+                }}>
+                  {/* クライアント層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      クライアント層
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      Webアプリケーション、モバイルアプリ、REST API/GraphQLエンドポイントから構成されます。マルチプラットフォーム対応により、様々なデバイスからアクセス可能です。
+                    </p>
+                  </div>
+
+                  {/* API Gateway層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      API Gateway層
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      認証・認可、ルーティング、レート制限、SSL終端を担当します。単一のエントリーポイントとして、セキュリティとパフォーマンスを最適化します。
+                    </p>
+                  </div>
+
+                  {/* アプリケーション層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      アプリケーション層
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      エージェントコア、タスクキュー、実行エンジン、検証モジュールで構成されるコア機能と、オーケストレーター・スケジューラーによるワークフロー管理を提供します。
+                    </p>
+                  </div>
+
+                  {/* データ層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      データ層
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      PostgreSQL（メタデータ）、Redis（キャッシュ）、MongoDB（ログ）、Object Storage（ファイル）により、用途に応じた最適なデータストレージを提供します。
+                    </p>
+                  </div>
+
+                  {/* AI/ML層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      AI/ML層
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      LLMサービス、埋め込みサービス、ドメイン特化モデルレジストリにより、高度なAI機能を提供します。Articul8のドメイン特化モデルを活用します。
+                    </p>
+                  </div>
+
+                  {/* モニタリング・ロギング */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#f9fafb',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      モニタリング・ロギング
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      Prometheus、Grafana、ELK Stackにより、メトリクス収集、可視化、ログ分析を実現します。アラートマネージャーで異常を早期検知します。
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* セキュリティとインフラ */}
+              <div style={{ marginTop: '32px', marginBottom: '32px' }}>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '20px',
+                  marginBottom: '24px',
+                }}>
+                  {/* セキュリティ層 */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#fff3e0',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      セキュリティ層
+                    </h5>
+                    <ul style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                      paddingLeft: '20px',
+                    }}>
+                      <li>OAuth2/JWTによる認証・認可</li>
+                      <li>HashiCorp Vaultによるシークレット管理</li>
+                      <li>WAFによるDDoS保護とセキュリティフィルタリング</li>
+                      <li>エンドツーエンドの暗号化</li>
+                    </ul>
+                  </div>
+
+                  {/* インフラストラクチャ */}
+                  <div style={{
+                    padding: '20px',
+                    backgroundColor: '#e0f2f1',
+                    borderRadius: '8px',
+                    border: '1px solid var(--color-border-color)',
+                  }}>
+                    <h5 style={{
+                      fontSize: '16px',
+                      fontWeight: 600,
+                      color: 'var(--color-primary)',
+                      marginBottom: '8px',
+                    }}>
+                      インフラストラクチャ
+                    </h5>
+                    <ul style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                      paddingLeft: '20px',
+                    }}>
+                      <li>Kubernetesによるコンテナオーケストレーション</li>
+                      <li>マルチクラウド対応（AWS/Azure/GCP）</li>
+                      <li>CDNによるグローバルコンテンツ配信</li>
+                      <li>自動スケーリングと自己修復機能</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              {/* アーキテクチャの利点 */}
+              <div style={{
+                marginTop: '32px',
+                padding: '24px',
+                backgroundColor: '#f0f9ff',
+                borderRadius: '8px',
+                borderLeft: '4px solid var(--color-primary)',
+              }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: 'var(--color-text)',
+                  marginBottom: '12px',
+                }}>
+                  アーキテクチャ設計の利点
+                </h4>
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(2, 1fr)',
+                  gap: '20px',
+                }}>
+                  <div>
+                    <h5 style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      スケーラビリティ
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      各コンポーネントが独立してスケール可能。需要に応じて自動的にリソースを調整し、コスト効率を最適化します。
+                    </p>
+                  </div>
+                  <div>
+                    <h5 style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      可用性と信頼性
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      冗長性とフェイルオーバー機能により、99.9%以上の可用性を実現。障害発生時も自動的に復旧します。
+                    </p>
+                  </div>
+                  <div>
+                    <h5 style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      セキュリティ
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      多層防御アプローチにより、認証、認可、暗号化、監査ログを包括的に実装。SOC 2 Type II準拠をサポートします。
+                    </p>
+                  </div>
+                  <div>
+                    <h5 style={{
+                      fontSize: '14px',
+                      fontWeight: 600,
+                      color: 'var(--color-text)',
+                      marginBottom: '8px',
+                    }}>
+                      可観測性
+                    </h5>
+                    <p style={{
+                      fontSize: '14px',
+                      color: 'var(--color-text)',
+                      lineHeight: '1.8',
+                      margin: 0,
+                    }}>
+                      メトリクス、ログ、トレースにより、システム全体の動作を可視化。問題の早期発見と迅速な対応を可能にします。
+                    </p>
+                  </div>
                 </div>
               </div>
             </div>

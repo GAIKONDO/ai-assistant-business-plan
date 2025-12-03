@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { collection, doc, addDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
+import { PageMetadata } from '@/types/pageMetadata';
 
 export interface KeyVisualPDFMetadata {
   title: string;
@@ -37,7 +38,7 @@ export interface BusinessPlanData {
   titleFontSize?: number; // PDFタイトルのフォントサイズ（px）
   titleBorderEnabled?: boolean; // PDFタイトルのボーダー（縦棒）の有無
   footerText?: string; // PDFフッターテキスト
-  pagesBySubMenu?: { [subMenuId: string]: Array<any> }; // サブメニューごとのページ
+  pagesBySubMenu?: { [subMenuId: string]: Array<PageMetadata> }; // サブメニューごとのページ（メタデータ付き）
   pageOrderBySubMenu?: { [subMenuId: string]: string[] }; // サブメニューごとのページ順序
   isFavorite?: boolean; // お気に入り
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { createContext, useContext } from 'react';
+import { PageMetadata } from '@/types/pageMetadata';
 
 export interface ConceptData {
   id: string;
@@ -21,7 +22,7 @@ export interface ConceptData {
     signatureFontSize?: number;
     dateFontSize?: number;
   };
-  pagesBySubMenu?: { [subMenuId: string]: Array<any> };
+  pagesBySubMenu?: { [subMenuId: string]: Array<PageMetadata> }; // メタデータ付きページ
   pageOrderBySubMenu?: { [subMenuId: string]: string[] };
 }
 

@@ -7,6 +7,10 @@ import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
 import { pageConfigs, PageConfig } from './pageConfig';
 import DynamicPage from './DynamicPage';
+import { generatePageMetadata } from '@/lib/pageMetadataUtils';
+import { PageMetadata } from '@/types/pageMetadata';
+import { updateDoc, serverTimestamp } from 'firebase/firestore';
+import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
 import { SUB_MENU_ITEMS } from '@/components/ConceptSubMenu';
 
 interface ComponentizedCompanyPlanPageContextType {
@@ -107,12 +111,7 @@ export function ComponentizedCompanyPlanPageProvider({ children }: Componentized
           const data = planDoc.data();
             
             // サブメニューごとのページデータを取得
-            const pagesBySubMenu = data.pagesBySubMenu as { [key: string]: Array<{
-              id: string;
-              pageNumber: number;
-              title: string;
-              content: string;
-            }> } | undefined;
+            let pagesBySubMenu = data.pagesBySubMenu as { [key: string]: Array<PageMetadata> } | undefined;
             
             const pageOrderBySubMenu = data.pageOrderBySubMenu as { [key: string]: string[] } | undefined;
             
@@ -123,8 +122,55 @@ export function ComponentizedCompanyPlanPageProvider({ children }: Componentized
             console.log('ComponentizedCompanyPlanPageContext - pageOrderBySubMenu:', pageOrderBySubMenu);
             
             // 現在のサブメニューのページデータを取得
-            const currentSubMenuPages = pagesBySubMenu?.[subMenuId] || [];
+            let currentSubMenuPages = (pagesBySubMenu?.[subMenuId] || []) as PageMetadata[];
             const currentSubMenuPageOrder = pageOrderBySubMenu?.[subMenuId];
+            
+            // 既存のページにメタデータがない場合は自動生成して保存
+            if (currentSubMenuPages && currentSubMenuPages.length > 0) {
+              const totalPages = Object.values(pagesBySubMenu || {}).reduce((sum, pages) => sum + pages.length, 0);
+              let needsUpdate = false;
+              const updatedPages = currentSubMenuPages.map((page) => {
+                // メタデータがない場合は生成
+                if (!page.tags && !page.contentType && !page.semanticCategory) {
+                  needsUpdate = true;
+                  return generatePageMetadata({
+                    id: page.id,
+                    pageNumber: page.pageNumber,
+                    title: page.title,
+                    content: page.content,
+                    createdAt: page.createdAt || new Date().toISOString(),
+                  }, subMenuId, totalPages);
+                }
+                return page;
+              });
+              
+              // メタデータを更新する必要がある場合はFirestoreに保存
+              if (needsUpdate && db && planDoc) {
+                try {
+                  const updatedPagesBySubMenu = {
+                    ...pagesBySubMenu,
+                    [subMenuId]: updatedPages,
+                  };
+                  
+                  await updateDoc(planDoc.ref, {
+                    pagesBySubMenu: updatedPagesBySubMenu,
+                    updatedAt: serverTimestamp(),
+                  });
+                  console.log('✅ 既存ページにメタデータを自動付与しました（会社計画）:', updatedPages.length, 'ページ');
+                  
+                  // ベクトル埋め込みも非同期で生成
+                  for (const page of updatedPages) {
+                    savePageEmbeddingAsync(page.id, page.title, page.content, planId);
+                  }
+                  
+                  // 更新後のデータを使用
+                  currentSubMenuPages = updatedPages;
+                  pagesBySubMenu = updatedPagesBySubMenu;
+                } catch (error) {
+                  console.error('メタデータ自動付与エラー（会社計画）:', error);
+                }
+              }
+            }
             
             console.log('ComponentizedCompanyPlanPageContext - currentSubMenuPages:', currentSubMenuPages);
             console.log('ComponentizedCompanyPlanPageContext - currentSubMenuPageOrder:', currentSubMenuPageOrder);
@@ -134,6 +180,7 @@ export function ComponentizedCompanyPlanPageProvider({ children }: Componentized
               id: page.id,
               pageNumber: page.pageNumber,
               title: page.title,
+              content: page.content, // プレビュー用にcontentを追加
               component: () => (
                 <DynamicPage
                   pageId={page.id}

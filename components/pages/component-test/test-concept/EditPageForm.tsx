@@ -5,6 +5,10 @@ import { collection, query, where, getDocs, getDoc, doc, updateDoc, setDoc, serv
 import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import { db, auth, storage } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
+import { generatePageMetadata } from '@/lib/pageMetadataUtils';
+import { PageMetadata } from '@/types/pageMetadata';
+import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
+import { savePageStructureAsync } from '@/lib/pageStructure';
 
 // Monaco Editorを動的インポート（SSRを回避）
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { 
@@ -227,7 +231,7 @@ export default function EditPageForm({
         }
 
         const planData = planDoc.data();
-        const pagesBySubMenu = planData.pagesBySubMenu || {};
+        const pagesBySubMenu = (planData.pagesBySubMenu || {}) as { [key: string]: Array<PageMetadata> };
         const pageOrderBySubMenu = planData.pageOrderBySubMenu || {};
         
         // 現在のサブメニューのページデータを取得
@@ -274,12 +278,56 @@ export default function EditPageForm({
           formattedContent = keyMessageHTML + '\n' + tempDiv.innerHTML.trim();
         }
         
-        // ページを更新
-        const updatedPages = currentSubMenuPages.map((page: any) => 
-          page.id === pageId 
-            ? { ...page, title: title.trim(), content: formattedContent || '<p>コンテンツを入力してください。</p>' }
-            : page
-        );
+        // ページを更新（メタデータも再生成）
+        const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0);
+        const updatedPages = currentSubMenuPages.map((page: PageMetadata) => {
+          if (page.id === pageId) {
+            const basePage = {
+              ...page,
+              title: title.trim(),
+              content: formattedContent || '<p>コンテンツを入力してください。</p>',
+              updatedAt: new Date().toISOString(),
+            };
+            // メタデータを再生成
+            const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
+            
+            // メタデータをコンソールに出力（デバッグ用）
+            console.log('✏️ ページ更新（会社計画） - 再生成されたメタデータ:', {
+              pageId: updatedPage.id,
+              title: updatedPage.title,
+              metadata: {
+                tags: updatedPage.tags,
+                contentType: updatedPage.contentType,
+                semanticCategory: updatedPage.semanticCategory,
+                keywords: updatedPage.keywords,
+                sectionType: updatedPage.sectionType,
+                importance: updatedPage.importance,
+              }
+            });
+            
+            // ベクトル埋め込みを非同期で再生成・保存
+            savePageEmbeddingAsync(updatedPage.id, updatedPage.title, updatedPage.content, planId);
+            
+            // 構造データを非同期で再生成・保存
+            const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+              id: p.id,
+              pageNumber: p.pageNumber,
+              subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+            }));
+            savePageStructureAsync(
+              updatedPage.id,
+              updatedPage.content,
+              updatedPage.title,
+              allPages,
+              subMenuId,
+              updatedPage.semanticCategory,
+              updatedPage.keywords
+            );
+            
+            return updatedPage;
+          }
+          return page;
+        });
         
         // 更新データを準備
         const updatedPagesBySubMenu = {
@@ -331,38 +379,23 @@ export default function EditPageForm({
       const conceptData = conceptDoc.data();
       
       // サブメニューごとのページデータを取得
-      const pagesBySubMenu = (conceptData.pagesBySubMenu as { [key: string]: Array<{
-        id: string;
-        pageNumber: number;
-        title: string;
-        content: string;
-      }> }) || {};
+      const pagesBySubMenu = (conceptData.pagesBySubMenu as { [key: string]: Array<PageMetadata> }) || {};
       
       // 現在のサブメニューのページデータを取得
       const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
       
       // overviewの場合は後方互換性のために古い形式もチェック
-      let pages: Array<{
-        id: string;
-        pageNumber: number;
-        title: string;
-        content: string;
-      }>;
+      let pages: Array<PageMetadata>;
       
       if (subMenuId === 'overview') {
-        const oldPages = (conceptData.pages as Array<{
-          id: string;
-          pageNumber: number;
-          title: string;
-          content: string;
-        }>) || [];
+        const oldPages = (conceptData.pages as Array<PageMetadata>) || [];
         pages = currentSubMenuPages.length > 0 ? currentSubMenuPages : oldPages;
       } else {
         pages = currentSubMenuPages;
       }
 
       // 編集対象のページを検索
-      const pageIndex = pages.findIndex((page: any) => page.id === pageId);
+      const pageIndex = pages.findIndex((page: PageMetadata) => page.id === pageId);
       if (pageIndex === -1) {
         alert('ページが見つかりません');
         return;
@@ -409,13 +442,52 @@ export default function EditPageForm({
         formattedContent = keyMessageHTML + '\n' + tempDiv.innerHTML.trim();
       }
       
-      // ページのコンテンツを更新
+      // ページのコンテンツを更新（メタデータも再生成）
+      const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0);
       const updatedPages = [...pages];
-      updatedPages[pageIndex] = {
+      const basePage = {
         ...updatedPages[pageIndex],
         title: title.trim(),
         content: formattedContent || '<p>コンテンツを入力してください。</p>',
+        updatedAt: new Date().toISOString(),
       };
+      // メタデータを再生成
+      const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
+      
+      // メタデータをコンソールに出力（デバッグ用）
+      console.log('✏️ ページ更新（構想） - 再生成されたメタデータ:', {
+        pageId: updatedPage.id,
+        title: updatedPage.title,
+        metadata: {
+          tags: updatedPage.tags,
+          contentType: updatedPage.contentType,
+          semanticCategory: updatedPage.semanticCategory,
+          keywords: updatedPage.keywords,
+          sectionType: updatedPage.sectionType,
+          importance: updatedPage.importance,
+        }
+      });
+      
+      // ベクトル埋め込みを非同期で再生成・保存
+      savePageEmbeddingAsync(updatedPage.id, updatedPage.title, updatedPage.content, undefined, conceptId);
+      
+      // 構造データを非同期で再生成・保存
+      const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
+        id: p.id,
+        pageNumber: p.pageNumber,
+        subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
+      }));
+      savePageStructureAsync(
+        updatedPage.id,
+        updatedPage.content,
+        updatedPage.title,
+        allPages,
+        subMenuId,
+        updatedPage.semanticCategory,
+        updatedPage.keywords
+      );
+      
+      updatedPages[pageIndex] = updatedPage;
 
       // 更新データを準備
       const updatedPagesBySubMenu = {
