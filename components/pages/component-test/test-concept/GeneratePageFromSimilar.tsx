@@ -433,7 +433,7 @@ export default function GeneratePageFromSimilar({
         const promptConfig: CursorPromptConfig = {
           theme: query,
           evidenceText: evidenceText || undefined,
-          templateId: useTemplate ? selectedTemplateId : undefined,
+          templateId: useTemplate ? (selectedTemplateId || undefined) : undefined,
           subMenuId,
           serviceId,
           conceptId,
