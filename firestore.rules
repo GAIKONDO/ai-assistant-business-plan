@@ -104,8 +104,10 @@ service cloud.firestore {
     match /pageTemplates/{templateId} {
       // 読み取り: 認証済みユーザー（自分のテンプレートのみ）
       allow read: if isAuthenticated() && resource.data.userId == request.auth.uid;
-      // 作成: 認証済みユーザー（自分のテンプレートのみ）
-      allow create: if isAuthenticated() && request.resource.data.userId == request.auth.uid;
+      // 作成: 認証済みユーザー（userIdが正しく設定されている場合）
+      allow create: if isAuthenticated() && 
+        request.resource.data.userId != null && 
+        request.resource.data.userId == request.auth.uid;
       // 更新: 認証済みユーザー（自分のテンプレートのみ）
       allow update: if isAuthenticated() && resource.data.userId == request.auth.uid;
       // 削除: 認証済みユーザー（自分のテンプレートのみ）

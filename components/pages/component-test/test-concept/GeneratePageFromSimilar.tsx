@@ -91,8 +91,8 @@ export default function GeneratePageFromSimilar({
   // 詳細テキスト（基本設定で直接入力）
   const [detailText, setDetailText] = useState('');
   
-  // AIモデル選択（デフォルト: gpt-5-mini）
-  const [selectedModel, setSelectedModel] = useState('gpt-5-mini');
+  // AIモデル選択（デフォルト: gpt-4.1-mini）
+  const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini');
   
   // 利用可能なAIモデルリスト
   const availableModels = [

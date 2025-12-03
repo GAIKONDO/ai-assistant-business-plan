@@ -19,6 +19,32 @@ import { PageMetadata } from '@/types/pageMetadata';
 import { getPageStructure } from './pageStructure';
 
 /**
+ * undefinedフィールドを削除するユーティリティ関数
+ */
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): Partial<T> {
+  const cleaned: Partial<T> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined && obj[key] !== null) {
+      if (Array.isArray(obj[key])) {
+        // 配列が空でない場合のみ含める
+        if (obj[key].length > 0) {
+          cleaned[key] = obj[key];
+        }
+      } else if (typeof obj[key] === 'object') {
+        // オブジェクトの場合、再帰的に処理
+        const cleanedObj = removeUndefinedFields(obj[key]);
+        if (Object.keys(cleanedObj).length > 0) {
+          cleaned[key] = cleanedObj as T[Extract<keyof T, string>];
+        }
+      } else {
+        cleaned[key] = obj[key];
+      }
+    }
+  }
+  return cleaned;
+}
+
+/**
  * ページテンプレートの型定義
  */
 export interface PageTemplate {
@@ -55,6 +81,9 @@ export async function savePageTemplate(
     throw new Error('Firebaseが初期化されていません');
   }
 
+  const userId = auth.currentUser.uid;
+  console.log('現在のユーザーID:', userId);
+
   try {
     // ページデータを取得
     let pageData: PageMetadata | null = null;
@@ -79,13 +108,24 @@ export async function savePageTemplate(
       }
     } else if (conceptId) {
       // 構想の場合
-      const conceptsQuery = query(
-        collection(db, 'concepts'),
-        where('conceptId', '==', conceptId)
-      );
-      const conceptsSnapshot = await getDocs(conceptsQuery);
-      if (!conceptsSnapshot.empty) {
-        const conceptData = conceptsSnapshot.docs[0].data();
+      // まず、conceptIdをドキュメントIDとして試す
+      let conceptDoc = await getDoc(doc(db, 'concepts', conceptId));
+      
+      // ドキュメントIDで見つからない場合、conceptIdフィールドで検索
+      if (!conceptDoc.exists()) {
+        const conceptsQuery = query(
+          collection(db, 'concepts'),
+          where('conceptId', '==', conceptId),
+          where('userId', '==', userId) // セキュリティルールを満たすためにuserIdも追加
+        );
+        const conceptsSnapshot = await getDocs(conceptsQuery);
+        if (!conceptsSnapshot.empty) {
+          conceptDoc = conceptsSnapshot.docs[0];
+        }
+      }
+      
+      if (conceptDoc.exists()) {
+        const conceptData = conceptDoc.data();
         const pagesBySubMenu = (conceptData.pagesBySubMenu || {}) as { [key: string]: Array<PageMetadata> };
         
         // すべてのサブメニューからページを検索
@@ -124,26 +164,55 @@ export async function savePageTemplate(
       pageTitle: pageData.title,
       pageContent: pageData.content,
       subMenuId,
-      userId: auth.currentUser.uid,
+      userId: userId, // 変数として保持
+    };
+
+    // Firestoreに保存するデータを構築（userIdは確実に含める）
+    const finalData: any = {
+      id: templateId,
+      name: name.trim(),
+      description: description.trim() || '',
+      pageId,
+      pageTitle: pageData.title,
+      pageContent: pageData.content,
+      subMenuId,
+      userId: userId, // 確実にuserIdを設定
+      createdAt: serverTimestamp(),
+      updatedAt: serverTimestamp(),
     };
 
     // オプショナルフィールドを追加（undefinedでない場合のみ）
     if (planId) {
-      templateData.planId = planId;
+      finalData.planId = planId;
     }
     if (conceptId) {
-      templateData.conceptId = conceptId;
+      finalData.conceptId = conceptId;
     }
     if (structure) {
-      templateData.structure = structure;
+      // structure内のundefinedフィールドを削除
+      finalData.structure = removeUndefinedFields(structure);
     }
 
-    // Firestoreに保存
-    await setDoc(doc(db, 'pageTemplates', templateId), {
-      ...templateData,
-      createdAt: serverTimestamp(),
-      updatedAt: serverTimestamp(),
-    });
+    // データを確認
+    const dataToLog = { ...finalData };
+    delete dataToLog.createdAt;
+    delete dataToLog.updatedAt;
+    console.log('保存するテンプレートデータ:', JSON.stringify(dataToLog, null, 2));
+    console.log('finalData.userId:', finalData.userId);
+    console.log('finalData.userId === userId:', finalData.userId === userId);
+    console.log('finalData.userId === auth.currentUser.uid:', finalData.userId === auth.currentUser?.uid);
+    console.log('auth.currentUser:', auth.currentUser);
+    console.log('Firestoreに保存を試みます...');
+
+    try {
+      await setDoc(doc(db, 'pageTemplates', templateId), finalData);
+      console.log('✅ Firestoreへの保存が成功しました');
+    } catch (setDocError: any) {
+      console.error('❌ setDocエラー詳細:', setDocError);
+      console.error('エラーコード:', setDocError.code);
+      console.error('エラーメッセージ:', setDocError.message);
+      throw setDocError;
+    }
 
     console.log('✅ テンプレートを保存しました:', templateId);
     return templateId;
@@ -165,17 +234,11 @@ export async function getUserTemplates(
   }
 
   try {
-    let q = query(
+    // ユーザーが登録したすべてのテンプレートを取得（planIdやconceptIdでのフィルタリングは行わない）
+    const q = query(
       collection(db, 'pageTemplates'),
       where('userId', '==', auth.currentUser.uid)
     );
-
-    // フィルタを追加
-    if (planId) {
-      q = query(q, where('planId', '==', planId));
-    } else if (conceptId) {
-      q = query(q, where('conceptId', '==', conceptId));
-    }
 
     const snapshot = await getDocs(q);
     const templates: PageTemplate[] = [];
