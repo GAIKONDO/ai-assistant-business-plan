@@ -6,7 +6,7 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
-import { generatePageFromSimilar, generatePageFromTemplate } from '@/lib/pageGeneration';
+import { generatePageFromSimilar, generatePageFromTemplate, getAvailableOllamaModels, generateCursorPrompt, CursorPromptConfig } from '@/lib/pageGeneration';
 import { getUserTemplates, PageTemplate } from '@/lib/pageTemplates';
 import PageTemplateManager from './PageTemplateManager';
 import TemplateSelector from './TemplateSelector';
@@ -91,11 +91,18 @@ export default function GeneratePageFromSimilar({
   // 詳細テキスト（基本設定で直接入力）
   const [detailText, setDetailText] = useState('');
   
+  // モデルタイプ選択（GPT/ローカル/Cursor）
+  const [modelType, setModelType] = useState<'gpt' | 'local' | 'cursor'>('gpt');
+  
+  // Cursor用プロンプト
+  const [cursorPrompt, setCursorPrompt] = useState<string>('');
+  const [showCursorPrompt, setShowCursorPrompt] = useState(false);
+  
   // AIモデル選択（デフォルト: gpt-4.1-mini）
   const [selectedModel, setSelectedModel] = useState('gpt-4.1-mini');
   
-  // 利用可能なAIモデルリスト
-  const availableModels = [
+  // GPTモデルリスト
+  const gptModels = [
     { value: 'gpt-5.1', label: 'gpt-5.1', inputPrice: '$1.25', outputPrice: '$10.00' },
     { value: 'gpt-5', label: 'gpt-5', inputPrice: '$1.25', outputPrice: '$10.00' },
     { value: 'gpt-5-mini', label: 'gpt-5-mini', inputPrice: '$0.25', outputPrice: '$2.00' },
@@ -110,6 +117,84 @@ export default function GeneratePageFromSimilar({
     { value: 'gpt-4.1-nano', label: 'gpt-4.1-nano', inputPrice: '$0.10', outputPrice: '$0.40' },
     { value: 'gpt-4o', label: 'gpt-4o', inputPrice: '$2.50', outputPrice: '$10.00' },
   ];
+  
+  // ローカルモデルリスト（Ollamaから動的に取得）
+  const [localModels, setLocalModels] = useState<Array<{ value: string; label: string; inputPrice: string; outputPrice: string }>>([]);
+  const [loadingLocalModels, setLoadingLocalModels] = useState(false);
+  
+  // 現在選択されているモデルリスト
+  const availableModels = modelType === 'gpt' ? gptModels : localModels;
+  
+  // モデルタイプが変更されたら、デフォルトモデルを設定
+  useEffect(() => {
+    if (modelType === 'gpt') {
+      setSelectedModel('gpt-4.1-mini');
+    } else if (modelType === 'local') {
+      // ローカルモデルが読み込まれたら最初のモデルを選択
+      if (localModels.length > 0) {
+        setSelectedModel(localModels[0].value);
+      }
+    }
+    // Cursorモードの場合はモデル選択は不要
+  }, [modelType, localModels]);
+  
+  // ローカルモデルタイプが選択されたときに、Ollamaから利用可能なモデルを取得
+  useEffect(() => {
+    if (modelType === 'local') {
+      loadAvailableLocalModels();
+    }
+  }, [modelType]);
+  
+  // Ollamaから利用可能なモデル一覧を取得
+  const loadAvailableLocalModels = async () => {
+    setLoadingLocalModels(true);
+    try {
+      const models = await getAvailableOllamaModels();
+      if (models.length > 0) {
+        const formattedModels = models.map(model => {
+          // モデル名をフォーマット（例: "qwen2.5:7b" -> "Qwen 2.5 7B"）
+          let label = model.name;
+          if (model.name.includes(':')) {
+            const [name, tag] = model.name.split(':');
+            // 名前の最初の文字を大文字に
+            const formattedName = name.charAt(0).toUpperCase() + name.slice(1);
+            // 数字の前にスペースを追加（例: "qwen2.5" -> "Qwen 2.5"）
+            const spacedName = formattedName.replace(/([a-z])(\d)/g, '$1 $2');
+            if (tag === 'latest') {
+              label = `${spacedName} (Latest)`;
+            } else {
+              // タグを大文字に（例: "7b" -> "7B"）
+              const formattedTag = tag.replace(/(\d)([a-z])/g, (match, num, letter) => `${num}${letter.toUpperCase()}`);
+              label = `${spacedName} ${formattedTag}`;
+            }
+          } else {
+            // コロンがない場合は最初の文字を大文字に
+            label = model.name.charAt(0).toUpperCase() + model.name.slice(1);
+          }
+          
+          return {
+            value: model.name,
+            label: label,
+            inputPrice: '無料',
+            outputPrice: '無料',
+          };
+        });
+        setLocalModels(formattedModels);
+        // 最初のモデルを選択
+        if (formattedModels.length > 0) {
+          setSelectedModel(formattedModels[0].value);
+        }
+      } else {
+        // モデルが見つからない場合は空配列を設定
+        setLocalModels([]);
+      }
+    } catch (error) {
+      console.error('ローカルモデルの取得エラー:', error);
+      setLocalModels([]);
+    } finally {
+      setLoadingLocalModels(false);
+    }
+  };
 
   // テンプレート一覧を読み込む
   useEffect(() => {
@@ -337,6 +422,32 @@ export default function GeneratePageFromSimilar({
     setReferencePages([]);
 
     try {
+      // Cursorモードの場合はプロンプトを生成して表示
+      if (modelType === 'cursor') {
+        const evidenceText = await formatEvidenceForGPT();
+        
+        // 既存ページの情報を取得（参考用）
+        const existingPages: Array<{ title: string; content: string }> = [];
+        // TODO: 既存ページの情報を取得して追加
+        
+        const promptConfig: CursorPromptConfig = {
+          theme: query,
+          evidenceText: evidenceText || undefined,
+          templateId: useTemplate ? selectedTemplateId : undefined,
+          subMenuId,
+          serviceId,
+          conceptId,
+          planId,
+          existingPages,
+        };
+        
+        const prompt = generateCursorPrompt(promptConfig);
+        setCursorPrompt(prompt);
+        setShowCursorPrompt(true);
+        setGenerating(false);
+        return;
+      }
+      
       // エビデンスをフォーマット（テーマとは分離）
       const evidenceText = await formatEvidenceForGPT();
       
@@ -609,7 +720,126 @@ export default function GeneratePageFromSimilar({
                 />
               </div>
               
-              {/* AIモデル選択 */}
+              {/* モデルタイプ選択 */}
+              <div style={{ marginTop: '20px' }}>
+                <label style={{ 
+                  display: 'block', 
+                  marginBottom: '8px', 
+                  fontSize: '14px', 
+                  fontWeight: 600,
+                  color: '#374151',
+                }}>
+                  🔧 モデルタイプ
+                </label>
+                <div style={{ 
+                  display: 'flex', 
+                  gap: '12px',
+                  marginBottom: '16px',
+                  flexWrap: 'wrap',
+                }}>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    border: `2px solid ${modelType === 'gpt' ? '#0066CC' : '#E5E7EB'}`,
+                    borderRadius: '8px',
+                    backgroundColor: modelType === 'gpt' ? '#E6F2FF' : '#fff',
+                    cursor: generating ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    flex: 1,
+                    minWidth: '120px',
+                  }}>
+                    <input
+                      type="radio"
+                      name="modelType"
+                      value="gpt"
+                      checked={modelType === 'gpt'}
+                      onChange={(e) => setModelType(e.target.value as 'gpt' | 'local' | 'cursor')}
+                      disabled={generating}
+                      style={{ cursor: generating ? 'not-allowed' : 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>GPT（クラウド）</span>
+                  </label>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    border: `2px solid ${modelType === 'local' ? '#0066CC' : '#E5E7EB'}`,
+                    borderRadius: '8px',
+                    backgroundColor: modelType === 'local' ? '#E6F2FF' : '#fff',
+                    cursor: generating ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    flex: 1,
+                    minWidth: '120px',
+                  }}>
+                    <input
+                      type="radio"
+                      name="modelType"
+                      value="local"
+                      checked={modelType === 'local'}
+                      onChange={(e) => setModelType(e.target.value as 'gpt' | 'local' | 'cursor')}
+                      disabled={generating}
+                      style={{ cursor: generating ? 'not-allowed' : 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>ローカル（Ollama）</span>
+                  </label>
+                  <label style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    padding: '10px 16px',
+                    border: `2px solid ${modelType === 'cursor' ? '#0066CC' : '#E5E7EB'}`,
+                    borderRadius: '8px',
+                    backgroundColor: modelType === 'cursor' ? '#E6F2FF' : '#fff',
+                    cursor: generating ? 'not-allowed' : 'pointer',
+                    transition: 'all 0.2s',
+                    flex: 1,
+                    minWidth: '120px',
+                  }}>
+                    <input
+                      type="radio"
+                      name="modelType"
+                      value="cursor"
+                      checked={modelType === 'cursor'}
+                      onChange={(e) => setModelType(e.target.value as 'gpt' | 'local' | 'cursor')}
+                      disabled={generating}
+                      style={{ cursor: generating ? 'not-allowed' : 'pointer' }}
+                    />
+                    <span style={{ fontSize: '14px', fontWeight: 500 }}>Cursor（AIアシスタント）</span>
+                  </label>
+                </div>
+                {modelType === 'local' && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#FFF4E6',
+                    border: '1px solid #FFD700',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                  }}>
+                    <p style={{ fontSize: '12px', color: '#856404', margin: 0 }}>
+                      ⚠️ ローカルモデルを使用するには、Ollamaが起動している必要があります（デフォルト: http://localhost:11434）
+                    </p>
+                  </div>
+                )}
+                {modelType === 'cursor' && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#E6F2FF',
+                    border: '1px solid #0066CC',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                  }}>
+                    <p style={{ fontSize: '12px', color: '#003D7A', margin: 0 }}>
+                      💡 Cursorモードでは、既存のコンポーネント構造を理解したプロンプトを生成します。生成されたプロンプトをCursorにコピーして、ページコンポーネントを作成・更新してください。
+                    </p>
+                  </div>
+                )}
+              </div>
+              
+              {/* AIモデル選択（Cursorモードの場合は非表示） */}
+              {modelType !== 'cursor' && (
               <div style={{ marginTop: '20px' }}>
                 <label style={{ 
                   display: 'block', 
@@ -621,36 +851,68 @@ export default function GeneratePageFromSimilar({
                   🤖 使用するAIモデル
                 </label>
                 <p style={{ fontSize: '12px', color: '#6B7280', marginBottom: '12px' }}>
-                  ページ生成に使用するAIモデルを選択できます（価格は100万トークンあたり）
+                  {modelType === 'gpt' 
+                    ? 'ページ生成に使用するAIモデルを選択できます（価格は100万トークンあたり）'
+                    : 'ローカルで実行するAIモデルを選択できます（Ollamaで利用可能なモデル）'}
                 </p>
-                <select
-                  value={selectedModel}
-                  onChange={(e) => setSelectedModel(e.target.value)}
-                  disabled={generating}
-                  style={{
-                    width: '100%',
-                    padding: '12px 16px',
-                    border: '2px solid #E5E7EB',
+                {modelType === 'local' && loadingLocalModels && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#F0F9FF',
+                    border: '1px solid #3B82F6',
                     borderRadius: '8px',
-                    fontSize: '14px',
-                    backgroundColor: '#fff',
-                    color: '#374151',
-                    cursor: generating ? 'not-allowed' : 'pointer',
-                    transition: 'border-color 0.2s',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = '#0066CC';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = '#E5E7EB';
-                  }}
-                >
-                  {availableModels.map((model) => (
-                    <option key={model.value} value={model.value}>
-                      {model.label} (入力: {model.inputPrice} / 出力: {model.outputPrice})
-                    </option>
-                  ))}
-                </select>
+                    marginBottom: '12px',
+                    textAlign: 'center',
+                  }}>
+                    <p style={{ fontSize: '12px', color: '#1E40AF', margin: 0 }}>
+                      🔄 利用可能なモデルを取得中...
+                    </p>
+                  </div>
+                )}
+                {modelType === 'local' && !loadingLocalModels && availableModels.length === 0 && (
+                  <div style={{
+                    padding: '12px',
+                    backgroundColor: '#FEF2F2',
+                    border: '1px solid #EF4444',
+                    borderRadius: '8px',
+                    marginBottom: '12px',
+                  }}>
+                    <p style={{ fontSize: '12px', color: '#991B1B', margin: 0 }}>
+                      ⚠️ 利用可能なローカルモデルが見つかりませんでした。Ollamaが起動しているか確認してください。
+                    </p>
+                  </div>
+                )}
+                {availableModels.length > 0 && (
+                  <select
+                    value={selectedModel}
+                    onChange={(e) => setSelectedModel(e.target.value)}
+                    disabled={generating || loadingLocalModels}
+                    style={{
+                      width: '100%',
+                      padding: '12px 16px',
+                      border: '2px solid #E5E7EB',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      backgroundColor: '#fff',
+                      color: '#374151',
+                      cursor: (generating || loadingLocalModels) ? 'not-allowed' : 'pointer',
+                      transition: 'border-color 0.2s',
+                      opacity: loadingLocalModels ? 0.6 : 1,
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = '#0066CC';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = '#E5E7EB';
+                    }}
+                  >
+                    {availableModels.map((model) => (
+                      <option key={model.value} value={model.value}>
+                        {model.label} (入力: {model.inputPrice} / 出力: {model.outputPrice})
+                      </option>
+                    ))}
+                  </select>
+                )}
                 <div style={{ 
                   marginTop: '8px', 
                   padding: '8px 12px', 
@@ -665,6 +927,38 @@ export default function GeneratePageFromSimilar({
                 {(() => {
                   const selectedModelData = availableModels.find(m => m.value === selectedModel);
                   if (!selectedModelData) return null;
+                  
+                  // ローカルモデルの場合は「無料」と表示
+                  if (modelType === 'local') {
+                    return (
+                      <div style={{ 
+                        marginTop: '12px', 
+                        padding: '12px 16px', 
+                        backgroundColor: '#F0FDF4', 
+                        border: '1px solid #86EFAC',
+                        borderRadius: '8px',
+                        fontSize: '13px',
+                      }}>
+                        <div style={{ 
+                          display: 'flex', 
+                          justifyContent: 'space-between', 
+                          alignItems: 'center',
+                        }}>
+                          <span style={{ color: '#374151', fontWeight: 600 }}>1ページ生成の概算金額:</span>
+                          <span style={{ color: '#059669', fontWeight: 700, fontSize: '18px' }}>
+                            無料
+                          </span>
+                        </div>
+                        <div style={{ 
+                          fontSize: '11px', 
+                          color: '#6B7280',
+                          marginTop: '4px',
+                        }}>
+                          ローカルモデルは無料で使用できます
+                        </div>
+                      </div>
+                    );
+                  }
                   
                   // 概算トークン数（入力: 2000トークン、出力: 2000トークン）
                   const estimatedInputTokens = 2000;
@@ -712,6 +1006,7 @@ export default function GeneratePageFromSimilar({
                   );
                 })()}
               </div>
+              )}
 
               {/* ページ生成用の画像アップロード */}
               <div style={{ marginTop: '20px', marginBottom: '20px' }}>
@@ -1625,6 +1920,164 @@ export default function GeneratePageFromSimilar({
                 }}
               >
                 ✅ このページを使用
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      
+      {/* Cursorプロンプト表示モーダル */}
+      {showCursorPrompt && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          backgroundColor: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 10000,
+          padding: '20px',
+        }}
+        onClick={() => setShowCursorPrompt(false)}
+        >
+          <div style={{
+            backgroundColor: '#fff',
+            borderRadius: '12px',
+            maxWidth: '900px',
+            width: '100%',
+            maxHeight: '90vh',
+            display: 'flex',
+            flexDirection: 'column',
+            boxShadow: '0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04)',
+          }}
+          onClick={(e) => e.stopPropagation()}
+          >
+            <div style={{
+              padding: '24px',
+              borderBottom: '1px solid #E5E7EB',
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+            }}>
+              <h2 style={{
+                margin: 0,
+                fontSize: '20px',
+                fontWeight: 700,
+                color: '#111827',
+              }}>
+                📋 Cursor用プロンプト
+              </h2>
+              <button
+                onClick={() => setShowCursorPrompt(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#6B7280',
+                  padding: '0',
+                  width: '32px',
+                  height: '32px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}
+              >
+                ×
+              </button>
+            </div>
+            
+            <div style={{
+              padding: '24px',
+              overflow: 'auto',
+              flex: 1,
+            }}>
+              <div style={{
+                marginBottom: '16px',
+                padding: '12px',
+                backgroundColor: '#E6F2FF',
+                border: '1px solid #0066CC',
+                borderRadius: '8px',
+              }}>
+                <p style={{ margin: 0, fontSize: '14px', color: '#003D7A' }}>
+                  💡 以下のプロンプトをCursorにコピーして、ページコンポーネントを作成・更新してください。
+                </p>
+              </div>
+              
+              <textarea
+                value={cursorPrompt}
+                readOnly
+                style={{
+                  width: '100%',
+                  minHeight: '400px',
+                  padding: '16px',
+                  border: '2px solid #E5E7EB',
+                  borderRadius: '8px',
+                  fontSize: '13px',
+                  fontFamily: 'monospace',
+                  lineHeight: '1.6',
+                  resize: 'vertical',
+                  backgroundColor: '#F9FAFB',
+                }}
+              />
+            </div>
+            
+            <div style={{
+              padding: '24px',
+              borderTop: '1px solid #E5E7EB',
+              display: 'flex',
+              gap: '12px',
+              justifyContent: 'flex-end',
+            }}>
+              <button
+                onClick={() => {
+                  navigator.clipboard.writeText(cursorPrompt);
+                  alert('プロンプトをクリップボードにコピーしました！');
+                }}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#0066CC',
+                  color: '#fff',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#0052A3';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#0066CC';
+                }}
+              >
+                📋 コピー
+              </button>
+              <button
+                onClick={() => setShowCursorPrompt(false)}
+                style={{
+                  padding: '10px 20px',
+                  backgroundColor: '#F3F4F6',
+                  color: '#374151',
+                  border: 'none',
+                  borderRadius: '8px',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#E5E7EB';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F3F4F6';
+                }}
+              >
+                閉じる
               </button>
             </div>
           </div>
