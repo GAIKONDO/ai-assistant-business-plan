@@ -99,7 +99,7 @@ export default function ServiceDetailPage() {
 
     if (auth?.currentUser) {
       loadProjectData();
-    } else {
+    } else if (auth) {
       const unsubscribe = onAuthStateChanged(auth, (user) => {
         if (user) {
           loadProjectData();
