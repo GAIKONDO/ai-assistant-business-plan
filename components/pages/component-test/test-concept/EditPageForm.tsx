@@ -37,6 +37,8 @@ interface EditPageFormProps {
   pageId: string;
   initialTitle: string;
   initialContent: string;
+  initialKeyMessage?: string;
+  initialSubMessage?: string;
   onClose: () => void;
   onPageUpdated: () => void;
 }
@@ -48,14 +50,18 @@ export default function EditPageForm({
   subMenuId,
   pageId, 
   initialTitle, 
-  initialContent, 
+  initialContent,
+  initialKeyMessage,
+  initialSubMessage,
   onClose, 
   onPageUpdated 
 }: EditPageFormProps) {
   const [title, setTitle] = useState(initialTitle);
   const [content, setContent] = useState(initialContent);
-  const [keyMessage, setKeyMessage] = useState('');
-  const [subMessage, setSubMessage] = useState('');
+  // initialKeyMessageとinitialSubMessageがundefinedの場合は空文字列を初期値とする
+  // 値が存在する場合はuseEffectで設定される
+  const [keyMessage, setKeyMessage] = useState(initialKeyMessage ?? '');
+  const [subMessage, setSubMessage] = useState(initialSubMessage ?? '');
   const [saving, setSaving] = useState(false);
   const [uploadingImage, setUploadingImage] = useState(false);
   const imageFileInputRef = useRef<HTMLInputElement>(null);
@@ -66,37 +72,58 @@ export default function EditPageForm({
     setTitle(initialTitle);
     setContent(initialContent);
     
-    // HTMLからキーメッセージとサブメッセージを抽出
-    const tempDiv = document.createElement('div');
-    tempDiv.innerHTML = initialContent;
+    console.log('[EditPageForm] useEffect実行:', {
+      initialKeyMessage,
+      initialSubMessage,
+      hasInitialKeyMessage: initialKeyMessage !== undefined,
+      hasInitialSubMessage: initialSubMessage !== undefined,
+    });
     
-    // key-message-containerまたはkey-message-titleクラスを持つ要素を探す
-    const keyMessageContainer = tempDiv.querySelector('.key-message-container');
-    if (keyMessageContainer) {
-      const titleElement = keyMessageContainer.querySelector('.key-message-title');
-      const subtitleElement = keyMessageContainer.querySelector('.key-message-subtitle');
+    // まず、propsから直接渡されたキーメッセージとサブメッセージを使用（undefinedでない場合）
+    // 空文字列も有効な値として扱う（明示的に空文字列が渡された場合はそれを使用）
+    if (initialKeyMessage !== undefined) {
+      setKeyMessage(initialKeyMessage);
+      console.log('[EditPageForm] initialKeyMessageを設定:', initialKeyMessage);
+    }
+    if (initialSubMessage !== undefined) {
+      setSubMessage(initialSubMessage);
+      console.log('[EditPageForm] initialSubMessageを設定:', initialSubMessage);
+    }
+    
+    // propsで渡されていない場合（undefined）のみ、HTMLから抽出を試みる
+    if (initialKeyMessage === undefined && initialSubMessage === undefined) {
+      console.log('[EditPageForm] HTMLから抽出を試みます');
+      const tempDiv = document.createElement('div');
+      tempDiv.innerHTML = initialContent;
       
-      if (titleElement) {
-        setKeyMessage(titleElement.textContent || '');
-      }
-      if (subtitleElement) {
-        setSubMessage(subtitleElement.textContent || '');
-      }
-    } else {
-      // クラスがない場合、h2とpの組み合わせを探す
-      const h2Element = tempDiv.querySelector('h2');
-      const pElement = tempDiv.querySelector('p');
-      
-      if (h2Element && pElement) {
-        // グラデーションスタイルが含まれているかチェック
-        const h2Style = h2Element.getAttribute('style') || '';
-        if (h2Style.includes('linear-gradient') || h2Style.includes('background-clip')) {
-          setKeyMessage(h2Element.textContent || '');
-          setSubMessage(pElement.textContent || '');
+      // key-message-containerまたはkey-message-titleクラスを持つ要素を探す
+      const keyMessageContainer = tempDiv.querySelector('.key-message-container');
+      if (keyMessageContainer) {
+        const titleElement = keyMessageContainer.querySelector('.key-message-title');
+        const subtitleElement = keyMessageContainer.querySelector('.key-message-subtitle');
+        
+        if (titleElement) {
+          setKeyMessage(titleElement.textContent || '');
+        }
+        if (subtitleElement) {
+          setSubMessage(subtitleElement.textContent || '');
+        }
+      } else {
+        // クラスがない場合、h2とpの組み合わせを探す
+        const h2Element = tempDiv.querySelector('h2');
+        const pElement = tempDiv.querySelector('p');
+        
+        if (h2Element && pElement) {
+          // グラデーションスタイルが含まれているかチェック
+          const h2Style = h2Element.getAttribute('style') || '';
+          if (h2Style.includes('linear-gradient') || h2Style.includes('background-clip')) {
+            setKeyMessage(h2Element.textContent || '');
+            setSubMessage(pElement.textContent || '');
+          }
         }
       }
     }
-  }, [initialTitle, initialContent]);
+  }, [initialTitle, initialContent, initialKeyMessage, initialSubMessage]);
 
   // 画像アップロード処理
   const handleImageUpload = async (file: File) => {
@@ -254,6 +281,9 @@ export default function EditPageForm({
   </div>`;
           
           // 既存のコンテンツからキーメッセージ部分を削除
+          // まず、HTMLコメントを削除（正規表現で）
+          formattedContent = formattedContent.replace(/<!--\s*キーメッセージ\s*-?\s*最大化\s*-->\s*/gi, '');
+          
           const tempDiv = document.createElement('div');
           tempDiv.innerHTML = formattedContent;
           
@@ -287,9 +317,20 @@ export default function EditPageForm({
               title: title.trim(),
               content: formattedContent || '<p>コンテンツを入力してください。</p>',
               updatedAt: new Date().toISOString(),
+              // キーメッセージとサブメッセージを保存
+              keyMessage: keyMessage.trim() || undefined,
+              subMessage: subMessage.trim() || undefined,
             };
             // メタデータを再生成
             const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
+            
+            // キーメッセージとサブメッセージを保持（generatePageMetadataで失われる可能性があるため）
+            if (keyMessage.trim()) {
+              (updatedPage as any).keyMessage = keyMessage.trim();
+            }
+            if (subMessage.trim()) {
+              (updatedPage as any).subMessage = subMessage.trim();
+            }
             
             // メタデータをコンソールに出力（デバッグ用）
             console.log('✏️ ページ更新（会社計画） - 再生成されたメタデータ:', {
@@ -418,6 +459,9 @@ export default function EditPageForm({
   </div>`;
         
         // 既存のコンテンツからキーメッセージ部分を削除
+        // まず、HTMLコメントを削除（正規表現で）
+        formattedContent = formattedContent.replace(/<!--\s*キーメッセージ\s*-?\s*最大化\s*-->\s*/gi, '');
+        
         const tempDiv = document.createElement('div');
         tempDiv.innerHTML = formattedContent;
         
@@ -450,9 +494,20 @@ export default function EditPageForm({
         title: title.trim(),
         content: formattedContent || '<p>コンテンツを入力してください。</p>',
         updatedAt: new Date().toISOString(),
+        // キーメッセージとサブメッセージを保存
+        keyMessage: keyMessage.trim() || undefined,
+        subMessage: subMessage.trim() || undefined,
       };
       // メタデータを再生成
       const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
+      
+      // キーメッセージとサブメッセージを保持（generatePageMetadataで失われる可能性があるため）
+      if (keyMessage.trim()) {
+        (updatedPage as any).keyMessage = keyMessage.trim();
+      }
+      if (subMessage.trim()) {
+        (updatedPage as any).subMessage = subMessage.trim();
+      }
       
       // メタデータをコンソールに出力（デバッグ用）
       console.log('✏️ ページ更新（構想） - 再生成されたメタデータ:', {

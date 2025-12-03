@@ -2221,48 +2221,6 @@ export default function ForceDirectedGraph({
               />
               <span style={{ fontSize: '14px', color: '#333' }}>構想</span>
             </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={nodeTypeFilters.subMenu}
-                onChange={(e) => {
-                  // ページが選択されている場合は、サブメニューを外せない
-                  if (nodeTypeFilters.page) {
-                    return;
-                  }
-                  const isSubMenuChecked = e.target.checked;
-                  setNodeTypeFilters(prev => ({ 
-                    ...prev, 
-                    subMenu: isSubMenuChecked,
-                    // サブメニューが外されたら、ページも外す
-                    page: isSubMenuChecked ? prev.page : false
-                  }));
-                }}
-                style={{ 
-                  width: '16px', 
-                  height: '16px', 
-                  cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer'
-                }}
-              />
-              <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー（構想）</span>
-            </label>
-            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
-              <input
-                type="checkbox"
-                checked={nodeTypeFilters.page}
-                onChange={(e) => {
-                  const isPageChecked = e.target.checked;
-                  setNodeTypeFilters(prev => ({ 
-                    ...prev, 
-                    page: isPageChecked,
-                    // ページが選択されたら、サブメニューも必須で選択
-                    subMenu: isPageChecked ? true : prev.subMenu
-                  }));
-                }}
-                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
-              />
-              <span style={{ fontSize: '14px', color: '#333' }}>ページ（構想）</span>
-            </label>
             <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: nodeTypeFilters.companyPage ? 'not-allowed' : 'pointer' }}>
               <input
                 type="checkbox"
@@ -2304,6 +2262,48 @@ export default function ForceDirectedGraph({
                 style={{ width: '16px', height: '16px', cursor: 'pointer' }}
               />
               <span style={{ fontSize: '14px', color: '#333' }}>ページ（会社事業計画）</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={nodeTypeFilters.subMenu}
+                onChange={(e) => {
+                  // ページが選択されている場合は、サブメニューを外せない
+                  if (nodeTypeFilters.page) {
+                    return;
+                  }
+                  const isSubMenuChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    subMenu: isSubMenuChecked,
+                    // サブメニューが外されたら、ページも外す
+                    page: isSubMenuChecked ? prev.page : false
+                  }));
+                }}
+                style={{ 
+                  width: '16px', 
+                  height: '16px', 
+                  cursor: nodeTypeFilters.page ? 'not-allowed' : 'pointer'
+                }}
+              />
+              <span style={{ fontSize: '14px', color: '#333' }}>サブメニュー（構想）</span>
+            </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer' }}>
+              <input
+                type="checkbox"
+                checked={nodeTypeFilters.page}
+                onChange={(e) => {
+                  const isPageChecked = e.target.checked;
+                  setNodeTypeFilters(prev => ({ 
+                    ...prev, 
+                    page: isPageChecked,
+                    // ページが選択されたら、サブメニューも必須で選択
+                    subMenu: isPageChecked ? true : prev.subMenu
+                  }));
+                }}
+                style={{ width: '16px', height: '16px', cursor: 'pointer' }}
+              />
+              <span style={{ fontSize: '14px', color: '#333' }}>ページ（構想）</span>
             </label>
           </div>
           {/* フィルターセクション（折りたたみ可能） */}

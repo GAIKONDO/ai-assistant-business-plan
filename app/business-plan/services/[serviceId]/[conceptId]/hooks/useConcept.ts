@@ -13,6 +13,7 @@ export interface ConceptData {
   keyVisualHeight?: number;
   keyVisualScale?: number;
   keyVisualLogoUrl?: string;
+  keyVisualLogoSize?: number; // PDFロゴのサイズ（mm）
   keyVisualMetadata?: {
     title: string;
     signature: string;
@@ -22,6 +23,11 @@ export interface ConceptData {
     signatureFontSize?: number;
     dateFontSize?: number;
   };
+  titlePositionX?: number; // PDFタイトルのX位置（mm）
+  titlePositionY?: number; // PDFタイトルのY位置（mm）
+  titleFontSize?: number; // PDFタイトルのフォントサイズ（px）
+  titleBorderEnabled?: boolean; // PDFタイトルのボーダー（縦棒）の有無
+  footerText?: string; // PDFフッターテキスト
   pagesBySubMenu?: { [subMenuId: string]: Array<PageMetadata> }; // メタデータ付きページ
   pageOrderBySubMenu?: { [subMenuId: string]: string[] };
 }

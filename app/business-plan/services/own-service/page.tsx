@@ -8,6 +8,7 @@ import { db, auth } from '@/lib/firebase';
 import Layout from '@/components/Layout';
 import ConceptForm, { ConceptData } from '@/components/ConceptForm';
 import dynamic from 'next/dynamic';
+import { CONCEPT_ID_MAPPINGS, getUrlConceptId } from '@/lib/conceptIdMapping';
 
 // DynamicPageを動的にインポート（SSRを無効化）
 const DynamicPage = dynamic(
@@ -15,13 +16,16 @@ const DynamicPage = dynamic(
   { ssr: false }
 );
 
-// 固定構想の定義
+// 固定構想の定義（タイムスタンプIDを使用）
 // 注意: -componentized版は動的に作成されるため、固定構想からは除外
-const FIXED_CONCEPTS = [
-  { id: 'maternity-support', name: '出産支援パーソナルApp', description: '出産前後のママとパパをサポートするパーソナルアプリケーション' },
-  { id: 'care-support', name: '介護支援パーソナルApp', description: '介護を必要とする方とその家族をサポートするパーソナルアプリケーション' },
-  // -componentized版は動的に作成されるため、固定構想からは除外
-];
+const FIXED_CONCEPTS = CONCEPT_ID_MAPPINGS['own-service']
+  .filter(m => !m.stringId.includes('-componentized'))
+  .map(m => ({
+    id: m.timestampId, // タイムスタンプID（例: care1764739100000）
+    stringId: m.stringId, // 内部識別用（例: care-support）
+    name: m.name,
+    description: m.description,
+  }));
 
 export default function OwnServicePage() {
   const router = useRouter();
@@ -91,12 +95,12 @@ export default function OwnServicePage() {
       const fixedConceptIds = new Set(FIXED_CONCEPTS.map(c => c.id));
       const filteredConcepts = conceptsData.filter(concept => !fixedConceptIds.has(concept.conceptId));
       
-      // 固定構想の日付情報とお気に入り情報を取得
+      // 固定構想の日付情報とお気に入り情報を取得（文字列IDで比較）
       const fixedDatesMap: { [conceptId: string]: { createdAt?: Date; updatedAt?: Date; isFavorite?: boolean } } = {};
       for (const fixedConcept of FIXED_CONCEPTS) {
-        const fixedConceptDoc = conceptsData.find(c => c.conceptId === fixedConcept.id);
+        const fixedConceptDoc = conceptsData.find(c => c.conceptId === fixedConcept.stringId);
         if (fixedConceptDoc) {
-          fixedDatesMap[fixedConcept.id] = {
+          fixedDatesMap[fixedConcept.stringId] = {
             createdAt: fixedConceptDoc.createdAt,
             updatedAt: fixedConceptDoc.updatedAt,
             isFavorite: (fixedConceptDoc as any).isFavorite || false,
@@ -109,12 +113,12 @@ export default function OwnServicePage() {
                 collection(db, 'concepts'),
                 where('userId', '==', auth.currentUser.uid),
                 where('serviceId', '==', 'own-service'),
-                where('conceptId', '==', fixedConcept.id)
+                where('conceptId', '==', fixedConcept.stringId)
               );
               const conceptSnapshot = await getDocs(conceptQuery);
               if (!conceptSnapshot.empty) {
                 const docData = conceptSnapshot.docs[0].data();
-                fixedDatesMap[fixedConcept.id] = {
+                fixedDatesMap[fixedConcept.stringId] = {
                   createdAt: docData.createdAt?.toDate(),
                   updatedAt: docData.updatedAt?.toDate(),
                   isFavorite: docData.isFavorite || false,
@@ -249,18 +253,18 @@ export default function OwnServicePage() {
       const counts: { [key: string]: number } = {};
       const pageCounts: { [key: string]: number } = {};
       
-      // 固定構想のカウント
+      // 固定構想のカウント（文字列IDで検索）
       for (const concept of FIXED_CONCEPTS) {
         const plansQuery = query(
           collection(db, 'servicePlans'),
           where('userId', '==', auth.currentUser.uid),
           where('serviceId', '==', 'own-service'),
-          where('conceptId', '==', concept.id)
+          where('conceptId', '==', concept.stringId)
         );
         const snapshot = await getDocs(plansQuery);
-        counts[concept.id] = snapshot.size;
+        counts[concept.stringId] = snapshot.size;
         // 固定構想は固定ページ形式なので、ページ数は0
-        pageCounts[concept.id] = 0;
+        pageCounts[concept.stringId] = 0;
       }
 
       // 動的に追加された構想のカウントとページ数
@@ -384,7 +388,7 @@ export default function OwnServicePage() {
           const conceptSnapshot2 = await getDocs(conceptQuery2);
           if (!conceptSnapshot2.empty) {
             const docData = conceptSnapshot2.docs[0].data();
-            fixedDatesMap[fixedConcept.id] = {
+            fixedDatesMap[fixedConcept.stringId] = {
               createdAt: docData.createdAt?.toDate(),
               updatedAt: docData.updatedAt?.toDate(),
               isFavorite: docData.isFavorite || false,
@@ -570,7 +574,7 @@ export default function OwnServicePage() {
           {FIXED_CONCEPTS.filter((concept) => {
             if (conceptFilter === 'all') return true;
             if (conceptFilter === 'favorite') {
-              return fixedConceptDates[concept.id]?.isFavorite === true;
+              return fixedConceptDates[concept.stringId]?.isFavorite === true;
             }
             if (conceptFilter === 'fixed') return true; // 固定構想は常に固定ページ形式
             if (conceptFilter === 'componentized') return false; // 固定構想はコンポーネント形式ではない
@@ -579,7 +583,10 @@ export default function OwnServicePage() {
             <div
               key={concept.id}
               className="card"
-              onClick={() => router.push(`/business-plan/services/own-service/${concept.id}`)}
+              onClick={() => {
+                // 固定構想の場合はタイムスタンプIDを使用
+                router.push(`/business-plan/services/own-service/${concept.id}`);
+              }}
               style={{
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
@@ -598,7 +605,7 @@ export default function OwnServicePage() {
               <button
                 onClick={(e) => {
                   e.stopPropagation();
-                  handleToggleFavorite(concept.id, fixedConceptDates[concept.id]?.isFavorite || false);
+                  handleToggleFavorite(concept.stringId, fixedConceptDates[concept.stringId]?.isFavorite || false);
                 }}
                 style={{
                   position: 'absolute',
@@ -624,8 +631,8 @@ export default function OwnServicePage() {
                   width="20" 
                   height="20" 
                   viewBox="0 0 24 24" 
-                  fill={fixedConceptDates[concept.id]?.isFavorite ? '#FCD34D' : 'none'} 
-                  stroke={fixedConceptDates[concept.id]?.isFavorite ? '#FCD34D' : '#9CA3AF'} 
+                  fill={fixedConceptDates[concept.stringId]?.isFavorite ? '#FCD34D' : 'none'} 
+                  stroke={fixedConceptDates[concept.stringId]?.isFavorite ? '#FCD34D' : '#9CA3AF'} 
                   strokeWidth="2" 
                   strokeLinecap="round" 
                   strokeLinejoin="round"
@@ -667,13 +674,13 @@ export default function OwnServicePage() {
                 <div style={{ marginTop: '12px', paddingTop: '12px', borderTop: '1px solid var(--color-border-color)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '8px' }}>
                     <span style={{ fontSize: '11px', color: 'var(--color-text-light)' }}>
-                      {conceptPageCounts[concept.id] || 0} ページ
+                      {conceptPageCounts[concept.stringId] || 0} ページ
                     </span>
                     <span style={{ fontSize: '13px', color: 'var(--color-primary)', fontWeight: 500 }}>
                       詳細を見る →
                     </span>
                   </div>
-                  {fixedConceptDates[concept.id]?.createdAt && (
+                  {fixedConceptDates[concept.stringId]?.createdAt && (
                     <div style={{
                       fontSize: '10px',
                       color: 'var(--color-text-light)',
@@ -681,10 +688,10 @@ export default function OwnServicePage() {
                       overflow: 'hidden',
                       textOverflow: 'ellipsis',
                     }}>
-                      作成日: {new Date(fixedConceptDates[concept.id].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
-                    {fixedConceptDates[concept.id]?.updatedAt && (() => {
+                      作成日: {new Date(fixedConceptDates[concept.stringId].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+                    {fixedConceptDates[concept.stringId]?.updatedAt && (() => {
                       try {
-                        const conceptDates = fixedConceptDates[concept.id];
+                        const conceptDates = fixedConceptDates[concept.stringId];
                         if (conceptDates?.createdAt && conceptDates?.updatedAt) {
                           const createdAtDate = conceptDates.createdAt instanceof Date ? conceptDates.createdAt : new Date(conceptDates.createdAt);
                           const updatedAtDate = conceptDates.updatedAt instanceof Date ? conceptDates.updatedAt : new Date(conceptDates.updatedAt);
@@ -725,7 +732,11 @@ export default function OwnServicePage() {
             <div
               key={concept.id}
               className="card"
-              onClick={() => router.push(`/business-plan/services/own-service/${concept.conceptId}`)}
+              onClick={() => {
+                // 動的構想のconceptIdをURL用のタイムスタンプIDに変換
+                const urlConceptId = getUrlConceptId('own-service', concept.conceptId);
+                router.push(`/business-plan/services/own-service/${urlConceptId}`);
+              }}
               style={{
                 cursor: 'pointer',
                 transition: 'all 0.2s ease',
@@ -1211,9 +1222,9 @@ export default function OwnServicePage() {
                           color: '#9CA3AF',
                         }}>
                           <span>{conceptPageCounts[concept.id] || 0} ページ</span>
-                          {fixedConceptDates[concept.id]?.createdAt && (
+                          {fixedConceptDates[concept.stringId]?.createdAt && (
                             <span>
-                              作成日: {new Date(fixedConceptDates[concept.id].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
+                              作成日: {new Date(fixedConceptDates[concept.stringId].createdAt!).toLocaleDateString('ja-JP', { year: 'numeric', month: 'long', day: 'numeric' })}
                             </span>
                           )}
                         </div>

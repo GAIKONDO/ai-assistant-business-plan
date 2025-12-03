@@ -160,21 +160,86 @@ export default function MigrateFromFixedPage({
         if (titleElement) {
           title = titleElement.textContent?.trim() || '';
         } else {
-          const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
-          title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+          // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素を探す
+          const h4Elements = (containerEl as HTMLElement).querySelectorAll('h4');
+          for (const h4 of Array.from(h4Elements)) {
+            const computedStyle = window.getComputedStyle(h4);
+            if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+              titleElement = h4 as HTMLElement;
+              title = titleElement.textContent?.trim() || '';
+              break;
+            }
+          }
+          if (!title) {
+            const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+            title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+          }
         }
       }
       
-      // コンテンツを抽出（タイトル要素とページ番号要素を除外）
+      // キーメッセージとサブメッセージを抽出（構想の固定ページ形式用）
+      let keyMessage = '';
+      let subMessage = '';
+      const keyMessageTitleElement = (containerEl as HTMLElement).querySelector('.key-message-title') as HTMLElement;
+      const keyMessageSubtitleElement = (containerEl as HTMLElement).querySelector('.key-message-subtitle') as HTMLElement;
+      
+      console.log(`[extractPagesFromHTML] ページ ${pageId} - キーメッセージ要素検出:`, {
+        keyMessageTitleElement: !!keyMessageTitleElement,
+        keyMessageSubtitleElement: !!keyMessageSubtitleElement,
+        containerHTML: (containerEl as HTMLElement).innerHTML.substring(0, 500),
+        allKeyMessageContainers: (containerEl as HTMLElement).querySelectorAll('.key-message-container').length,
+      });
+      
+      // キーメッセージコンテナから直接取得を試みる
+      const keyMessageContainer = (containerEl as HTMLElement).querySelector('.key-message-container') as HTMLElement;
+      if (keyMessageContainer) {
+        const titleInContainer = keyMessageContainer.querySelector('.key-message-title') as HTMLElement;
+        const subtitleInContainer = keyMessageContainer.querySelector('.key-message-subtitle') as HTMLElement;
+        
+        if (titleInContainer) {
+          keyMessage = titleInContainer.textContent?.trim() || '';
+          console.log(`[extractPagesFromHTML] ページ ${pageId} - キーメッセージ抽出（コンテナ経由）:`, keyMessage);
+        }
+        if (subtitleInContainer) {
+          subMessage = subtitleInContainer.textContent?.trim() || '';
+          console.log(`[extractPagesFromHTML] ページ ${pageId} - サブメッセージ抽出（コンテナ経由）:`, subMessage);
+        }
+      } else if (keyMessageTitleElement) {
+        keyMessage = keyMessageTitleElement.textContent?.trim() || '';
+        console.log(`[extractPagesFromHTML] ページ ${pageId} - キーメッセージ抽出（直接）:`, keyMessage);
+      }
+      if (!subMessage && keyMessageSubtitleElement) {
+        subMessage = keyMessageSubtitleElement.textContent?.trim() || '';
+        console.log(`[extractPagesFromHTML] ページ ${pageId} - サブメッセージ抽出（直接）:`, subMessage);
+      }
+      
+      // コンテンツを抽出（タイトル要素、キーメッセージ要素、ページ番号要素を除外）
       const containerClone = containerEl.cloneNode(true) as HTMLElement;
       
       // タイトル要素をコンテンツから削除
       if (titleElement) {
-        const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
-                                   containerClone.querySelector('h2, h3, h1, .page-title');
+        let clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                 containerClone.querySelector('h2, h3, h1, .page-title');
+        // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素も削除
+        if (!clonedTitleElement) {
+          const h4Elements = containerClone.querySelectorAll('h4');
+          for (const h4 of Array.from(h4Elements)) {
+            const computedStyle = window.getComputedStyle(h4);
+            if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+              clonedTitleElement = h4 as HTMLElement;
+              break;
+            }
+          }
+        }
         if (clonedTitleElement) {
           clonedTitleElement.remove();
         }
+      }
+      
+      // キーメッセージコンテナをコンテンツから削除（構想の固定ページ形式用）
+      const clonedKeyMessageContainer = containerClone.querySelector('.key-message-container');
+      if (clonedKeyMessageContainer) {
+        clonedKeyMessageContainer.remove();
       }
       
       // ページ番号要素（.container-page-number）をコンテンツから削除
@@ -198,7 +263,7 @@ export default function MigrateFromFixedPage({
       
       const content = formatHTML(rawHTML);
       
-      return {
+      const pageData: any = {
         id: `migrated-${pageId}-${Date.now()}-${index}`,
         title: title || `ページ ${index + 1}`,
         content: content,
@@ -206,6 +271,26 @@ export default function MigrateFromFixedPage({
         pageId: pageId,
         subMenuId: subMenuId,
       };
+      
+      // キーメッセージとサブメッセージを追加（構想の固定ページ形式用）
+      if (keyMessage) {
+        pageData.keyMessage = keyMessage;
+        console.log(`[extractPagesFromHTML] ページ ${pageId} - ページデータにキーメッセージを追加:`, keyMessage);
+      }
+      if (subMessage) {
+        pageData.subMessage = subMessage;
+        console.log(`[extractPagesFromHTML] ページ ${pageId} - ページデータにサブメッセージを追加:`, subMessage);
+      }
+      
+      console.log(`[extractPagesFromHTML] ページ ${pageId} - 最終的なページデータ:`, {
+        title: pageData.title,
+        hasKeyMessage: !!pageData.keyMessage,
+        hasSubMessage: !!pageData.subMessage,
+        keyMessage: pageData.keyMessage,
+        subMessage: pageData.subMessage,
+      });
+      
+      return pageData;
     });
     
     const resolvedPages = await Promise.all(pagePromises);
@@ -305,9 +390,57 @@ export default function MigrateFromFixedPage({
               if (titleElement) {
                 title = titleElement.textContent?.trim() || '';
               } else {
-                const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
-                title = firstText.substring(0, 50) || `${subMenuItem.label} - ページ ${index + 1}`;
+                // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素を探す
+                const h4Elements = (containerEl as HTMLElement).querySelectorAll('h4');
+                for (const h4 of Array.from(h4Elements)) {
+                  const computedStyle = window.getComputedStyle(h4);
+                  if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+                    titleElement = h4 as HTMLElement;
+                    title = titleElement.textContent?.trim() || '';
+                    break;
+                  }
+                }
+                if (!title) {
+                  const firstText = (containerEl as HTMLElement).textContent?.trim().split('\n')[0] || '';
+                  title = firstText.substring(0, 50) || `${subMenuItem.label} - ページ ${index + 1}`;
+                }
               }
+            }
+            
+            // キーメッセージとサブメッセージを抽出（構想の固定ページ形式用）
+            let keyMessage = '';
+            let subMessage = '';
+            const keyMessageTitleElement = (containerEl as HTMLElement).querySelector('.key-message-title') as HTMLElement;
+            const keyMessageSubtitleElement = (containerEl as HTMLElement).querySelector('.key-message-subtitle') as HTMLElement;
+            
+            console.log(`[extractAllPagesFromAllSubMenus] ページ ${subMenuItem.label}-${pageId} - キーメッセージ要素検出:`, {
+              keyMessageTitleElement: !!keyMessageTitleElement,
+              keyMessageSubtitleElement: !!keyMessageSubtitleElement,
+              containerHTML: (containerEl as HTMLElement).innerHTML.substring(0, 500),
+              allKeyMessageContainers: (containerEl as HTMLElement).querySelectorAll('.key-message-container').length,
+            });
+            
+            // キーメッセージコンテナから直接取得を試みる
+            const keyMessageContainer = (containerEl as HTMLElement).querySelector('.key-message-container') as HTMLElement;
+            if (keyMessageContainer) {
+              const titleInContainer = keyMessageContainer.querySelector('.key-message-title') as HTMLElement;
+              const subtitleInContainer = keyMessageContainer.querySelector('.key-message-subtitle') as HTMLElement;
+              
+              if (titleInContainer) {
+                keyMessage = titleInContainer.textContent?.trim() || '';
+                console.log(`[extractAllPagesFromAllSubMenus] ページ ${subMenuItem.label}-${pageId} - キーメッセージ抽出（コンテナ経由）:`, keyMessage);
+              }
+              if (subtitleInContainer) {
+                subMessage = subtitleInContainer.textContent?.trim() || '';
+                console.log(`[extractAllPagesFromAllSubMenus] ページ ${subMenuItem.label}-${pageId} - サブメッセージ抽出（コンテナ経由）:`, subMessage);
+              }
+            } else if (keyMessageTitleElement) {
+              keyMessage = keyMessageTitleElement.textContent?.trim() || '';
+              console.log(`[extractAllPagesFromAllSubMenus] ページ ${subMenuItem.label}-${pageId} - キーメッセージ抽出（直接）:`, keyMessage);
+            }
+            if (!subMessage && keyMessageSubtitleElement) {
+              subMessage = keyMessageSubtitleElement.textContent?.trim() || '';
+              console.log(`[extractAllPagesFromAllSubMenus] ページ ${subMenuItem.label}-${pageId} - サブメッセージ抽出（直接）:`, subMessage);
             }
             
             // 図形を画像化（canvas、Mermaid図など）
@@ -316,11 +449,28 @@ export default function MigrateFromFixedPage({
             
             // タイトル要素をコンテンツから削除
             if (titleElement) {
-              const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
-                                         containerClone.querySelector('h2, h3, h1, .page-title');
+              let clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                       containerClone.querySelector('h2, h3, h1, .page-title');
+              // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素も削除
+              if (!clonedTitleElement) {
+                const h4Elements = containerClone.querySelectorAll('h4');
+                for (const h4 of Array.from(h4Elements)) {
+                  const computedStyle = window.getComputedStyle(h4);
+                  if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+                    clonedTitleElement = h4 as HTMLElement;
+                    break;
+                  }
+                }
+              }
               if (clonedTitleElement) {
                 clonedTitleElement.remove();
               }
+            }
+            
+            // キーメッセージコンテナをコンテンツから削除（構想の固定ページ形式用）
+            const clonedKeyMessageContainer = containerClone.querySelector('.key-message-container');
+            if (clonedKeyMessageContainer) {
+              clonedKeyMessageContainer.remove();
             }
             
             // ページ番号要素（.container-page-number）をコンテンツから削除
@@ -341,13 +491,23 @@ export default function MigrateFromFixedPage({
             // コンテンツを抽出
             const content = formatHTML(rawHTML);
             
-            return {
+            const pageData: any = {
               id: `migrated-${subMenuItem.id}-${pageId}-${Date.now()}-${index}`,
               title: title || `${subMenuItem.label} - ページ ${index + 1}`,
               content: content,
               pageNumber: index,
               pageId: pageId,
             };
+            
+            // キーメッセージとサブメッセージを追加（構想の固定ページ形式用）
+            if (keyMessage) {
+              pageData.keyMessage = keyMessage;
+            }
+            if (subMessage) {
+              pageData.subMessage = subMessage;
+            }
+            
+            return pageData;
           });
           
           const resolvedPages = await Promise.all(pagePromises);
@@ -968,10 +1128,58 @@ export default function MigrateFromFixedPage({
         if (titleElement) {
           title = titleElement.textContent?.trim() || '';
         } else {
-          // タイトルが見つからない場合は、最初のテキストノードから抽出
-          const firstText = containerEl.textContent?.trim().split('\n')[0] || '';
-          title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+          // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素を探す
+          const h4Elements = containerEl.querySelectorAll('h4');
+          for (const h4 of Array.from(h4Elements)) {
+            const computedStyle = window.getComputedStyle(h4);
+            if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+              titleElement = h4 as HTMLElement;
+              title = titleElement.textContent?.trim() || '';
+              break;
+            }
+          }
+          if (!title) {
+            // タイトルが見つからない場合は、最初のテキストノードから抽出
+            const firstText = containerEl.textContent?.trim().split('\n')[0] || '';
+            title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+          }
         }
+      }
+      
+      // キーメッセージとサブメッセージを抽出（構想の固定ページ形式用）
+      let keyMessage = '';
+      let subMessage = '';
+      const keyMessageTitleElement = containerEl.querySelector('.key-message-title') as HTMLElement;
+      const keyMessageSubtitleElement = containerEl.querySelector('.key-message-subtitle') as HTMLElement;
+      
+      console.log(`[extractPagesFromDOM] ページ ${pageId} - キーメッセージ要素検出:`, {
+        keyMessageTitleElement: !!keyMessageTitleElement,
+        keyMessageSubtitleElement: !!keyMessageSubtitleElement,
+        containerHTML: containerEl.innerHTML.substring(0, 500),
+        allKeyMessageContainers: containerEl.querySelectorAll('.key-message-container').length,
+      });
+      
+      // キーメッセージコンテナから直接取得を試みる
+      const keyMessageContainer = containerEl.querySelector('.key-message-container') as HTMLElement;
+      if (keyMessageContainer) {
+        const titleInContainer = keyMessageContainer.querySelector('.key-message-title') as HTMLElement;
+        const subtitleInContainer = keyMessageContainer.querySelector('.key-message-subtitle') as HTMLElement;
+        
+        if (titleInContainer) {
+          keyMessage = titleInContainer.textContent?.trim() || '';
+          console.log(`[extractPagesFromDOM] ページ ${pageId} - キーメッセージ抽出（コンテナ経由）:`, keyMessage);
+        }
+        if (subtitleInContainer) {
+          subMessage = subtitleInContainer.textContent?.trim() || '';
+          console.log(`[extractPagesFromDOM] ページ ${pageId} - サブメッセージ抽出（コンテナ経由）:`, subMessage);
+        }
+      } else if (keyMessageTitleElement) {
+        keyMessage = keyMessageTitleElement.textContent?.trim() || '';
+        console.log(`[extractPagesFromDOM] ページ ${pageId} - キーメッセージ抽出（直接）:`, keyMessage);
+      }
+      if (!subMessage && keyMessageSubtitleElement) {
+        subMessage = keyMessageSubtitleElement.textContent?.trim() || '';
+        console.log(`[extractPagesFromDOM] ページ ${pageId} - サブメッセージ抽出（直接）:`, subMessage);
       }
       
       // タイトル要素とページ番号要素をコンテンツから除外するためにクローンを作成
@@ -979,11 +1187,28 @@ export default function MigrateFromFixedPage({
       
       // タイトル要素をコンテンツから削除
       if (titleElement) {
-        const clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
-                                   containerClone.querySelector('h2, h3, h1, .page-title');
+        let clonedTitleElement = containerClone.querySelector('[data-pdf-title-h3="true"]') || 
+                                 containerClone.querySelector('h2, h3, h1, .page-title');
+        // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素も削除
+        if (!clonedTitleElement) {
+          const h4Elements = containerClone.querySelectorAll('h4');
+          for (const h4 of Array.from(h4Elements)) {
+            const computedStyle = window.getComputedStyle(h4);
+            if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+              clonedTitleElement = h4 as HTMLElement;
+              break;
+            }
+          }
+        }
         if (clonedTitleElement) {
           clonedTitleElement.remove();
         }
+      }
+      
+      // キーメッセージコンテナをコンテンツから削除（構想の固定ページ形式用）
+      const clonedKeyMessageContainer = containerClone.querySelector('.key-message-container');
+      if (clonedKeyMessageContainer) {
+        clonedKeyMessageContainer.remove();
       }
       
       // ページ番号要素（.container-page-number）をコンテンツから削除
@@ -1007,13 +1232,33 @@ export default function MigrateFromFixedPage({
       // コンテンツを抽出（HTMLを整形して取得）
       const content = formatHTML(rawHTML);
       
-      return {
+      const pageData: any = {
         id: `migrated-${pageId}-${Date.now()}-${index}`,
         title: title || `ページ ${index + 1}`,
         content: content,
         pageNumber: index,
         pageId: pageId, // data-page-containerの値を保持
       };
+      
+      // キーメッセージとサブメッセージを追加（構想の固定ページ形式用）
+      if (keyMessage) {
+        pageData.keyMessage = keyMessage;
+        console.log(`[extractPagesFromDOM] ページ ${pageId} - ページデータにキーメッセージを追加:`, keyMessage);
+      }
+      if (subMessage) {
+        pageData.subMessage = subMessage;
+        console.log(`[extractPagesFromDOM] ページ ${pageId} - ページデータにサブメッセージを追加:`, subMessage);
+      }
+      
+      console.log(`[extractPagesFromDOM] ページ ${pageId} - 最終的なページデータ:`, {
+        title: pageData.title,
+        hasKeyMessage: !!pageData.keyMessage,
+        hasSubMessage: !!pageData.subMessage,
+        keyMessage: pageData.keyMessage,
+        subMessage: pageData.subMessage,
+      });
+      
+      return pageData;
     });
 
     const resolvedPages = await Promise.all(pagePromises);
@@ -1085,8 +1330,9 @@ export default function MigrateFromFixedPage({
       const data = doc.data();
       const conceptIdValue = data.conceptId || '';
       
-      // -componentizedで終わる構想のみを対象
-      if (conceptIdValue.includes('-componentized')) {
+      // -componentizedで終わる構想、またはpagesBySubMenuが存在する構想（コンポーネント形式）を対象
+      const hasPagesBySubMenu = data.pagesBySubMenu && Object.keys(data.pagesBySubMenu).length > 0;
+      if (conceptIdValue.includes('-componentized') || hasPagesBySubMenu) {
         const pagesBySubMenu = data.pagesBySubMenu || {};
         const currentSubMenuPages = pagesBySubMenu[subMenuId] || [];
         
@@ -1647,7 +1893,35 @@ export default function MigrateFromFixedPage({
       }
 
       // 選択されたページのみをフィルタリング
-      const selectedPages = pages.filter(page => selectedPageIds.has(page.id));
+      // extractedPagesが存在する場合はそれを使用（keyMessageとsubMessageが含まれている）
+      // extractedPagesが空の場合は、新しく抽出したpagesを使用
+      const pagesToUse = extractedPages.length > 0 ? extractedPages : pages;
+      const selectedPages = pagesToUse.filter(page => selectedPageIds.has(page.id));
+      
+      console.log(`[handleMigrate] pagesToUseの確認:`, {
+        extractedPagesCount: extractedPages.length,
+        pagesCount: pages.length,
+        pagesToUseCount: pagesToUse.length,
+        pagesToUseWithKeyMessage: pagesToUse.filter((p: any) => (p as any).keyMessage).length,
+        pagesToUseWithSubMessage: pagesToUse.filter((p: any) => (p as any).subMessage).length,
+      });
+      
+      console.log(`[handleMigrate] selectedPagesの確認:`, {
+        extractedPagesCount: extractedPages.length,
+        pagesCount: pages.length,
+        pagesToUseCount: pagesToUse.length,
+        selectedPagesCount: selectedPages.length,
+        selectedPagesWithKeyMessage: selectedPages.filter((p: any) => (p as any).keyMessage).length,
+        selectedPagesWithSubMessage: selectedPages.filter((p: any) => (p as any).subMessage).length,
+        selectedPagesDetails: selectedPages.map((p: any) => ({
+          id: p.id,
+          title: p.title,
+          hasKeyMessage: !!(p as any).keyMessage,
+          hasSubMessage: !!(p as any).subMessage,
+          keyMessage: (p as any).keyMessage,
+          subMessage: (p as any).subMessage,
+        })),
+      });
       
       if (selectedPages.length === 0) {
         alert('移行するページを1つ以上選択してください。');
@@ -1983,7 +2257,7 @@ export default function MigrateFromFixedPage({
       const migratedPages = selectedPages.map((page, index) => {
         // 明確なIDを生成（page-migrated-{timestamp}-{index}形式）
         const pageId = `page-migrated-${migrationTimestamp}-${index}`;
-        return {
+        const pageData: any = {
           id: pageId,
           pageNumber: 0, // 固定ページ形式側でページ順を振る仕組みがあるため、0に設定
           title: page.title,
@@ -1992,6 +2266,26 @@ export default function MigrateFromFixedPage({
           migrated: true, // 移行フラグ
           migratedAt: new Date().toISOString(),
         };
+        
+        // キーメッセージとサブメッセージを追加（構想の固定ページ形式用）
+        if ((page as any).keyMessage) {
+          pageData.keyMessage = (page as any).keyMessage;
+          console.log(`[handleMigrate] ページ ${pageId} にキーメッセージを追加:`, (page as any).keyMessage);
+        }
+        if ((page as any).subMessage) {
+          pageData.subMessage = (page as any).subMessage;
+          console.log(`[handleMigrate] ページ ${pageId} にサブメッセージを追加:`, (page as any).subMessage);
+        }
+        
+        console.log(`[handleMigrate] ページ ${pageId} のデータ:`, {
+          title: pageData.title,
+          hasKeyMessage: !!pageData.keyMessage,
+          hasSubMessage: !!pageData.subMessage,
+          keyMessage: pageData.keyMessage,
+          subMessage: pageData.subMessage,
+        });
+        
+        return pageData;
       });
 
       // モードに応じてページを処理
@@ -2079,7 +2373,7 @@ export default function MigrateFromFixedPage({
 
       // 更新データを準備
       const updatedPagesBySubMenu = {
-        ...pagesBySubMenu,
+        ...existingPagesBySubMenu,
         [targetSubMenu]: updatedPages,
       };
 
@@ -2140,6 +2434,18 @@ export default function MigrateFromFixedPage({
         conceptDocId,
         targetSubMenu,
         updatedPagesCount: updatedPages.length,
+        migratedPagesWithKeyMessage: migratedPages.filter((p: any) => (p as any).keyMessage).length,
+        migratedPagesWithSubMessage: migratedPages.filter((p: any) => (p as any).subMessage).length,
+        updatedPagesWithKeyMessage: updatedPages.filter((p: any) => (p as any).keyMessage).length,
+        updatedPagesWithSubMessage: updatedPages.filter((p: any) => (p as any).subMessage).length,
+        samplePage: updatedPages.length > 0 ? {
+          id: updatedPages[0].id,
+          title: updatedPages[0].title,
+          hasKeyMessage: !!(updatedPages[0] as any).keyMessage,
+          hasSubMessage: !!(updatedPages[0] as any).subMessage,
+          keyMessage: (updatedPages[0] as any).keyMessage,
+          subMessage: (updatedPages[0] as any).subMessage,
+        } : null,
         updatedPageOrderCount: updatedPageOrder.length,
         updateData: {
           ...updateData,
@@ -2258,9 +2564,6 @@ export default function MigrateFromFixedPage({
     // 進捗メッセージをクリア（ページ抽出完了）
     setProgress('');
 
-    // 既存のコンポーネント化された構想をチェック
-    const existing = await checkExistingConcept();
-    
     // 会社事業計画の場合は、すべての既存事業計画を取得して「既存に追加」を有効にする
     if (isCompanyPlan) {
       const allPlans = await getAllExistingConcepts();
@@ -2282,9 +2585,13 @@ export default function MigrateFromFixedPage({
         setShowConfirmDialog(true);
       }
     } else {
-      // 事業企画の場合
-      if (existing) {
-        setExistingConcept(existing);
+      // 事業企画の場合：すべての既存コンポーネント形式の構想を取得して「既存に追加」を有効にする
+      const allConcepts = await getAllExistingConcepts();
+      
+      if (allConcepts.length > 0) {
+        // 既存のコンポーネント形式の構想がある場合
+        // 最初のものをexistingConceptとして設定（「既存に追加」で全件選択可能）
+        setExistingConcept(allConcepts[0]);
         setShowConfirmDialog(true);
       } else {
         // 既存の構想がない場合でも、選択UIを表示

@@ -230,6 +230,8 @@ function SortablePageItem({
                     pageNumber={config.pageNumber}
                     title={(config as any).title || `ページ ${config.pageNumber}`}
                     content={pageContent}
+                    keyMessage={(config as any).keyMessage}
+                    subMessage={(config as any).subMessage}
                   />
                 </div>
               </div>
@@ -705,6 +707,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
   const [editingPageId, setEditingPageId] = useState<string | null>(null);
   const [editingPageTitle, setEditingPageTitle] = useState('');
   const [editingPageContent, setEditingPageContent] = useState('');
+  const [editingPageKeyMessage, setEditingPageKeyMessage] = useState<string>('');
+  const [editingPageSubMessage, setEditingPageSubMessage] = useState<string>('');
   const [viewingMetadataPageId, setViewingMetadataPageId] = useState<string | null>(null);
   const [viewingMetadataPage, setViewingMetadataPage] = useState<PageMetadata | null>(null);
   const [viewingStructurePageId, setViewingStructurePageId] = useState<string | null>(null);
@@ -799,6 +803,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
             pageNumber: number;
             title: string;
             content: string;
+            keyMessage?: string;
+            subMessage?: string;
           }> } | undefined;
           
           const pageOrderBySubMenu = data.pageOrderBySubMenu as { [key: string]: string[] } | undefined;
@@ -814,6 +820,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
             pageNumber: number;
             title: string;
             content: string;
+            keyMessage?: string;
+            subMessage?: string;
           }> | undefined;
           
           if (subMenuId === 'overview') {
@@ -823,6 +831,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
               pageNumber: number;
               title: string;
               content: string;
+              keyMessage?: string;
+              subMessage?: string;
             }> | undefined);
           } else {
             savedPageOrder = currentSubMenuPageOrder;
@@ -835,12 +845,16 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
             pageNumber: page.pageNumber,
             title: page.title,
             content: page.content, // プレビュー用にcontentを追加
+            keyMessage: (page as any).keyMessage, // プレビュー用にkeyMessageを追加
+            subMessage: (page as any).subMessage, // プレビュー用にsubMessageを追加
             component: () => (
               <DynamicPage
                 pageId={page.id}
                 pageNumber={page.pageNumber}
                 title={page.title}
                 content={page.content}
+                keyMessage={(page as any).keyMessage}
+                subMessage={(page as any).subMessage}
               />
             ),
           }));
@@ -955,12 +969,16 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         pageNumber: page.pageNumber,
         title: page.title,
         content: page.content, // プレビュー用にcontentを追加
+        keyMessage: (page as any).keyMessage, // プレビュー用にkeyMessageを追加
+        subMessage: (page as any).subMessage, // プレビュー用にsubMessageを追加
         component: () => (
           <DynamicPage
             pageId={page.id}
             pageNumber={page.pageNumber}
             title={page.title}
             content={page.content}
+            keyMessage={(page as any).keyMessage}
+            subMessage={(page as any).subMessage}
           />
         ),
       }));
@@ -1321,6 +1339,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         pageNumber: number;
         title: string;
         content: string;
+        keyMessage?: string;
+        subMessage?: string;
       }> }) || {};
       
       // 現在のサブメニューのページデータを取得
@@ -1332,6 +1352,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         pageNumber: number;
         title: string;
         content: string;
+        keyMessage?: string;
+        subMessage?: string;
       }>;
       
       if (subMenuId === 'overview') {
@@ -1340,6 +1362,8 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         pageNumber: number;
         title: string;
         content: string;
+        keyMessage?: string;
+        subMessage?: string;
       }>) || [];
         pages = currentSubMenuPages.length > 0 ? currentSubMenuPages : oldPages;
       } else {
@@ -1352,9 +1376,33 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         return;
       }
 
+      console.log('[handleEditPage] ページデータを読み込み:', {
+        pageId: page.id,
+        title: page.title,
+        hasKeyMessage: !!(page as any).keyMessage,
+        hasSubMessage: !!(page as any).subMessage,
+        keyMessage: (page as any).keyMessage,
+        subMessage: (page as any).subMessage,
+        pageData: page,
+      });
+
       setEditingPageId(pageId);
       setEditingPageTitle(page.title);
       setEditingPageContent(page.content);
+      // キーメッセージとサブメッセージを読み込む（移行時に保存されたデータ）
+      // 値が存在する場合はその値を、存在しない場合はundefinedを渡す（EditPageFormで処理される）
+      const pageKeyMessage = (page as any).keyMessage;
+      const pageSubMessage = (page as any).subMessage;
+      // 値が存在する場合はその値を、存在しない場合はundefinedを渡す
+      setEditingPageKeyMessage(pageKeyMessage !== undefined ? pageKeyMessage : undefined);
+      setEditingPageSubMessage(pageSubMessage !== undefined ? pageSubMessage : undefined);
+      
+      console.log('[handleEditPage] 編集状態を設定:', {
+        pageKeyMessage,
+        pageSubMessage,
+        editingPageKeyMessage: pageKeyMessage !== undefined ? pageKeyMessage : undefined,
+        editingPageSubMessage: pageSubMessage !== undefined ? pageSubMessage : undefined,
+      });
     } catch (error) {
       console.error('ページ編集エラー:', error);
       alert('ページの編集に失敗しました');
@@ -1394,6 +1442,9 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
       setEditingPageId(pageId);
       setEditingPageTitle(pageToEdit.title || '');
       setEditingPageContent(pageToEdit.content || '');
+      // キーメッセージとサブメッセージを読み込む（移行時に保存されたデータ）
+      setEditingPageKeyMessage((pageToEdit as any).keyMessage || '');
+      setEditingPageSubMessage((pageToEdit as any).subMessage || '');
     } catch (error) {
       console.error('ページ編集エラー:', error);
       alert('ページの編集に失敗しました');
@@ -1925,7 +1976,13 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
           pageId={editingPageId}
           initialTitle={editingPageTitle}
           initialContent={editingPageContent}
-          onClose={() => setEditingPageId(null)}
+          initialKeyMessage={editingPageKeyMessage}
+          initialSubMessage={editingPageSubMessage}
+          onClose={() => {
+            setEditingPageId(null);
+            setEditingPageKeyMessage('');
+            setEditingPageSubMessage('');
+          }}
           onPageUpdated={handlePageUpdated}
         />
       )}

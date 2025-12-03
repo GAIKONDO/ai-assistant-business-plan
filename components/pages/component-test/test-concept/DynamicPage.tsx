@@ -9,6 +9,8 @@ interface DynamicPageProps {
   pageNumber: number;
   title: string;
   content: string;
+  keyMessage?: string;
+  subMessage?: string;
 }
 
 interface ContentPart {
@@ -39,7 +41,7 @@ try {
   // インポートに失敗した場合はデフォルトコンテキストを使用
 }
 
-export default function DynamicPage({ pageId, pageNumber, title, content }: DynamicPageProps) {
+export default function DynamicPage({ pageId, pageNumber, title, content, keyMessage, subMessage }: DynamicPageProps) {
   // useContainerVisibilityを取得（コンテキストが存在する場合）
   // コンテキストが存在しない場合はデフォルト値を使用
   // React Hooksのルールに準拠するため、useContextを常に呼び出す
@@ -47,6 +49,18 @@ export default function DynamicPage({ pageId, pageNumber, title, content }: Dyna
   const showContainers = contextValue?.showContainers ?? false;
   
   const contentRef = useRef<HTMLDivElement>(null);
+
+  // コンテンツに既にキーメッセージとサブメッセージが含まれているかチェック
+  const hasKeyMessageInContent = useMemo(() => {
+    if (!content) return false;
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = content;
+    const keyMessageContainer = tempDiv.querySelector('.key-message-container');
+    return !!keyMessageContainer;
+  }, [content]);
+
+  // コンテンツに既にキーメッセージが含まれている場合は、propsのkeyMessage/subMessageを表示しない
+  const shouldShowKeyMessage = !hasKeyMessageInContent && (keyMessage || subMessage);
 
   // HTMLコンテンツをパースして、Mermaid図の部分を検出
   const parsedContent = useMemo(() => {
@@ -385,6 +399,23 @@ export default function DynamicPage({ pageId, pageNumber, title, content }: Dyna
         >
           {title}
         </h3>
+      )}
+      {/* キーメッセージとサブメッセージを表示（コンテンツに含まれていない場合のみ） */}
+      {shouldShowKeyMessage && (
+        <div className="key-message-container" style={{ 
+          marginBottom: '40px'
+        }}>
+          {keyMessage && (
+            <h2 className="key-message-title">
+              {keyMessage}
+            </h2>
+          )}
+          {subMessage && (
+            <p className="key-message-subtitle gradient-text-blue">
+              {subMessage}
+            </p>
+          )}
+        </div>
       )}
       {/* スライドマスタースタイルを適用：共通デザインクラスを使用 */}
       <div 

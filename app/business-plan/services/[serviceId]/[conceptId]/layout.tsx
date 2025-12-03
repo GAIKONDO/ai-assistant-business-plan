@@ -14,6 +14,7 @@ import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor'
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
 import { ConceptContext, useConcept, ConceptData } from './hooks/useConcept';
 import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
+import { resolveConceptId, getUrlConceptId } from '@/lib/conceptIdMapping';
 
 declare global {
   interface Window {
@@ -36,7 +37,10 @@ export default function ConceptDetailLayout({
 }) {
   const params = useParams();
   const serviceId = params.serviceId as string;
-  const conceptId = params.conceptId as string;
+  const conceptIdParam = params.conceptId as string;
+  
+  // 数値IDから文字列IDに変換（後方互換性のため文字列IDもサポート）
+  const conceptId = resolveConceptId(serviceId, conceptIdParam);
 
   // コンポーネント化されたページの場合は、ComponentizedPageProviderでラップ
   // conceptIdが-componentizedを含む、または特定のconceptIdの場合はコンポーネント化されたページ
@@ -81,7 +85,13 @@ export default function ConceptDetailLayout({
           keyVisualHeight: data.keyVisualHeight || 56.25,
           keyVisualScale: data.keyVisualScale || 100,
           keyVisualLogoUrl: data.keyVisualLogoUrl || undefined,
+          keyVisualLogoSize: data.keyVisualLogoSize || 15, // PDFロゴのサイズ（mm）
           keyVisualMetadata: data.keyVisualMetadata || undefined,
+          titlePositionX: data.titlePositionX ?? 5, // PDFタイトルのX位置（mm）
+          titlePositionY: data.titlePositionY ?? -3, // PDFタイトルのY位置（mm）
+          titleFontSize: data.titleFontSize ?? 12, // PDFタイトルのフォントサイズ（px）
+          titleBorderEnabled: data.titleBorderEnabled !== undefined ? data.titleBorderEnabled : true, // PDFタイトルのボーダー（縦棒）の有無（デフォルトは有り）
+          footerText: data.footerText || 'AI assistant company, Inc - All Rights Reserved', // PDFフッターテキスト（デフォルト値）
         });
         console.log('setConceptに設定したkeyVisualMetadata:', data.keyVisualMetadata);
       } else {
@@ -264,6 +274,8 @@ function ConceptLayoutContent({
   const [showKeyVisualMetadataEditor, setShowKeyVisualMetadataEditor] = useState(false);
   const [showPDFSubMenuSelector, setShowPDFSubMenuSelector] = useState(false); // PDF出力時のサブメニュー選択モーダル
   const [selectedSubMenusForPDF, setSelectedSubMenusForPDF] = useState<Set<string>>(new Set()); // 選択されたサブメニュー
+  const [subMenuPagesStatus, setSubMenuPagesStatus] = useState<Array<{ id: string; label: string; hasPages: boolean }>>([]); // サブメニューのページ有無状態
+  const [isCheckingPages, setIsCheckingPages] = useState(false); // ページ確認中かどうか
   const [showMigrateModal, setShowMigrateModal] = useState(false);
   const [keyVisualMetadata, setKeyVisualMetadata] = useState<{
     title: string;
@@ -681,16 +693,32 @@ function ConceptLayoutContent({
 
     const currentSubMenuId = getCurrentSubMenu();
 
-    // 各サブメニューにページがあるかどうかを確認
-    const subMenuPagesStatus: Array<{ id: string; label: string; hasPages: boolean }> = [];
-    for (const item of SUB_MENU_ITEMS) {
-      const hasPages = await checkSubMenuHasPages(item.id);
-      subMenuPagesStatus.push({ id: item.id, label: item.label, hasPages });
-    }
+    // モーダルをすぐに表示
+    setShowPDFSubMenuSelector(true);
 
     // 現在のサブメニューをデフォルトで選択
     setSelectedSubMenusForPDF(new Set([currentSubMenuId]));
-    setShowPDFSubMenuSelector(true);
+
+    // ページ確認を非同期で実行（モーダル表示後に実行）
+    setIsCheckingPages(true);
+    try {
+      // 選択したサブメニューにページがあるかどうかを確認（並列処理）
+      const selectedSubMenuStatus = await Promise.all(
+        SUB_MENU_ITEMS.map(async (item) => {
+          const hasPages = await checkSubMenuHasPages(item.id);
+          return { id: item.id, label: item.label, hasPages };
+        })
+      );
+      setSubMenuPagesStatus(selectedSubMenuStatus);
+    } catch (error) {
+      console.error('ページ確認エラー:', error);
+      // エラーが発生した場合は、すべてのサブメニューにページがあると仮定
+      setSubMenuPagesStatus(
+        SUB_MENU_ITEMS.map(item => ({ id: item.id, label: item.label, hasPages: true }))
+      );
+    } finally {
+      setIsCheckingPages(false);
+    }
   }, [showContainers, checkSubMenuHasPages, pathname]);
 
   // PDF出力機能（実際のPDF生成）
@@ -1256,6 +1284,11 @@ function ConceptLayoutContent({
         const hasImage = containerEl.querySelector('img') !== null;
         const isKeyVisual = pageContainerAttr === '0' && hasImage;
         
+        // キービジュアルの場合は、ページタイトルを「キービジュアル」に設定
+        if (isKeyVisual && containerInfo) {
+          containerInfo.subMenuLabel = 'キービジュアル';
+        }
+        
         // 元のborderスタイルを保存
         const originalBorder = containerEl.style.border;
         
@@ -1310,10 +1343,115 @@ function ConceptLayoutContent({
           }
         }
 
+        // PDF出力時に非表示にする要素を管理する配列
+        const hiddenElements: Array<{ element: HTMLElement; originalDisplay: string }> = [];
+        
+        // 各ページのタイトルを左上に追加（コンテンツに依存せず固定位置・固定サイズ）
+        // コンテナからタイトルを取得（PDF出力前にタイトル要素を非表示にするため、先に取得）
+        let pageTitle = '';
+        let titleElement: HTMLElement | null = null;
+        if (!isKeyVisual) {
+          // 固定ページ形式・コンポーネント形式の両方に対応：data-pdf-title-h3属性でタイトル要素を探す
+          // または、h4要素でborderLeftがあるタイトル要素を探す
+          titleElement = containerEl.querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
+          if (!titleElement) {
+            // h4要素でborderLeftがあるタイトル要素を探す（構想の固定ページ形式用）
+            const h4Elements = containerEl.querySelectorAll('h4');
+            for (const h4 of Array.from(h4Elements)) {
+              const computedStyle = window.getComputedStyle(h4);
+              if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+                titleElement = h4 as HTMLElement;
+                break;
+              }
+            }
+          }
+          if (titleElement) {
+            pageTitle = titleElement.textContent?.trim() || '';
+            // タイトル要素を非表示にして、PDF出力時に2重表示を防ぐ
+            const originalTitleDisplay = titleElement.style.display || window.getComputedStyle(titleElement).display;
+            hiddenElements.push({ element: titleElement, originalDisplay: originalTitleDisplay });
+            titleElement.style.display = 'none';
+          }
+        }
+        
+        // タイトルを左上に追加（固定位置・固定サイズ）
+        // 日本語フォントの問題を回避するため、html2canvasを使用して画像として追加
+        // タイトルは最後に追加して、コンテンツの上に表示されるようにする
+        let titleImgData: string | null = null;
+        let titleWidth: number = 0;
+        let titleHeight: number = 0;
+        let titleX: number = 0;
+        let titleY: number = 0;
+        let titlePageTitle: string = '';
+        
+        if (pageTitle && !isKeyVisual) {
+          try {
+            titlePageTitle = pageTitle;
+            // タイトル要素を一時的なDOM要素として作成（通常表示と同じスタイル）
+            const titleDiv = document.createElement('div');
+            titleDiv.style.position = 'absolute';
+            titleDiv.style.left = '-9999px';
+            titleDiv.style.top = '-9999px';
+            titleDiv.style.backgroundColor = 'transparent';
+            titleDiv.style.color = 'var(--color-text)'; // 通常表示と同じ色
+            titleDiv.style.fontFamily = 'sans-serif';
+            titleDiv.style.fontSize = `${concept?.titleFontSize || 12}px`; // 設定値またはデフォルト12px
+            titleDiv.style.fontWeight = '600'; // 太字
+            titleDiv.style.lineHeight = '1.5';
+            titleDiv.style.whiteSpace = 'nowrap';
+            titleDiv.style.display = 'inline-block'; // 幅を正しく計算するために追加
+            // ボーダーの有無を設定に応じて反映（デフォルトは有り）
+            const borderEnabled = concept?.titleBorderEnabled !== false; // undefinedの場合はtrue（デフォルト）
+            if (borderEnabled) {
+              titleDiv.style.borderLeft = '3px solid var(--color-primary)'; // 左側に3pxの縦棒
+              titleDiv.style.paddingLeft = '8px'; // 縦棒とテキストの間隔
+            } else {
+              titleDiv.style.borderLeft = 'none';
+              titleDiv.style.paddingLeft = '0';
+            }
+            titleDiv.style.margin = '0';
+            titleDiv.style.marginBottom = '12px'; // 通常表示と同じマージン
+            titleDiv.textContent = pageTitle;
+            
+            document.body.appendChild(titleDiv);
+            
+            // レンダリングを待つ
+            await new Promise(resolve => setTimeout(resolve, 100));
+            
+            // html2canvasで画像化（width/heightを指定せず自動計算させる）
+            const titleCanvas = await html2canvas(titleDiv, {
+              scale: 2,
+              backgroundColor: null,
+              useCORS: true,
+              logging: false,
+              // width/heightを指定しないことで、要素の実際のサイズを自動計算
+            });
+            
+            titleImgData = titleCanvas.toDataURL('image/png');
+            
+            // 画像のサイズを計算（mm単位、96dpi基準）
+            titleWidth = (titleCanvas.width / 2) * 0.264583; // scale: 2なので2で割る
+            titleHeight = (titleCanvas.height / 2) * 0.264583;
+            
+            // 左上の位置を計算（設定値またはデフォルト値を使用）
+            titleX = margin + (concept?.titlePositionX ?? 5); // 左端からの距離（mm）
+            titleY = margin + (concept?.titlePositionY ?? -3); // 上端からの距離（mm）
+            
+            // 一時的なDOM要素を削除
+            if (document.body.contains(titleDiv)) {
+              document.body.removeChild(titleDiv);
+            }
+          } catch (error) {
+            console.error('タイトル画像の生成エラー:', error);
+            // エラーが発生した場合は、後でテキストとして追加を試みる
+          }
+        }
+
         // キービジュアルの場合は、画像要素を直接取得してアスペクト比を計算
         // また、PDF出力時に不要なボタンを非表示にする
         let targetAspectRatio: number | null = null;
-        const hiddenElements: Array<{ element: HTMLElement; originalDisplay: string }> = [];
+        let keyVisualImageUrl: string | null = null;
+        let keyVisualScale: number = 100; // デフォルトは100%（スケールなし）
         
         if (isKeyVisual) {
           // サイズ調整ボタンと画像変更ボタンを非表示にする
@@ -1341,12 +1479,37 @@ function ConceptLayoutContent({
             metadataElement.style.display = 'none';
           }
           
+          // キービジュアルのスケール設定を取得（conceptから）
+          if (concept?.keyVisualScale) {
+            keyVisualScale = concept.keyVisualScale;
+          } else {
+            // conceptにない場合は、画像要素のtransform: scale()から取得を試みる
           const imgElement = containerEl.querySelector('img') as HTMLImageElement;
-          if (imgElement && imgElement.complete) {
-            // 画像の実際のアスペクト比を取得
-            targetAspectRatio = imgElement.naturalWidth / imgElement.naturalHeight;
-          } else if (imgElement) {
-            // 画像がまだ読み込まれていない場合は、読み込みを待つ
+            if (imgElement) {
+              const transform = window.getComputedStyle(imgElement).transform;
+              if (transform && transform !== 'none') {
+                const matrix = transform.match(/matrix\(([^)]+)\)/);
+                if (matrix) {
+                  const values = matrix[1].split(',').map(v => parseFloat(v.trim()));
+                  // matrix(a, b, c, d, e, f) の a と d がスケール値
+                  if (values.length >= 4) {
+                    const scaleX = values[0];
+                    const scaleY = values[3];
+                    // 平均を取る（通常は同じ値）
+                    keyVisualScale = ((scaleX + scaleY) / 2) * 100;
+                  }
+                }
+              }
+            }
+          }
+          
+          const imgElement = containerEl.querySelector('img') as HTMLImageElement;
+          if (imgElement) {
+            // 画像URLを保存
+            keyVisualImageUrl = imgElement.src;
+            
+            // 画像の読み込みを確実に待つ
+            if (!imgElement.complete) {
             await new Promise((resolve) => {
               if (imgElement.complete) {
                 resolve(null);
@@ -1357,23 +1520,43 @@ function ConceptLayoutContent({
                 setTimeout(() => resolve(null), 5000);
               }
             });
-            if (imgElement.complete && imgElement.naturalWidth > 0) {
+            }
+            
+            // 画像の実際のアスペクト比を取得（naturalWidth/naturalHeight）
+            if (imgElement.complete && imgElement.naturalWidth > 0 && imgElement.naturalHeight > 0) {
               targetAspectRatio = imgElement.naturalWidth / imgElement.naturalHeight;
+              console.log('キービジュアル画像のアスペクト比:', {
+                naturalWidth: imgElement.naturalWidth,
+                naturalHeight: imgElement.naturalHeight,
+                aspectRatio: targetAspectRatio,
+                imageUrl: keyVisualImageUrl,
+                scale: keyVisualScale,
+              });
             }
           }
           
           // 画像のアスペクト比が取得できない場合は、paddingTopから計算
-          if (!targetAspectRatio) {
+          if (!targetAspectRatio || targetAspectRatio <= 0) {
             const paddingTopElement = containerEl.querySelector('[style*="padding-top"]') as HTMLElement;
             if (paddingTopElement) {
               const paddingTopStyle = window.getComputedStyle(paddingTopElement).paddingTop;
               const paddingTopPercent = parseFloat(paddingTopStyle);
-              if (!isNaN(paddingTopPercent)) {
+              if (!isNaN(paddingTopPercent) && paddingTopPercent > 0) {
                 // paddingTopのパーセンテージからアスペクト比を計算
                 // paddingTop: 56.25% = 16:9のアスペクト比
                 targetAspectRatio = 100 / paddingTopPercent;
+                console.log('paddingTopからアスペクト比を計算:', {
+                  paddingTop: paddingTopPercent,
+                  aspectRatio: targetAspectRatio,
+                });
               }
             }
+          }
+          
+          // それでも取得できない場合は、デフォルトの16:9を使用
+          if (!targetAspectRatio || targetAspectRatio <= 0) {
+            targetAspectRatio = 16 / 9;
+            console.log('デフォルトのアスペクト比（16:9）を使用');
           }
         }
 
@@ -1630,31 +1813,156 @@ function ConceptLayoutContent({
           });
         }
 
-        const imgData = canvas.toDataURL('image/png', 1.0);
+        // キービジュアルの場合は、実際の画像URLから直接画像を取得してPDFに追加
+        // concept.keyVisualUrlを優先的に使用し、なければkeyVisualImageUrlを使用
+        const keyVisualUrlToUse = concept?.keyVisualUrl || keyVisualImageUrl;
+        if (isKeyVisual && keyVisualUrlToUse && targetAspectRatio && targetAspectRatio > 0) {
+          try {
+            // 画像を読み込んで実際のサイズを取得
+            const img = new Image();
+            img.crossOrigin = 'anonymous';
+            
+            const imageData = await new Promise<{ base64: string; width: number; height: number; format: string }>((resolve, reject) => {
+              img.onload = async () => {
+                try {
+                  // 画像の実際のサイズを取得
+                  const naturalWidth = img.naturalWidth;
+                  const naturalHeight = img.naturalHeight;
+                  
+                  // 画像をBase64に変換
+                  const canvas = document.createElement('canvas');
+                  canvas.width = naturalWidth;
+                  canvas.height = naturalHeight;
+                  const ctx = canvas.getContext('2d');
+                  if (!ctx) {
+                    reject(new Error('Failed to get canvas context'));
+                    return;
+                  }
+                  ctx.drawImage(img, 0, 0);
+                  const imageBase64 = canvas.toDataURL('image/png');
+                  
+                  // 画像の形式を自動検出
+                  const format = imageBase64.split(';')[0].split('/')[1].toUpperCase();
+                  
+                  resolve({
+                    base64: imageBase64,
+                    width: naturalWidth,
+                    height: naturalHeight,
+                    format: format
+                  });
+                } catch (error) {
+                  reject(error);
+                }
+              };
+              img.onerror = reject;
+              img.src = keyVisualUrlToUse;
+            });
+
+            // 実際の画像サイズからアスペクト比を計算
+            const actualAspectRatio = imageData.width / imageData.height;
         
-        // 1ページ目（キービジュアル）の場合のみ画像の実際のアスペクト比を使用
-        // それ以外の場合は、キャンバスの実際のアスペクト比を使用（コンテナ全体のサイズに基づく）
-        let aspectRatioToUse: number;
-        // 1ページ目かつtargetAspectRatioが正しく取得できている場合のみ画像のアスペクト比を使用
-        if (i === 0 && targetAspectRatio !== null && targetAspectRatio > 0 && isFinite(targetAspectRatio)) {
-          aspectRatioToUse = targetAspectRatio;
-        } else {
-          // キャンバスの実際のアスペクト比を使用（コンテナ全体のサイズに基づく）
-          aspectRatioToUse = canvas.width / canvas.height;
-        }
-        
+            // アスペクト比を維持しながら、ページサイズに収まるようにサイズを計算
         let finalWidth = contentWidth;
-        let finalHeight = contentWidth / aspectRatioToUse;
+            let finalHeight = contentWidth / actualAspectRatio;
         
+            // 高さがページを超える場合は、高さ基準で再計算
         if (finalHeight > contentHeight) {
           finalHeight = contentHeight;
-          finalWidth = contentHeight * aspectRatioToUse;
+              finalWidth = contentHeight * actualAspectRatio;
+            }
+            
+            // 幅がページを超える場合は、幅基準で再計算
+            if (finalWidth > contentWidth) {
+              finalWidth = contentWidth;
+              finalHeight = contentWidth / actualAspectRatio;
         }
         
+            // スケール設定を反映（keyVisualScaleは%単位なので、100で割る）
+            const scaleFactor = keyVisualScale / 100;
+            finalWidth = finalWidth * scaleFactor;
+            finalHeight = finalHeight * scaleFactor;
+        
+            // スケール適用後、ページサイズを超えないように再調整
+            if (finalWidth > contentWidth) {
+              const scaleDown = contentWidth / finalWidth;
+              finalWidth = contentWidth;
+              finalHeight = finalHeight * scaleDown;
+            }
+            if (finalHeight > contentHeight) {
+              const scaleDown = contentHeight / finalHeight;
+              finalHeight = contentHeight;
+              finalWidth = finalWidth * scaleDown;
+            }
+            
+            console.log('PDF出力: キービジュアル画像を直接追加', {
+              finalWidth,
+              finalHeight,
+              actualAspectRatio,
+              imageWidth: imageData.width,
+              imageHeight: imageData.height,
+              targetAspectRatio,
+              scale: keyVisualScale,
+              scaleFactor,
+              contentWidth,
+              contentHeight,
+              imageFormat: imageData.format,
+            });
+            
+            // 中央揃えのための位置調整
         const xOffset = (contentWidth - finalWidth) / 2;
-        const yOffset = 0; // 上揃え
+            const yOffset = (contentHeight - finalHeight) / 2;
 
+            // PDFに画像を直接追加（アスペクト比とスケールを維持）
+            pdf.addImage(imageData.base64, imageData.format, margin + xOffset, margin + yOffset, finalWidth, finalHeight);
+          } catch (error) {
+            console.error('キービジュアル画像の直接追加に失敗、canvasを使用:', error);
+            // エラーの場合は、通常のcanvas方式にフォールバック
+            const imgData = canvas.toDataURL('image/png', 1.0);
+            const imgAspectRatio = targetAspectRatio;
+            let finalWidth = contentWidth;
+            let finalHeight = contentWidth / imgAspectRatio;
+            if (finalHeight > contentHeight) {
+              finalHeight = contentHeight;
+              finalWidth = contentHeight * imgAspectRatio;
+            }
+            if (finalWidth > contentWidth) {
+              finalWidth = contentWidth;
+              finalHeight = contentWidth / imgAspectRatio;
+            }
+            const xOffset = (contentWidth - finalWidth) / 2;
+            const yOffset = (contentHeight - finalHeight) / 2;
         pdf.addImage(imgData, 'PNG', margin + xOffset, margin + yOffset, finalWidth, finalHeight);
+          }
+        } else {
+          // 通常のコンテナの場合は、canvasを使用
+          const imgData = canvas.toDataURL('image/png', 1.0);
+          
+          // canvasのサイズをscaleで割って、実際のコンテナサイズを取得
+          const canvasScale = 3; // html2canvasのscale設定
+          const actualCanvasWidth = canvas.width / canvasScale;
+          const actualCanvasHeight = canvas.height / canvasScale;
+          const imgAspectRatio = actualCanvasWidth / actualCanvasHeight;
+          
+          // コンテナの実際のサイズとPDFのコンテンツサイズを比較して、適切なサイズを計算
+          // コンテナのアスペクト比を維持しつつ、PDFのコンテンツエリアに収まるようにする
+          let finalWidth = contentWidth;
+          let finalHeight = contentWidth / imgAspectRatio;
+          
+          if (finalHeight > contentHeight) {
+            finalHeight = contentHeight;
+            finalWidth = contentHeight * imgAspectRatio;
+          }
+          
+          if (finalWidth > contentWidth) {
+            finalWidth = contentWidth;
+            finalHeight = contentWidth / imgAspectRatio;
+          }
+          
+          const xOffset = (contentWidth - finalWidth) / 2;
+          const yOffset = (contentHeight - finalHeight) / 2;
+
+          pdf.addImage(imgData, 'PNG', margin + xOffset, margin + yOffset, finalWidth, finalHeight);
+        }
         
         // ロゴをPDFページの右上に追加
         // ロゴが上に表示されるように、コンテンツの後に追加する
@@ -1744,6 +2052,19 @@ function ConceptLayoutContent({
           });
         }
         
+        // タイトルを最後に追加（コンテンツの上に表示されるように）
+        if (titleImgData && titlePageTitle && !isKeyVisual) {
+          try {
+            pdf.addImage(titleImgData, 'PNG', titleX, titleY, titleWidth, titleHeight);
+          } catch (error) {
+            console.error('タイトル画像の追加エラー:', error);
+            // エラーの場合は、テキストとして追加を試みる（文字化けする可能性がある）
+            pdf.setFontSize(16);
+            pdf.setTextColor(0, 0, 0);
+            pdf.text(titlePageTitle, titleX, titleY + 5);
+          }
+        }
+        
         // キービジュアル（1ページ目）にタイトル、署名、作成日を独立して追加
         // ページコンポーネントの画像とは独立して、PDFページに直接追加
         // 日本語フォントの問題を回避するため、html2canvasを使用して画像として追加
@@ -1751,9 +2072,40 @@ function ConceptLayoutContent({
           // conceptからメタデータを取得
           const metadata = concept?.keyVisualMetadata;
           if (metadata && (metadata.title || metadata.signature || metadata.date)) {
-            const textX = metadata.position.x;
-            const textY = metadata.position.y;
+            console.log('メタデータをPDFに追加します');
             const align = metadata.position.align;
+            
+            // メタデータの位置をそのまま使用（16:9横長のページサイズで設定されているため）
+            // 位置調整は行わず、保存された値をそのまま使用
+            let textX = metadata.position.x;
+            let textY = metadata.position.y;
+            
+            // 右揃えの場合でも、保存されたX座標をそのまま使用
+            // （デフォルト値は既に右端から10mmの位置に設定されている）
+            
+            // 座標がページ範囲外の場合は調整
+            if (textX > pageWidth) {
+              textX = pageWidth - 10; // 右端から10mm内側
+            }
+            if (textX < 0) {
+              textX = 10; // 左端から10mm内側
+            }
+            if (textY > pageHeight) {
+              textY = pageHeight - 10; // 下端から10mm上
+            }
+            if (textY < 0) {
+              textY = 10; // 上端から10mm下
+            }
+            
+            console.log('メタデータの位置（調整後）:', { 
+              textX, 
+              textY, 
+              align,
+              pageWidth,
+              pageHeight,
+              originalX: metadata.position.x,
+              originalY: metadata.position.y
+            });
             
             // メタデータテキストを一時的なDOM要素として作成（テキスト要素のみ）
             const textDiv = document.createElement('div');
@@ -1819,11 +2171,20 @@ function ConceptLayoutContent({
                 height: textDiv.scrollHeight,
               });
               
+              console.log('html2canvas結果:', {
+                canvasWidth: metadataCanvas.width,
+                canvasHeight: metadataCanvas.height,
+                scrollWidth: textDiv.scrollWidth,
+                scrollHeight: textDiv.scrollHeight
+              });
+              
               const metadataImgData = metadataCanvas.toDataURL('image/png');
               
               // 画像のサイズを計算（mm単位、96dpi基準）
               const imgWidth = (metadataCanvas.width / 3) * 0.264583; // scale: 3なので3で割る
               const imgHeight = (metadataCanvas.height / 3) * 0.264583;
+              
+              console.log('計算された画像サイズ:', { imgWidth, imgHeight });
               
               // PDFに画像として追加（下端がtextYになるように配置）
               let imgX: number;
@@ -1835,6 +2196,20 @@ function ConceptLayoutContent({
                 imgX = textX;
               }
               const imgY = textY - imgHeight; // 下端がtextYになるように
+              
+              console.log('メタデータ画像をPDFに追加:', {
+                imgX,
+                imgY,
+                imgWidth,
+                imgHeight,
+                canvasWidth: metadataCanvas.width,
+                canvasHeight: metadataCanvas.height,
+                pageWidth,
+                pageHeight,
+                textX,
+                textY,
+                align
+              });
               
               pdf.addImage(metadataImgData, 'PNG', imgX, imgY, imgWidth, imgHeight);
             } catch (error) {
@@ -1874,6 +2249,7 @@ function ConceptLayoutContent({
         }
       });
       setIsExportingPDF(false); // 処理終了
+      setIsCheckingPages(false); // ページ確認終了
       setPendingPDFExport(false);
       // keyVisualMetadataはクリアしない（Firestoreに保存されているので維持される）
     }
@@ -2191,13 +2567,15 @@ function ConceptLayoutContent({
                     <button
                       onClick={() => {
                         const allWithPages = SUB_MENU_ITEMS.filter(item => {
-                          const hasPages = concept?.pagesBySubMenu?.[item.id] 
+                          const status = subMenuPagesStatus.find(s => s.id === item.id);
+                          const hasPages = status ? status.hasPages : (concept?.pagesBySubMenu?.[item.id] 
                             ? Array.isArray(concept.pagesBySubMenu[item.id]) && concept.pagesBySubMenu[item.id].length > 0
-                            : true;
+                            : true);
                           return hasPages;
                         }).map(item => item.id);
                         setSelectedSubMenusForPDF(new Set(allWithPages));
                       }}
+                      disabled={isCheckingPages}
                       style={{
                         padding: '6px 12px',
                         backgroundColor: '#F3F4F6',
@@ -2271,6 +2649,37 @@ function ConceptLayoutContent({
                     </div>
                   </div>
 
+                  {/* ページ確認中の表示 */}
+                  {isCheckingPages && (
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      padding: '24px',
+                      backgroundColor: '#F9FAFB',
+                      borderRadius: '12px',
+                      marginBottom: '24px',
+                    }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '12px',
+                        color: '#6B7280',
+                        fontSize: '14px',
+                      }}>
+                        <div style={{
+                          width: '20px',
+                          height: '20px',
+                          border: '3px solid #E5E7EB',
+                          borderTopColor: '#10B981',
+                          borderRadius: '50%',
+                          animation: 'spin 1s linear infinite',
+                        }} />
+                        <span>ページを確認中...</span>
+                      </div>
+                    </div>
+                  )}
+
                   {/* サブメニューリスト */}
                   <div style={{ 
                     display: 'grid',
@@ -2279,9 +2688,11 @@ function ConceptLayoutContent({
                     marginBottom: '24px',
                   }}>
                     {SUB_MENU_ITEMS.map((item, index) => {
-                      const hasPages = concept?.pagesBySubMenu?.[item.id] 
+                      // subMenuPagesStatusからページの有無を取得（確認中または未確認の場合はtrueと仮定）
+                      const status = subMenuPagesStatus.find(s => s.id === item.id);
+                      const hasPages = status ? status.hasPages : (concept?.pagesBySubMenu?.[item.id] 
                         ? Array.isArray(concept.pagesBySubMenu[item.id]) && concept.pagesBySubMenu[item.id].length > 0
-                        : true;
+                        : true);
                       const isSelected = selectedSubMenusForPDF.has(item.id);
                       
                       return (

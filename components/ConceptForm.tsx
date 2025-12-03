@@ -36,28 +36,26 @@ export default function ConceptForm({ concept, serviceId, onSave, onCancel }: Co
         conceptId: concept.conceptId || '',
       });
     } else {
-      // 新規作成時はconceptIdを自動生成
+      // 新規作成時はconceptIdを自動生成（構想名が入力されるまで空文字列）
+      // 構想名が入力された時点で自動生成される
       setFormData({
         name: '',
         description: '',
-        conceptId: generateConceptId(''),
+        conceptId: '',
       });
     }
   }, [concept]);
 
   const generateConceptId = (name: string): string => {
-    if (!name) return '';
-    // 日本語名から英数字IDを生成（簡易版）
-    const normalized = name
-      .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
-      .replace(/\s+/g, '-')
-      .replace(/-+/g, '-')
-      .trim();
-    return normalized || `concept-${Date.now()}`;
+    // タイムスタンプベースの一意なIDを生成
+    // 形式: concept-{timestamp}
+    const timestamp = Date.now();
+    const randomSuffix = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    return `concept-${timestamp}${randomSuffix}`;
   };
 
   const handleNameChange = (name: string) => {
+    // 新規作成時のみ構想IDを自動生成（編集時は既存のIDを維持）
     const conceptId = concept?.conceptId || generateConceptId(name);
     setFormData({ ...formData, name, conceptId });
   };
@@ -113,13 +111,12 @@ export default function ConceptForm({ concept, serviceId, onSave, onCancel }: Co
         </div>
 
         <div className="form-group">
-          <label className="label">説明 *</label>
+          <label className="label">説明</label>
           <textarea
             className="textarea"
             value={formData.description}
             onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-            required
-            placeholder="構想の説明を入力してください"
+            placeholder="構想の説明を入力してください（任意）"
             rows={4}
           />
         </div>
@@ -130,12 +127,21 @@ export default function ConceptForm({ concept, serviceId, onSave, onCancel }: Co
             type="text"
             className="input"
             value={formData.conceptId}
-            onChange={(e) => setFormData({ ...formData, conceptId: e.target.value })}
-            placeholder="URL用のID（自動生成されますが、変更可能です）"
-            style={{ fontFamily: 'monospace', fontSize: '13px' }}
+            readOnly
+            disabled={!!concept?.id}
+            placeholder="構想IDは自動生成されます"
+            style={{ 
+              fontFamily: 'monospace', 
+              fontSize: '13px',
+              backgroundColor: concept?.id ? 'var(--color-bg-secondary)' : 'var(--color-bg)',
+              cursor: concept?.id ? 'not-allowed' : 'default',
+              opacity: concept?.id ? 0.7 : 1,
+            }}
           />
           <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px' }}>
-            このIDはURLに使用されます。変更する場合は英数字とハイフンのみ使用してください。
+            {concept?.id 
+              ? 'このIDは変更できません。URLに使用されます。'
+              : '構想IDは自動生成され、変更できません。URLに使用されます。'}
           </p>
         </div>
 

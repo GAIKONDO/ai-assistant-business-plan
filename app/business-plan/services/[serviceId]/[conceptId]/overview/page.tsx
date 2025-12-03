@@ -1,13 +1,17 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { doc, updateDoc, serverTimestamp } from 'firebase/firestore';
-import { db, auth } from '@/lib/firebase';
+import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
+import { db, auth, storage } from '@/lib/firebase';
 import { useConcept } from '../hooks/useConcept';
 import { useContainerVisibility } from '../hooks/useContainerVisibility';
 import Script from 'next/script';
 import dynamic from 'next/dynamic';
+import { resolveConceptId } from '@/lib/conceptIdMapping';
+import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
+import '@/components/pages/component-test/test-concept/pageStyles.css';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
 const ComponentizedOverview = dynamic(
@@ -19,27 +23,80 @@ export default function OverviewPage() {
   const params = useParams();
   const router = useRouter();
   const serviceId = params.serviceId as string;
-  const conceptId = params.conceptId as string;
-  const { concept, loading } = useConcept();
+  const conceptIdParam = params.conceptId as string;
+  
+  // 数値IDから文字列IDに変換（後方互換性のため文字列IDもサポート）
+  const conceptId = resolveConceptId(serviceId, conceptIdParam);
+  
+  const { concept, loading, reloadConcept } = useConcept();
 
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const { showContainers } = useContainerVisibility();
   const keyVisualUrl = concept?.keyVisualUrl || '';
+  const keyVisualMetadata = concept?.keyVisualMetadata;
   const [keyVisualHeight, setKeyVisualHeight] = useState<number>(56.25);
+  const [keyVisualScale, setKeyVisualScale] = useState<number>(100);
   const [showSizeControl, setShowSizeControl] = useState(false);
+  const [showMetadataEditor, setShowMetadataEditor] = useState(false);
+  const [showLogoEditor, setShowLogoEditor] = useState(false);
+  const [logoUploading, setLogoUploading] = useState(false);
+  const [logoSize, setLogoSize] = useState<number>(15);
+  const [showTitleEditor, setShowTitleEditor] = useState(false);
+  const [titlePositionX, setTitlePositionX] = useState<number>(5);
+  const [titlePositionY, setTitlePositionY] = useState<number>(-3);
+  const [titleFontSize, setTitleFontSize] = useState<number>(12);
+  const [titleBorderEnabled, setTitleBorderEnabled] = useState<boolean>(true);
+  const [footerText, setFooterText] = useState<string>('AI assistant company, Inc - All Rights Reserved');
+  const [isExportingPDF, setIsExportingPDF] = useState(false);
+  const logoFileInputRef = useRef<HTMLInputElement>(null);
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const [aiNativeDiagramSvg, setAiNativeDiagramSvg] = useState<string>('');
   const aiNativeDiagramRef = useRef<HTMLDivElement>(null);
   const aiNativeRenderedRef = useRef(false);
   const businessModelDiagramRef = useRef<HTMLDivElement>(null);
   const businessModelRenderedRef = useRef(false);
+  const aiReadableDiagramRef = useRef<HTMLDivElement>(null);
+  const aiReadableRenderedRef = useRef(false);
   
-  // キービジュアルの高さを読み込む
+  // キービジュアルの高さとスケールを読み込む
   useEffect(() => {
     if (concept?.keyVisualHeight !== undefined) {
       setKeyVisualHeight(concept.keyVisualHeight);
     }
-  }, [concept?.keyVisualHeight]);
+    if (concept?.keyVisualScale !== undefined) {
+      setKeyVisualScale(concept.keyVisualScale);
+    }
+  }, [concept?.keyVisualHeight, concept?.keyVisualScale]);
+
+  // ロゴサイズを初期化
+  useEffect(() => {
+    if (concept?.keyVisualLogoSize !== undefined) {
+      setLogoSize(concept.keyVisualLogoSize);
+    }
+  }, [concept?.keyVisualLogoSize]);
+
+  // タイトル設定を初期化
+  useEffect(() => {
+    if (concept?.titlePositionX !== undefined) {
+      setTitlePositionX(concept.titlePositionX);
+    }
+    if (concept?.titlePositionY !== undefined) {
+      setTitlePositionY(concept.titlePositionY);
+    }
+    if (concept?.titleFontSize !== undefined) {
+      setTitleFontSize(concept.titleFontSize);
+    }
+    if (concept?.titleBorderEnabled !== undefined) {
+      setTitleBorderEnabled(concept.titleBorderEnabled);
+    } else {
+      setTitleBorderEnabled(true);
+    }
+    if (concept?.footerText !== undefined) {
+      setFooterText(concept.footerText);
+    } else {
+      setFooterText('AI assistant company, Inc - All Rights Reserved');
+    }
+  }, [concept?.titlePositionX, concept?.titlePositionY, concept?.titleFontSize, concept?.titleBorderEnabled, concept?.footerText]);
 
   // Mermaidが読み込まれたときの処理
   useEffect(() => {
@@ -132,6 +189,31 @@ export default function OverviewPage() {
     style A7 fill:#e0e7ff,stroke:#6366f1,stroke-width:2px`;
   };
 
+  // AI readableの世界観図を生成
+  const generateAiReadableDiagram = () => {
+    return `graph TB
+    subgraph "AI readableの世界"
+        Human["人間<br/>Human"]
+        AI["AI<br/>Artificial Intelligence"]
+        Data["構造化データ<br/>Structured Data"]
+        Process["明確なプロセス<br/>Clear Process"]
+        Value["価値創造<br/>Value Creation"]
+    end
+    
+    Human <-->|理解・協調| AI
+    Human -->|構造化| Data
+    AI -->|読み取り| Data
+    Data -->|基盤| Process
+    Process -->|実行| Value
+    Value -->|フィードバック| Human
+    Value -->|学習| AI
+    
+    style Human fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style AI fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    style Data fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style Process fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style Value fill:#fce4ec,stroke:#c2185b,stroke-width:2px`;
+  };
 
   // ビジネスモデル図を生成
   const generateBusinessModelDiagram = () => {
@@ -246,12 +328,16 @@ export default function OverviewPage() {
   useEffect(() => {
     aiNativeRenderedRef.current = false;
     businessModelRenderedRef.current = false;
+    aiReadableRenderedRef.current = false;
     setAiNativeDiagramSvg('');
     if (aiNativeDiagramRef.current) {
       aiNativeDiagramRef.current.innerHTML = '';
     }
     if (businessModelDiagramRef.current) {
       businessModelDiagramRef.current.innerHTML = '';
+    }
+    if (aiReadableDiagramRef.current) {
+      aiReadableDiagramRef.current.innerHTML = '';
     }
   }, [conceptId]);
 
@@ -326,6 +412,75 @@ export default function OverviewPage() {
     return () => clearTimeout(timer);
   }, [conceptId, mermaidLoaded]);
 
+  // AI readableの世界観図をレンダリング
+  useEffect(() => {
+    if (conceptId !== 'concept-1764781333440862') {
+      return;
+    }
+
+    const renderDiagram = async () => {
+      // DOM要素が存在するまで待つ
+      let domRetries = 0;
+      const maxDomRetries = 50; // 5秒間
+      while (domRetries < maxDomRetries && !aiReadableDiagramRef.current) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        domRetries++;
+      }
+
+      if (!aiReadableDiagramRef.current) {
+        return;
+      }
+
+      if (aiReadableRenderedRef.current) {
+        return;
+      }
+      
+      // Mermaidが利用可能になるまで待つ
+      let retries = 0;
+      const maxRetries = 100; // 10秒間
+      while (retries < maxRetries && (!(window as any).mermaid || typeof (window as any).mermaid.render !== 'function')) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retries++;
+      }
+      
+      const mermaid = (window as any).mermaid;
+      if (!mermaid || typeof mermaid.render !== 'function') {
+        aiReadableRenderedRef.current = false;
+        return;
+      }
+
+      // Mermaidが利用可能になったら、mermaidLoadedをtrueに設定
+      if (!mermaidLoaded) {
+        setMermaidLoaded(true);
+      }
+
+      if (!aiReadableDiagramRef.current || aiReadableRenderedRef.current) {
+        return;
+      }
+
+      try {
+        const diagram = generateAiReadableDiagram();
+        const id = 'ai-readable-diagram-' + Date.now();
+        
+        const result = await mermaid.render(id, diagram);
+        const svg = typeof result === 'string' ? result : result.svg;
+        if (aiReadableDiagramRef.current) {
+          aiReadableDiagramRef.current.innerHTML = svg;
+        }
+        aiReadableRenderedRef.current = true;
+      } catch (err: any) {
+        console.error('AI readable図のレンダリングエラー:', err);
+        aiReadableRenderedRef.current = false;
+      }
+    };
+
+    // 少し待ってからレンダリングを開始
+    const timer = setTimeout(() => {
+      renderDiagram();
+    }, 100);
+
+    return () => clearTimeout(timer);
+  }, [conceptId, mermaidLoaded]);
 
   // ビジネスモデル図をレンダリング
   useEffect(() => {
@@ -408,8 +563,152 @@ export default function OverviewPage() {
         updatedAt: serverTimestamp(),
       });
       setKeyVisualHeight(height);
+      if (reloadConcept) {
+        await reloadConcept();
+      }
     } catch (error) {
       console.error('キービジュアルサイズの保存エラー:', error);
+    }
+  };
+
+  // キービジュアルのスケールを保存
+  const handleSaveKeyVisualScale = async (scale: number) => {
+    if (!auth?.currentUser || !db || !concept?.id) return;
+    
+    try {
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        keyVisualScale: scale,
+        updatedAt: serverTimestamp(),
+      });
+      setKeyVisualScale(scale);
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('キービジュアルスケールの保存エラー:', error);
+    }
+  };
+
+  // メタデータを保存
+  const handleMetadataSave = async (metadata: {
+    title: string;
+    signature: string;
+    date: string;
+    position: { x: number; y: number; align: 'left' | 'center' | 'right' };
+    titleFontSize?: number;
+    signatureFontSize?: number;
+    dateFontSize?: number;
+  }) => {
+    if (!concept?.id || !db) return;
+    
+    try {
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        keyVisualMetadata: metadata,
+        updatedAt: serverTimestamp(),
+      });
+      setShowMetadataEditor(false);
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('キービジュアルメタデータの保存エラー:', error);
+    }
+  };
+
+  // ロゴファイル選択
+  const handleLogoFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    if (!file.type.startsWith('image/')) {
+      alert('画像ファイルを選択してください。');
+      return;
+    }
+    
+    handleLogoUpload(file);
+  };
+
+  // ロゴアップロード
+  const handleLogoUpload = async (file: File) => {
+    if (!auth?.currentUser || !storage || !db || !concept?.id) return;
+    
+    try {
+      setLogoUploading(true);
+      const logoRef = ref(storage, `concepts/${concept.id}/logo-${Date.now()}`);
+      await uploadBytes(logoRef, file);
+      const downloadURL = await getDownloadURL(logoRef);
+      
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        keyVisualLogoUrl: downloadURL,
+        updatedAt: serverTimestamp(),
+      });
+      
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+      setLogoUploading(false);
+    } catch (error) {
+      console.error('ロゴアップロードエラー:', error);
+      alert('ロゴのアップロードに失敗しました。');
+      setLogoUploading(false);
+    }
+  };
+
+  // ロゴ削除
+  const handleLogoDelete = async () => {
+    if (!concept?.id || !db) return;
+    
+    try {
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        keyVisualLogoUrl: null,
+        updatedAt: serverTimestamp(),
+      });
+      
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('ロゴ削除エラー:', error);
+    }
+  };
+
+  // ロゴサイズ保存
+  const handleLogoSizeSave = async () => {
+    if (!concept?.id || !db) return;
+    
+    try {
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        keyVisualLogoSize: logoSize,
+        updatedAt: serverTimestamp(),
+      });
+      
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('ロゴサイズ保存エラー:', error);
+    }
+  };
+
+  // タイトル設定保存
+  const handleTitleSettingsSave = async () => {
+    if (!concept?.id || !db) return;
+    
+    try {
+      await updateDoc(doc(db, 'concepts', concept.id), {
+        titlePositionX: titlePositionX,
+        titlePositionY: titlePositionY,
+        titleFontSize: titleFontSize,
+        titleBorderEnabled: titleBorderEnabled,
+        footerText: footerText,
+        updatedAt: serverTimestamp(),
+      });
+      
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('タイトル設定保存エラー:', error);
     }
   };
 
@@ -507,6 +806,59 @@ export default function OverviewPage() {
                     閉じる
                   </button>
                 </div>
+              </div>
+            )}
+            {/* ロゴを表示 */}
+            {concept?.keyVisualLogoUrl && (
+              <img
+                src={concept.keyVisualLogoUrl}
+                alt="Logo"
+                style={{
+                  position: 'absolute',
+                  top: '20px',
+                  right: '20px',
+                  maxWidth: '120px',
+                  maxHeight: '60px',
+                  objectFit: 'contain',
+                  zIndex: 10,
+                }}
+              />
+            )}
+            {/* メタデータを表示 */}
+            {keyVisualMetadata && (
+              <div style={{
+                position: 'absolute',
+                bottom: '20px',
+                left: `${keyVisualMetadata.position.x * 3.779527559}px`, // mm to px (1mm = 3.779527559px at 96dpi)
+                transform: keyVisualMetadata.position.align === 'center' ? 'translateX(-50%)' : keyVisualMetadata.position.align === 'right' ? 'translateX(-100%)' : 'none',
+                zIndex: 10,
+                color: '#fff',
+                textShadow: '0 2px 4px rgba(0,0,0,0.5)',
+              }}>
+                {keyVisualMetadata.title && (
+                  <div style={{ 
+                    fontSize: `${(keyVisualMetadata.titleFontSize || 12) * 1.33}px`,
+                    fontWeight: 600,
+                    marginBottom: `${(keyVisualMetadata.titleFontSize || 12) * 0.5 * 1.33}px`,
+                    borderLeft: concept?.titleBorderEnabled !== false ? '3px solid #fff' : 'none',
+                    paddingLeft: concept?.titleBorderEnabled !== false ? '8px' : '0',
+                  }}>
+                    {keyVisualMetadata.title}
+                  </div>
+                )}
+                {keyVisualMetadata.signature && (
+                  <div style={{ 
+                    fontSize: `${(keyVisualMetadata.signatureFontSize || 6) * 1.33}px`,
+                    marginBottom: `${(keyVisualMetadata.signatureFontSize || 6) * 0.7 * 1.33}px`
+                  }}>
+                    {keyVisualMetadata.signature}
+                  </div>
+                )}
+                {keyVisualMetadata.date && (
+                  <div style={{ fontSize: `${(keyVisualMetadata.dateFontSize || 6) * 1.33}px` }}>
+                    {keyVisualMetadata.date}
+                  </div>
+                )}
               </div>
             )}
             {/* キービジュアル編集ボタン */}
@@ -610,6 +962,356 @@ export default function OverviewPage() {
             </button>
           </div>
         )}
+        
+        {/* コントロールボタン */}
+        {auth?.currentUser && (
+          <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+            <button
+              onClick={() => setShowSizeControl(!showSizeControl)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: showSizeControl ? 'var(--color-primary)' : '#f3f4f6',
+                color: showSizeControl ? '#fff' : 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              サイズ調整
+            </button>
+            <button
+              onClick={() => setShowMetadataEditor(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#f3f4f6',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              メタデータ編集
+            </button>
+            <button
+              onClick={() => router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#f3f4f6',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              画像変更
+            </button>
+            <button
+              onClick={() => setShowLogoEditor(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#f3f4f6',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              ロゴ設定
+            </button>
+            <button
+              onClick={() => setShowTitleEditor(true)}
+              style={{
+                padding: '6px 12px',
+                backgroundColor: '#f3f4f6',
+                color: 'var(--color-text)',
+                border: '1px solid var(--color-border-color)',
+                borderRadius: '4px',
+                cursor: 'pointer',
+                fontSize: '12px',
+              }}
+            >
+              タイトル設定
+            </button>
+          </div>
+        )}
+
+        {/* サイズ調整コントロール */}
+        {showSizeControl && keyVisualUrl && (
+          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                高さ: {keyVisualHeight.toFixed(2)}%
+              </label>
+              <input
+                type="range"
+                min="20"
+                max="100"
+                step="0.1"
+                value={keyVisualHeight}
+                onChange={(e) => {
+                  const newHeight = parseFloat(e.target.value);
+                  setKeyVisualHeight(newHeight);
+                  handleSaveKeyVisualHeight(newHeight);
+                }}
+                style={{ width: '100%' }}
+              />
+            </div>
+            <div style={{ marginBottom: '12px' }}>
+              <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                スケール: {keyVisualScale}%
+              </label>
+              <input
+                type="range"
+                min="50"
+                max="150"
+                step="1"
+                value={keyVisualScale}
+                onChange={(e) => {
+                  const newScale = parseInt(e.target.value);
+                  setKeyVisualScale(newScale);
+                  handleSaveKeyVisualScale(newScale);
+                }}
+                style={{ width: '100%' }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* メタデータエディタ */}
+        {showMetadataEditor && keyVisualUrl && (
+          <div style={{ marginTop: '16px' }}>
+            <KeyVisualPDFMetadataEditor
+              isOpen={showMetadataEditor}
+              onClose={() => setShowMetadataEditor(false)}
+              onSave={handleMetadataSave}
+              initialMetadata={keyVisualMetadata || undefined}
+              pageWidth={254} // 16:9横長の幅（mm）
+              pageHeight={143} // 16:9横長の高さ（mm）
+            />
+          </div>
+        )}
+
+        {/* ロゴエディタ */}
+        {showLogoEditor && (
+          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '8px' }}>ロゴ設定</h4>
+              {concept?.keyVisualLogoUrl && (
+                <div style={{ marginBottom: '12px' }}>
+                  <img
+                    src={concept.keyVisualLogoUrl}
+                    alt="現在のロゴ"
+                    style={{
+                      maxWidth: '200px',
+                      maxHeight: '100px',
+                      objectFit: 'contain',
+                      border: '1px solid var(--color-border-color)',
+                      borderRadius: '4px',
+                      padding: '8px',
+                      backgroundColor: '#fff',
+                    }}
+                  />
+                </div>
+              )}
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                <label
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: logoUploading ? 'not-allowed' : 'pointer',
+                    fontSize: '12px',
+                    opacity: logoUploading ? 0.6 : 1,
+                  }}
+                >
+                  {logoUploading ? 'アップロード中...' : 'ロゴをアップロード'}
+                  <input
+                    ref={logoFileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleLogoFileSelect}
+                    disabled={logoUploading}
+                    style={{ display: 'none' }}
+                  />
+                </label>
+                {concept?.keyVisualLogoUrl && (
+                  <button
+                    onClick={handleLogoDelete}
+                    style={{
+                      padding: '8px 16px',
+                      backgroundColor: '#dc3545',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    ロゴを削除
+                  </button>
+                )}
+                <button
+                  onClick={() => setShowLogoEditor(false)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#f3f4f6',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border-color)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  閉じる
+                </button>
+              </div>
+              {concept?.keyVisualLogoUrl && (
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                    ロゴサイズ: {logoSize}mm
+                  </label>
+                  <input
+                    type="range"
+                    min="5"
+                    max="50"
+                    step="1"
+                    value={logoSize}
+                    onChange={(e) => setLogoSize(parseInt(e.target.value))}
+                    style={{ width: '100%', marginBottom: '8px' }}
+                  />
+                  <button
+                    onClick={handleLogoSizeSave}
+                    style={{
+                      padding: '6px 12px',
+                      backgroundColor: 'var(--color-primary)',
+                      color: '#fff',
+                      border: 'none',
+                      borderRadius: '4px',
+                      cursor: 'pointer',
+                      fontSize: '12px',
+                    }}
+                  >
+                    サイズを保存
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* タイトル設定エディタ */}
+        {showTitleEditor && (
+          <div style={{ marginTop: '16px', padding: '16px', backgroundColor: '#f9fafb', borderRadius: '8px' }}>
+            <div style={{ marginBottom: '12px' }}>
+              <h4 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px' }}>タイトル設定</h4>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                  X位置: {titlePositionX}mm
+                </label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="200"
+                  step="1"
+                  value={titlePositionX}
+                  onChange={(e) => setTitlePositionX(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                  Y位置: {titlePositionY}mm
+                </label>
+                <input
+                  type="range"
+                  min="-50"
+                  max="200"
+                  step="1"
+                  value={titlePositionY}
+                  onChange={(e) => setTitlePositionY(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                  フォントサイズ: {titleFontSize}px
+                </label>
+                <input
+                  type="range"
+                  min="8"
+                  max="24"
+                  step="1"
+                  value={titleFontSize}
+                  onChange={(e) => setTitleFontSize(parseInt(e.target.value))}
+                  style={{ width: '100%' }}
+                />
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '14px' }}>
+                  <input
+                    type="checkbox"
+                    checked={titleBorderEnabled}
+                    onChange={(e) => setTitleBorderEnabled(e.target.checked)}
+                  />
+                  ボーダー（縦棒）を表示
+                </label>
+              </div>
+              <div style={{ marginBottom: '12px' }}>
+                <label style={{ display: 'block', marginBottom: '4px', fontSize: '14px', fontWeight: 600 }}>
+                  フッターテキスト
+                </label>
+                <input
+                  type="text"
+                  value={footerText}
+                  onChange={(e) => setFooterText(e.target.value)}
+                  style={{
+                    width: '100%',
+                    padding: '8px',
+                    border: '1px solid var(--color-border-color)',
+                    borderRadius: '4px',
+                    fontSize: '14px',
+                  }}
+                />
+              </div>
+              <div style={{ display: 'flex', gap: '8px' }}>
+                <button
+                  onClick={handleTitleSettingsSave}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: 'var(--color-primary)',
+                    color: '#fff',
+                    border: 'none',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  保存
+                </button>
+                <button
+                  onClick={() => setShowTitleEditor(false)}
+                  style={{
+                    padding: '8px 16px',
+                    backgroundColor: '#f3f4f6',
+                    color: 'var(--color-text)',
+                    border: '1px solid var(--color-border-color)',
+                    borderRadius: '4px',
+                    cursor: 'pointer',
+                    fontSize: '12px',
+                  }}
+                >
+                  閉じる
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div className="card">
@@ -632,10 +1334,72 @@ export default function OverviewPage() {
                 } : {}),
               }}
             >
-              <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+              <h4 
+                data-pdf-title-h3="true"
+                style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+              >
                 はじめに
               </h4>
-              {conceptId === 'maternity-support' ? (
+              {conceptId === 'concept-1764781333440862' ? (
+                <div style={{ marginBottom: '48px', position: 'relative' }}>
+                  {/* キーメッセージ - 最大化 */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '40px'
+                  }}>
+                    <h2 className="key-message-title">
+                      AI readableの世界へ
+                    </h2>
+                    <p className="key-message-subtitle gradient-text-blue">
+                      — 人間とAIが協調し、<strong>新しい価値を創造する</strong>時代 —
+                    </p>
+                  </div>
+                  
+                  {/* 本文 */}
+                  <div style={{ marginBottom: '40px', lineHeight: '1.8', fontSize: '14px', color: 'var(--color-text)' }}>
+                    <p style={{ marginBottom: '16px' }}>
+                      私たちは今、<strong>AI readable</strong>という新しい世界の入り口に立っています。これは、人間とAIが互いに理解し合い、協調して価値を創造する世界です。
+                    </p>
+                    <p style={{ marginBottom: '16px' }}>
+                      従来のAIは、人間が理解できる形式で情報を処理していました。しかし、<strong>AI readable</strong>の世界では、AIが理解しやすい形式で情報を構造化し、AIと人間が双方向に情報を交換し、共に成長していきます。
+                    </p>
+                    <p style={{ marginBottom: '16px' }}>
+                      この世界では、データは単なる記録ではなく、<strong>AIと人間の対話の基盤</strong>となります。構造化されたデータ、明確なプロセス、透明性の高い意思決定により、AIは人間の意図を正確に理解し、人間はAIの判断を信頼できるようになります。
+                    </p>
+                    <p style={{ marginBottom: '16px' }}>
+                      <strong>AI readable</strong>の実現により、組織はより迅速に意思決定を行い、より正確に予測し、より効率的に価値を創造できるようになります。これは単なる技術の進化ではなく、<strong>人間とAIの協調による新しい社会の創造</strong>なのです。
+                    </p>
+                  </div>
+                  
+                  {/* 世界観を表す図形 */}
+                  <div style={{ marginBottom: '40px' }}>
+                    <div 
+                      ref={aiReadableDiagramRef}
+                      style={{ 
+                        textAlign: 'center',
+                        marginBottom: '24px',
+                        minHeight: '300px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center'
+                      }}
+                    />
+                  </div>
+                </div>
+              ) : conceptId === 'concept-1764785492490007' ? (
+                <div style={{ marginBottom: '48px', position: 'relative' }}>
+                  {/* キーメッセージ - 最大化 */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '40px'
+                  }}>
+                    <h2 className="key-message-title">
+                      キーメッセージ
+                    </h2>
+                    <p className="key-message-subtitle gradient-text-blue">
+                      — サブメッセージ —
+                    </p>
+                  </div>
+                </div>
+              ) : conceptId === 'maternity-support' ? (
                 <div style={{ marginBottom: '48px', position: 'relative' }}>
                   {/* キーメッセージ - 最大化 */}
                   <div style={{ 
@@ -991,7 +1755,28 @@ export default function OverviewPage() {
               ) : null}
             </div>
             <div style={{ color: 'var(--color-text)', lineHeight: '1.8', fontSize: '14px' }}>
-              {conceptId === 'maternity-support' ? (
+              {conceptId === 'concept-1764780734434' ? (
+                <div 
+                  data-page-container="2"
+                  style={{ 
+                    marginBottom: '40px',
+                    ...(showContainers ? {
+                      border: '2px dashed var(--color-primary)',
+                      borderRadius: '8px',
+                      padding: '16px',
+                      pageBreakInside: 'avoid',
+                      breakInside: 'avoid',
+                    } : {}),
+                  }}
+                >
+                  <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                    新しいコンテナ（2ページ目）
+                  </h4>
+                  <p style={{ fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                    新しいコンテナのコンテンツをここに入力してください。
+                  </p>
+                </div>
+              ) : conceptId === 'maternity-support' ? (
                 <div 
                   data-page-container="2"
                   style={{ 
@@ -5383,6 +6168,29 @@ export default function OverviewPage() {
                       <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
                         7. 提供価値
                       </h4>
+                    </div>
+                  </>
+                ) : conceptId === 'concept-1764780734434' ? (
+                  <>
+                    <div 
+                      data-page-container="1"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                        新しいコンテナ
+                      </h4>
+                      <p style={{ fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                        新しいコンテナのコンテンツをここに入力してください。
+                      </p>
                     </div>
                   </>
                 ) : null}

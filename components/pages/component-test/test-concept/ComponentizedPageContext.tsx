@@ -152,13 +152,20 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
               // メタデータがない場合は生成
               if (!page.tags && !page.contentType && !page.semanticCategory) {
                 needsUpdate = true;
-                return generatePageMetadata({
+                // メタデータを生成し、元のページデータのkeyMessageとsubMessageを保持
+                const generatedMetadata = generatePageMetadata({
                   id: page.id,
                   pageNumber: page.pageNumber,
                   title: page.title,
                   content: page.content,
                   createdAt: page.createdAt || new Date().toISOString(),
                 }, subMenuId, totalPages);
+                // keyMessageとsubMessageを保持（存在する場合）
+                return {
+                  ...generatedMetadata,
+                  keyMessage: (page as any).keyMessage,
+                  subMessage: (page as any).subMessage,
+                };
               }
               return page;
             });
@@ -211,6 +218,8 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
                 pageNumber={page.pageNumber}
                 title={page.title}
                 content={page.content}
+                keyMessage={(page as any).keyMessage}
+                subMessage={(page as any).subMessage}
               />
             ),
           }));
