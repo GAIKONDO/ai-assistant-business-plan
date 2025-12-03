@@ -51,7 +51,8 @@ export default function ServiceDetailPage() {
   const params = useParams();
   const router = useRouter();
   const serviceId = params.serviceId as string;
-  const serviceName = SERVICE_NAMES[serviceId] || '事業企画';
+  const [serviceName, setServiceName] = useState<string>(SERVICE_NAMES[serviceId] || '事業企画');
+  const [serviceDescription, setServiceDescription] = useState<string>('');
   const fixedConcepts = FIXED_CONCEPTS[serviceId] || [];
 
   const [concepts, setConcepts] = useState<(ConceptData & { id: string; createdAt?: Date; updatedAt?: Date })[]>([]);
@@ -60,7 +61,55 @@ export default function ServiceDetailPage() {
   useEffect(() => {
     console.log('ServiceDetailPage マウント:', { serviceId, serviceName });
   }, [serviceId, serviceName]);
-  const [loading, setLoading] = useState(true);
+
+  // 新しく作成された事業企画の場合、Firestoreからデータを取得
+  useEffect(() => {
+    const loadProjectData = async () => {
+      if (!auth?.currentUser || !db || !serviceId) {
+        setProjectDataLoading(false);
+        return;
+      }
+      
+      // SERVICE_NAMESに存在しない場合（新しく作成された事業企画）のみ取得
+      if (SERVICE_NAMES[serviceId]) {
+        setProjectDataLoading(false);
+        return;
+      }
+
+      try {
+        setProjectDataLoading(true);
+        const projectsQuery = query(
+          collection(db, 'businessProjects'),
+          where('userId', '==', auth.currentUser.uid),
+          where('serviceId', '==', serviceId)
+        );
+        const projectsSnapshot = await getDocs(projectsQuery);
+        
+        if (!projectsSnapshot.empty) {
+          const projectData = projectsSnapshot.docs[0].data();
+          setServiceName(projectData.name || '事業企画');
+          setServiceDescription(projectData.description || '');
+        }
+      } catch (error) {
+        console.error('事業企画データの取得エラー:', error);
+      } finally {
+        setProjectDataLoading(false);
+      }
+    };
+
+    if (auth?.currentUser) {
+      loadProjectData();
+    } else {
+      const unsubscribe = onAuthStateChanged(auth, (user) => {
+        if (user) {
+          loadProjectData();
+        }
+      });
+      return () => unsubscribe();
+    }
+  }, [serviceId, auth?.currentUser, db]);
+  const [loading, setLoading] = useState(false);
+  const [projectDataLoading, setProjectDataLoading] = useState(false);
   const [showConceptForm, setShowConceptForm] = useState(false);
   const [editingConcept, setEditingConcept] = useState<(ConceptData & { id?: string }) | null>(null);
   const [conceptCounts, setConceptCounts] = useState<{ [key: string]: number }>({});
@@ -78,6 +127,7 @@ export default function ServiceDetailPage() {
     console.log('loadConcepts開始:', { serviceId, hasAuth: !!auth?.currentUser, hasDb: !!db });
     if (!auth?.currentUser || !db || !serviceId) {
       console.log('loadConcepts: 条件未満足でスキップ');
+      setLoading(false);
       return;
     }
 
@@ -280,7 +330,7 @@ export default function ServiceDetailPage() {
     } finally {
       setLoading(false);
     }
-  }, [serviceId, fixedConcepts]);
+  }, [serviceId]);
 
   // 認証状態を監視
   useEffect(() => {
@@ -301,14 +351,14 @@ export default function ServiceDetailPage() {
 
   // 認証が完了し、serviceIdが変更されたときにデータを読み込む
   useEffect(() => {
-    console.log('useEffect実行:', { authReady, hasAuth: !!auth?.currentUser, serviceId });
-    if (authReady && auth?.currentUser && serviceId) {
+    console.log('useEffect実行:', { authReady, hasAuth: !!auth?.currentUser, serviceId, projectDataLoading });
+    if (authReady && auth?.currentUser && serviceId && !projectDataLoading) {
       console.log('loadConceptsを呼び出します');
       loadConcepts();
     } else {
-      console.log('useEffect: 条件未満足でスキップ', { authReady, hasAuth: !!auth?.currentUser, serviceId });
+      console.log('useEffect: 条件未満足でスキップ', { authReady, hasAuth: !!auth?.currentUser, serviceId, projectDataLoading });
     }
-  }, [authReady, serviceId, loadConcepts]);
+  }, [authReady, serviceId, projectDataLoading, loadConcepts]);
 
   const loadConceptCounts = async (conceptsList: (ConceptData & { id: string })[]) => {
     if (!auth?.currentUser || !db) return;
@@ -429,7 +479,7 @@ export default function ServiceDetailPage() {
   };
 
 
-  if (loading) {
+  if (loading || projectDataLoading) {
     return (
       <Layout>
         <div style={{ textAlign: 'center', padding: '40px' }}>読み込み中...</div>
@@ -457,7 +507,7 @@ export default function ServiceDetailPage() {
           </button>
           <h2 style={{ marginBottom: '4px' }}>{serviceName}</h2>
           <p style={{ margin: 0, fontSize: '14px', color: 'var(--color-text-light)' }}>
-            各構想の具体的なサービス内容の事業計画を管理します
+            {serviceDescription || '各構想の具体的なサービス内容の事業計画を管理します'}
           </p>
         </div>
 

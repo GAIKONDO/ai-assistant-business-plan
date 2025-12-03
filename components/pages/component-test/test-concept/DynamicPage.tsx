@@ -52,7 +52,7 @@ export default function DynamicPage({ pageId, pageNumber, title, content, keyMes
 
   // コンテンツに既にキーメッセージとサブメッセージが含まれているかチェック
   const hasKeyMessageInContent = useMemo(() => {
-    if (!content) return false;
+    if (!content || typeof window === 'undefined') return false;
     const tempDiv = document.createElement('div');
     tempDiv.innerHTML = content;
     const keyMessageContainer = tempDiv.querySelector('.key-message-container');

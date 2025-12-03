@@ -42,15 +42,40 @@ export default function BusinessProjectForm({ project, onSave, onCancel }: Busin
   }, [project]);
 
   const generateServiceId = (name: string): string => {
-    if (!name) return '';
-    // 日本語名から英数字IDを生成（簡易版）
-    const normalized = name
+    // タイムスタンプとランダム文字列を組み合わせてユニークなIDを生成
+    const timestamp = Date.now();
+    const randomStr = Math.random().toString(36).substring(2, 8); // 6文字のランダム文字列（英数字）
+    
+    if (!name || name.trim() === '') {
+      return `project-${timestamp}-${randomStr}`;
+    }
+    
+    // 日本語名から英数字IDを生成
+    // まず、英数字とハイフン、アンダースコアのみを抽出
+    let normalized = name
       .toLowerCase()
-      .replace(/[^\w\s-]/g, '')
+      // 英数字、ハイフン、アンダースコア、空白以外を削除
+      .replace(/[^a-z0-9\s_-]/g, '')
+      // 連続する空白をハイフンに変換
       .replace(/\s+/g, '-')
+      // 連続するハイフンを1つに
       .replace(/-+/g, '-')
+      // 先頭と末尾のハイフンを削除
+      .replace(/^-+|-+$/g, '')
       .trim();
-    return normalized || `project-${Date.now()}`;
+    
+    // 正規化された文字列が空または短すぎる場合は、タイムスタンプとランダム文字列のみを使用
+    if (!normalized || normalized.length < 2) {
+      return `project-${timestamp}-${randomStr}`;
+    }
+    
+    // 正規化された文字列が長すぎる場合は切り詰める（最大20文字）
+    if (normalized.length > 20) {
+      normalized = normalized.substring(0, 20).replace(/-+$/, '');
+    }
+    
+    // 正規化された文字列にタイムスタンプとランダム文字列を追加してユニーク性を確保
+    return `${normalized}-${timestamp}-${randomStr}`;
   };
 
   const handleNameChange = (name: string) => {
@@ -125,12 +150,18 @@ export default function BusinessProjectForm({ project, onSave, onCancel }: Busin
             type="text"
             className="input"
             value={formData.serviceId}
-            onChange={(e) => setFormData({ ...formData, serviceId: e.target.value })}
-            placeholder="URL用のID（自動生成されますが、変更可能です）"
-            style={{ fontFamily: 'monospace', fontSize: '13px' }}
+            readOnly
+            placeholder="URL用のID（自動生成されます）"
+            style={{ 
+              fontFamily: 'monospace', 
+              fontSize: '13px',
+              backgroundColor: 'var(--color-background)',
+              cursor: 'not-allowed',
+              opacity: 0.7
+            }}
           />
           <p style={{ fontSize: '12px', color: 'var(--color-text-light)', marginTop: '4px' }}>
-            このIDはURLに使用されます。変更する場合は英数字とハイフンのみ使用してください。
+            このIDはURLに使用されます。事業企画名から自動生成され、変更できません。
           </p>
         </div>
 

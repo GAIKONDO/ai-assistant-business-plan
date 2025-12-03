@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { useTransition } from 'react';
 import { DashboardIcon, LineChartIcon, BarChartIcon, DocumentIcon, SettingsIcon, MenuIcon, CloseIcon, SpecificationIcon, VisualizationsIcon } from './Icons';
@@ -118,23 +118,23 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
     return () => unsubscribe();
   }, []);
 
-  // パスからserviceIdを抽出
-  const getServiceIdFromPath = () => {
+  // パスからserviceIdを抽出（useMemoでメモ化）
+  const serviceId = useMemo(() => {
     if (!pathname) return null;
     const match = pathname.match(/^\/business-plan\/services\/([^\/]+)/);
-    const serviceId = match ? match[1] : null;
-    console.log('🔍 パス解析:', { pathname, serviceId, match });
-    return serviceId;
-  };
+    const id = match ? match[1] : null;
+    console.log('🔍 パス解析:', { pathname, serviceId: id, match });
+    return id;
+  }, [pathname]);
 
-  // パスからprojectIdを抽出
-  const getProjectIdFromPath = () => {
+  // パスからprojectIdを抽出（useMemoでメモ化）
+  const projectId = useMemo(() => {
     if (!pathname) return null;
     const match = pathname.match(/^\/business-plan\/project\/([^\/]+)/);
-    const projectId = match ? match[1] : null;
-    console.log('🔍 パス解析（projectId）:', { pathname, projectId, match });
-    return projectId;
-  };
+    const id = match ? match[1] : null;
+    console.log('🔍 パス解析（projectId）:', { pathname, projectId: id, match });
+    return id;
+  }, [pathname]);
 
   // コンテンツの読み込み
   useEffect(() => {
@@ -169,8 +169,6 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
       setLoadingContent(true);
       try {
-        const serviceId = getServiceIdFromPath();
-        const projectId = getProjectIdFromPath();
         console.log('🔍 コンテンツ読み込み:', { 
           activePage, 
           pathname, 
@@ -588,7 +586,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
     };
 
     loadContent();
-  }, [isOpen, activePage, authReady, auth?.currentUser, pathname]);
+  }, [isOpen, activePage, authReady, auth?.currentUser, serviceId, projectId]);
 
   return (
     <>
@@ -721,6 +719,48 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                   メニュー
                 </h2>
               </div>
+              {/* 事業企画一覧に戻るリンク */}
+              {(() => {
+                // 事業企画ページ（serviceIdまたはprojectIdがある場合）にいる場合のみ表示
+                if (serviceId || projectId) {
+                  return (
+                    <button
+                      onClick={() => handleNavigation('/business-plan')}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '10px 24px',
+                        width: '100%',
+                        color: 'var(--color-text-light)',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s ease',
+                        borderLeft: '2px solid transparent',
+                        backgroundColor: 'transparent',
+                        fontSize: '14px',
+                        fontWeight: 400,
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        marginBottom: '8px',
+                      }}
+                      onMouseEnter={(e) => {
+                        e.currentTarget.style.backgroundColor = 'var(--color-background)';
+                        e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
+                      }}
+                      onMouseLeave={(e) => {
+                        e.currentTarget.style.backgroundColor = 'transparent';
+                        e.currentTarget.style.borderLeftColor = 'transparent';
+                      }}
+                    >
+                      <span style={{ marginRight: '12px', opacity: 0.6 }}>
+                        <span style={{ fontSize: '18px' }}>←</span>
+                      </span>
+                      <span>事業企画一覧に戻る</span>
+                    </button>
+                  );
+                }
+                return null;
+              })()}
               <div style={{ maxHeight: '400px', overflowY: 'auto' }}>
                 {loadingContent ? (
                   <div style={{ padding: '16px 24px', color: 'var(--color-text-light)', fontSize: '14px' }}>

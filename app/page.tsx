@@ -7,6 +7,7 @@ import Layout from '@/components/Layout';
 import { useRouter } from 'next/navigation';
 import ForceDirectedGraph3D from '@/components/ForceDirectedGraph3D';
 import ForceDirectedGraph from '@/components/ForceDirectedGraph';
+import KeywordPageRelationGraph from '@/components/KeywordPageRelationGraph';
 
 // 固定構想の定義（app/business-plan/page.tsxと同じ）
 const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; description: string }> } = {
@@ -28,6 +29,80 @@ const FIXED_CONCEPTS: { [key: string]: Array<{ id: string; name: string; descrip
     { id: 'sme-ai-education', name: '中小企業向けAI導入支援・教育', description: '中小企業向けのAI導入支援、実践的なAI教育、導入ルール設計支援、助成金活用支援' },
   ],
 };
+
+// グラフ表示切り替えコンポーネント
+function GraphViewTabs() {
+  const [activeTab, setActiveTab] = useState<'2d' | 'keyword' | '3d'>('2d');
+
+  return (
+    <div>
+      {/* タブヘッダー */}
+      <div style={{ display: 'flex', gap: '8px', marginBottom: '16px', borderBottom: '1px solid var(--color-border-color)' }}>
+        <button
+          onClick={() => setActiveTab('2d')}
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            borderBottom: activeTab === '2d' ? '2px solid var(--color-primary)' : '2px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === '2d' ? 'var(--color-primary)' : 'var(--color-text-light)',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: activeTab === '2d' ? 600 : 400,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          関係性（2D）
+        </button>
+        <button
+          onClick={() => setActiveTab('keyword')}
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            borderBottom: activeTab === 'keyword' ? '2px solid var(--color-primary)' : '2px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === 'keyword' ? 'var(--color-primary)' : 'var(--color-text-light)',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: activeTab === 'keyword' ? 600 : 400,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          キーワード検索
+        </button>
+        <button
+          onClick={() => setActiveTab('3d')}
+          style={{
+            padding: '12px 24px',
+            border: 'none',
+            borderBottom: activeTab === '3d' ? '2px solid var(--color-primary)' : '2px solid transparent',
+            backgroundColor: 'transparent',
+            color: activeTab === '3d' ? 'var(--color-primary)' : 'var(--color-text-light)',
+            cursor: 'pointer',
+            fontSize: '14px',
+            fontWeight: activeTab === '3d' ? 600 : 400,
+            transition: 'all 0.2s ease',
+          }}
+        >
+          関係性（3D）
+        </button>
+      </div>
+
+      {/* タブコンテンツ */}
+      <div style={{ minHeight: '600px' }}>
+        {activeTab === '2d' && (
+          <ForceDirectedGraph width={1200} height={600} title="会社・事業企画・構想の関係性（2D）" />
+        )}
+        {activeTab === 'keyword' && (
+          <KeywordPageRelationGraph width={1200} height={600} title="キーワード検索：関連ページの関係性" />
+        )}
+        {activeTab === '3d' && (
+          <ForceDirectedGraph3D width={1200} height={600} title="会社・事業企画・構想の関係性（3D）" />
+        )}
+      </div>
+    </div>
+  );
+}
 
 export default function DashboardPage() {
   const [businessProjectsCount, setBusinessProjectsCount] = useState<number>(0);
@@ -310,14 +385,9 @@ export default function DashboardPage() {
         </div>
       </div>
 
-      {/* 会社・事業企画・構想の関係性（2D） */}
+      {/* グラフ表示切り替えタブ */}
       <div className="card" style={{ marginTop: '24px', marginBottom: '24px' }}>
-        <ForceDirectedGraph width={1200} height={600} title="会社・事業企画・構想の関係性（2D）" />
-      </div>
-      
-      {/* 会社・事業企画・構想の関係性（3D） */}
-      <div className="card" style={{ marginBottom: '24px' }}>
-        <ForceDirectedGraph3D width={1200} height={600} title="会社・事業企画・構想の関係性（3D）" />
+        <GraphViewTabs />
       </div>
     </Layout>
   );

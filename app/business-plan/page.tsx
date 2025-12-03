@@ -2195,7 +2195,12 @@ export default function BusinessPlanPage() {
                   if (showProjectManagement || (e.target as HTMLElement).closest('.project-management-buttons')) {
                     return;
                   }
-                  router.push(`/business-plan/project/${project.id}`);
+                  // serviceIdがある場合は構想一覧ページに遷移、ない場合は従来のプロジェクトページに遷移
+                  if (serviceId) {
+                    router.push(`/business-plan/services/${serviceId}`);
+                  } else {
+                    router.push(`/business-plan/project/${project.id}`);
+                  }
                 }}
                 style={{
                   cursor: showProjectManagement ? 'default' : 'pointer',
