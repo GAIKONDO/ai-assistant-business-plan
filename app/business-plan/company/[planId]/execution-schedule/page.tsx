@@ -18,11 +18,6 @@ const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
   '9pu2rwOCRjG5gxmqX2tO': true,
 };
 
-declare global {
-  interface Window {
-    mermaid?: any;
-  }
-}
 
 const SERVICE_NAMES: { [key: string]: string } = {
   'own-service': '1. 自社開発・自社サービス事業',

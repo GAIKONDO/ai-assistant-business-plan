@@ -13,7 +13,6 @@ import '@/components/pages/component-test/test-concept/pageStyles.css';
 
 declare global {
   interface Window {
-    mermaid?: any;
     p5?: any;
   }
 }

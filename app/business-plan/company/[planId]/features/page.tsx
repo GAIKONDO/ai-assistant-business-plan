@@ -18,7 +18,6 @@ const ComponentizedCompanyPlanOverview = dynamic(
 
 declare global {
   interface Window {
-    mermaid?: any;
   }
 }
 

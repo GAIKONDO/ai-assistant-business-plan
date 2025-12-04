@@ -6,7 +6,6 @@ import Layout from '@/components/Layout';
 
 declare global {
   interface Window {
-    mermaid?: any;
   }
 }
 

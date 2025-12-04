@@ -27,7 +27,6 @@ declare global {
 declare global {
   interface Window {
     p5?: any;
-    mermaid?: any;
   }
 }
 

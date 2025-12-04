@@ -23,7 +23,6 @@ const PLAN_CONTENT_MAP: { [key: string]: boolean } = {
 
 declare global {
   interface Window {
-    mermaid?: any;
   }
 }
 

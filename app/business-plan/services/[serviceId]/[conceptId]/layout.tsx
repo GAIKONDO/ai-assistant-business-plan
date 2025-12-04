@@ -23,7 +23,6 @@ import { resolveConceptId, getUrlConceptId } from '@/lib/conceptIdMapping';
 declare global {
   interface Window {
     p5?: any;
-    mermaid?: any;
   }
 }
 
