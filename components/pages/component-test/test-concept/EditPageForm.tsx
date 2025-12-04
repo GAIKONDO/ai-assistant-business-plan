@@ -10,6 +10,32 @@ import { PageMetadata } from '@/types/pageMetadata';
 import { savePageEmbeddingAsync } from '@/lib/pageEmbeddings';
 import { savePageStructureAsync } from '@/lib/pageStructure';
 
+/**
+ * オブジェクトからundefinedの値を再帰的に削除する
+ */
+function removeUndefinedFields<T extends Record<string, any>>(obj: T): Partial<T> {
+  const cleaned: Partial<T> = {};
+  for (const key in obj) {
+    if (obj[key] !== undefined) {
+      if (Array.isArray(obj[key])) {
+        // 配列の各要素を再帰的に処理
+        cleaned[key] = obj[key].map((item: any) => 
+          typeof item === 'object' && item !== null ? removeUndefinedFields(item) : item
+        ) as T[Extract<keyof T, string>];
+      } else if (typeof obj[key] === 'object' && obj[key] !== null) {
+        // オブジェクトの場合、再帰的に処理
+        const cleanedObj = removeUndefinedFields(obj[key]);
+        if (Object.keys(cleanedObj).length > 0) {
+          cleaned[key] = cleanedObj as T[Extract<keyof T, string>];
+        }
+      } else {
+        cleaned[key] = obj[key];
+      }
+    }
+  }
+  return cleaned;
+}
+
 // Monaco Editorを動的インポート（SSRを回避）
 const MonacoEditor = dynamic(() => import('@monaco-editor/react'), { 
   ssr: false,
@@ -317,9 +343,9 @@ export default function EditPageForm({
               title: title.trim(),
               content: formattedContent || '<p>コンテンツを入力してください。</p>',
               updatedAt: new Date().toISOString(),
-              // キーメッセージとサブメッセージを保存
-              keyMessage: keyMessage.trim() || undefined,
-              subMessage: subMessage.trim() || undefined,
+              // キーメッセージとサブメッセージを保存（空文字列の場合はundefinedを設定しない）
+              ...(keyMessage.trim() && { keyMessage: keyMessage.trim() }),
+              ...(subMessage.trim() && { subMessage: subMessage.trim() }),
             };
             // メタデータを再生成
             const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
@@ -331,6 +357,9 @@ export default function EditPageForm({
             if (subMessage.trim()) {
               (updatedPage as any).subMessage = subMessage.trim();
             }
+            
+            // undefinedの値を削除
+            const cleanedPage = removeUndefinedFields(updatedPage as any);
             
             // メタデータをコンソールに出力（デバッグ用）
             console.log('✏️ ページ更新（会社計画） - 再生成されたメタデータ:', {
@@ -347,7 +376,7 @@ export default function EditPageForm({
             });
             
             // ベクトル埋め込みを非同期で再生成・保存
-            savePageEmbeddingAsync(updatedPage.id, updatedPage.title, updatedPage.content, planId);
+            savePageEmbeddingAsync(cleanedPage.id, cleanedPage.title, cleanedPage.content, planId);
             
             // 構造データを非同期で再生成・保存
             const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
@@ -356,16 +385,16 @@ export default function EditPageForm({
               subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
             }));
             savePageStructureAsync(
-              updatedPage.id,
-              updatedPage.content,
-              updatedPage.title,
+              cleanedPage.id,
+              cleanedPage.content,
+              cleanedPage.title,
               allPages,
               subMenuId,
-              updatedPage.semanticCategory,
-              updatedPage.keywords
+              cleanedPage.semanticCategory,
+              cleanedPage.keywords
             );
             
-            return updatedPage;
+            return cleanedPage as PageMetadata;
           }
           return page;
         });
@@ -376,14 +405,17 @@ export default function EditPageForm({
           [subMenuId]: updatedPages,
         };
         
+        // Firestoreに保存する前にundefinedを削除
+        const updateData = removeUndefinedFields({
+          ...planData,
+          pagesBySubMenu: updatedPagesBySubMenu,
+          updatedAt: serverTimestamp(),
+        });
+        
         // Firestoreに保存
         await setDoc(
           doc(db, 'companyBusinessPlan', planId),
-          {
-            ...planData,
-            pagesBySubMenu: updatedPagesBySubMenu,
-            updatedAt: serverTimestamp(),
-          },
+          updateData,
           { merge: true }
         );
         
@@ -494,9 +526,9 @@ export default function EditPageForm({
         title: title.trim(),
         content: formattedContent || '<p>コンテンツを入力してください。</p>',
         updatedAt: new Date().toISOString(),
-        // キーメッセージとサブメッセージを保存
-        keyMessage: keyMessage.trim() || undefined,
-        subMessage: subMessage.trim() || undefined,
+        // キーメッセージとサブメッセージを保存（空文字列の場合はundefinedを設定しない）
+        ...(keyMessage.trim() && { keyMessage: keyMessage.trim() }),
+        ...(subMessage.trim() && { subMessage: subMessage.trim() }),
       };
       // メタデータを再生成
       const updatedPage = generatePageMetadata(basePage, subMenuId, totalPages);
@@ -509,22 +541,25 @@ export default function EditPageForm({
         (updatedPage as any).subMessage = subMessage.trim();
       }
       
+      // undefinedの値を削除
+      const cleanedPage = removeUndefinedFields(updatedPage as any);
+      
       // メタデータをコンソールに出力（デバッグ用）
       console.log('✏️ ページ更新（構想） - 再生成されたメタデータ:', {
-        pageId: updatedPage.id,
-        title: updatedPage.title,
+        pageId: cleanedPage.id,
+        title: cleanedPage.title,
         metadata: {
-          tags: updatedPage.tags,
-          contentType: updatedPage.contentType,
-          semanticCategory: updatedPage.semanticCategory,
-          keywords: updatedPage.keywords,
-          sectionType: updatedPage.sectionType,
-          importance: updatedPage.importance,
+          tags: cleanedPage.tags,
+          contentType: cleanedPage.contentType,
+          semanticCategory: cleanedPage.semanticCategory,
+          keywords: cleanedPage.keywords,
+          sectionType: cleanedPage.sectionType,
+          importance: cleanedPage.importance,
         }
       });
       
       // ベクトル埋め込みを非同期で再生成・保存
-      savePageEmbeddingAsync(updatedPage.id, updatedPage.title, updatedPage.content, undefined, conceptId);
+      savePageEmbeddingAsync(cleanedPage.id, cleanedPage.title, cleanedPage.content, undefined, conceptId);
       
       // 構造データを非同期で再生成・保存
       const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
@@ -533,16 +568,16 @@ export default function EditPageForm({
         subMenuId: Object.keys(pagesBySubMenu).find(key => pagesBySubMenu[key].some(page => page.id === p.id)) || subMenuId,
       }));
       savePageStructureAsync(
-        updatedPage.id,
-        updatedPage.content,
-        updatedPage.title,
+        cleanedPage.id,
+        cleanedPage.content,
+        cleanedPage.title,
         allPages,
         subMenuId,
-        updatedPage.semanticCategory,
-        updatedPage.keywords
+        cleanedPage.semanticCategory,
+        cleanedPage.keywords
       );
       
-      updatedPages[pageIndex] = updatedPage;
+      updatedPages[pageIndex] = cleanedPage as PageMetadata;
 
       // 更新データを準備
       const updatedPagesBySubMenu = {
@@ -560,8 +595,11 @@ export default function EditPageForm({
         updateData.pages = updatedPages;
       }
 
+      // Firestoreに保存する前にundefinedを削除
+      const cleanedUpdateData = removeUndefinedFields(updateData);
+
       // Firestoreに保存
-      await updateDoc(doc(db, 'concepts', conceptDoc.id), updateData);
+      await updateDoc(doc(db, 'concepts', conceptDoc.id), cleanedUpdateData);
       
       // キャッシュを無効化（2Dグラフのページコンテンツチェック用）
       if (typeof window !== 'undefined') {

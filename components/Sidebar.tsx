@@ -27,6 +27,14 @@ interface ContentItem {
   title: string;
   type: 'company-plan' | 'project' | 'concept';
   path: string;
+  serviceId?: string; // 事業企画の場合のserviceId
+}
+
+interface ConceptItem {
+  id: string;
+  title: string;
+  conceptId: string;
+  path: string;
 }
 
 // 固定構想の定義
@@ -58,10 +66,13 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
   const [menuPlanItems, setMenuPlanItems] = useState<ContentItem[]>([]);
   const [loadingContent, setLoadingContent] = useState(false);
   const [authReady, setAuthReady] = useState(false);
+  const [hoveredProjectServiceId, setHoveredProjectServiceId] = useState<string | null>(null);
+  const [hoveredConcepts, setHoveredConcepts] = useState<ConceptItem[]>([]);
+  const [loadingConcepts, setLoadingConcepts] = useState(false);
   
   const menuItems = [
-    { icon: DashboardIcon, label: 'ダッシュボード', id: 'dashboard', path: '/' },
-    { icon: LineChartIcon, label: '事業計画', id: 'business-plan', path: '/business-plan' },
+    { icon: DashboardIcon, label: '事業計画', id: 'business-plan', path: '/business-plan' },
+    { icon: LineChartIcon, label: 'ダッシュボード', id: 'dashboard', path: '/' },
     { icon: VisualizationsIcon, label: 'データ可視化', id: 'visualizations', path: '/visualizations' },
     { icon: BarChartIcon, label: '分析', id: 'analytics', path: '/analytics' },
     { icon: DocumentIcon, label: 'レポート', id: 'reports', path: '/reports' },
@@ -270,6 +281,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
               title: project.title,
               type: 'project',
               path: path,
+              serviceId: project.serviceId || project.id, // serviceIdを追加
             });
           });
 
@@ -287,6 +299,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
               title: service.name,
               type: 'project',
               path: path,
+              serviceId: service.id, // serviceIdを追加
             });
           });
 
@@ -575,6 +588,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
             title: project.title,
             type: 'project',
             path: path,
+            serviceId: project.serviceId, // serviceIdを追加
           });
         });
 
@@ -585,6 +599,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
             title: service.name,
             type: 'project',
             path: `/business-plan/services/${service.id}`,
+            serviceId: service.id, // serviceIdを追加
           });
         });
 
@@ -611,6 +626,98 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
     loadContent();
   }, [isOpen, activePage, authReady, auth?.currentUser, serviceId, projectId]);
+
+  // ホバー時に構想を取得
+  useEffect(() => {
+    if (!hoveredProjectServiceId || !authReady || !auth?.currentUser || !db) {
+      setHoveredConcepts([]);
+      return;
+    }
+
+    const loadConcepts = async () => {
+      setLoadingConcepts(true);
+      try {
+        const concepts: ConceptItem[] = [];
+        
+        // 固定構想を追加
+        const fixedConcepts = FIXED_CONCEPTS[hoveredProjectServiceId] || [];
+        fixedConcepts.forEach((concept) => {
+          concepts.push({
+            id: `fixed-${concept.id}`,
+            title: concept.name,
+            conceptId: concept.id,
+            path: `/business-plan/services/${hoveredProjectServiceId}/${concept.id}/overview`,
+          });
+        });
+
+        // Firebaseから構想を取得
+        let conceptsSnapshot;
+        try {
+          const conceptsQuery = query(
+            collection(db, 'concepts'),
+            where('userId', '==', auth.currentUser.uid),
+            where('serviceId', '==', hoveredProjectServiceId),
+            orderBy('createdAt', 'desc')
+          );
+          conceptsSnapshot = await getDocs(conceptsQuery);
+        } catch (error: any) {
+          if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            const conceptsQueryWithoutOrder = query(
+              collection(db, 'concepts'),
+              where('userId', '==', auth.currentUser.uid),
+              where('serviceId', '==', hoveredProjectServiceId)
+            );
+            conceptsSnapshot = await getDocs(conceptsQueryWithoutOrder);
+          } else {
+            throw error;
+          }
+        }
+
+        // 固定構想と同じconceptIdを持つ構想を除外
+        const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
+        const conceptsData: Array<{ id: string; title: string; conceptId: string; createdAt: Date | null }> = [];
+        
+        conceptsSnapshot.forEach((doc) => {
+          const data = doc.data();
+          const conceptId = data.conceptId || '';
+          if (!fixedConceptIds.has(conceptId)) {
+            conceptsData.push({
+              id: doc.id,
+              title: data.name || conceptId,
+              conceptId: conceptId,
+              createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
+            });
+          }
+        });
+
+        // 作成日時でソート（降順）
+        conceptsData.sort((a, b) => {
+          const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+          const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
+          return bTime - aTime;
+        });
+
+        // アイテムに変換
+        conceptsData.forEach((concept) => {
+          concepts.push({
+            id: concept.id,
+            title: concept.title,
+            conceptId: concept.conceptId,
+            path: `/business-plan/services/${hoveredProjectServiceId}/${concept.conceptId}/overview`,
+          });
+        });
+
+        setHoveredConcepts(concepts);
+      } catch (error) {
+        console.error('❌ 構想の読み込みエラー:', error);
+        setHoveredConcepts([]);
+      } finally {
+        setLoadingConcepts(false);
+      }
+    };
+
+    loadConcepts();
+  }, [hoveredProjectServiceId, authReady, auth?.currentUser]);
 
   return (
     <>
@@ -753,7 +860,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                       style={{
                         display: 'flex',
                         alignItems: 'center',
-                        padding: '10px 24px',
+                        padding: '8px 24px',
                         width: '100%',
                         color: 'var(--color-text-light)',
                         textDecoration: 'none',
@@ -823,6 +930,9 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                       }
                     }
                     
+                    // 事業企画の場合、serviceIdを取得
+                    const menuProjectServiceId = item.type === 'project' ? item.serviceId || (item.path.startsWith('/business-plan/services/') ? item.path.match(/\/business-plan\/services\/([^\/]+)$/)?.[1] : null) : null;
+                    
                     return (
                       <button
                         key={item.id}
@@ -830,14 +940,14 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                         style={{
                           display: 'flex',
                           alignItems: 'center',
-                          padding: '10px 24px',
+                          padding: '6px 24px',
                           width: '100%',
                           color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
                           textDecoration: 'none',
                           transition: 'all 0.2s ease',
                           borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
                           backgroundColor: isActive ? 'var(--color-background)' : 'transparent',
-                          fontSize: '14px',
+                          fontSize: '13px',
                           fontWeight: isActive ? 500 : 400,
                           border: 'none',
                           cursor: 'pointer',
@@ -848,11 +958,20 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                             e.currentTarget.style.backgroundColor = 'var(--color-background)';
                             e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
                           }
+                          // 事業企画の場合、構想を表示
+                          if (item.type === 'project' && menuProjectServiceId) {
+                            setHoveredProjectServiceId(menuProjectServiceId);
+                          }
                         }}
                         onMouseLeave={(e) => {
                           if (!isActive) {
                             e.currentTarget.style.backgroundColor = 'transparent';
                             e.currentTarget.style.borderLeftColor = 'transparent';
+                          }
+                          // マウスがポップアップに移動した場合は保持
+                          const relatedTarget = e.relatedTarget as HTMLElement;
+                          if (!relatedTarget || !relatedTarget.closest('.concept-popup')) {
+                            setHoveredProjectServiceId(null);
                           }
                         }}
                       >
@@ -977,6 +1096,9 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                       }
                     }
                     
+                    // 事業企画の場合、serviceIdを取得
+                    const projectServiceId = item.type === 'project' ? item.serviceId || (item.path.startsWith('/business-plan/services/') ? item.path.match(/\/business-plan\/services\/([^\/]+)$/)?.[1] : null) : null;
+                    
                     return (
                       <button
                         key={item.id}
@@ -1002,6 +1124,10 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                             e.currentTarget.style.backgroundColor = 'var(--color-background)';
                             e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
                           }
+                          // 事業企画の場合、構想を表示（会社全体の事業計画ページの場合のみ）
+                          if (item.type === 'project' && projectServiceId && activePage === 'business-plan' && !serviceId && !projectId) {
+                            setHoveredProjectServiceId(projectServiceId);
+                          }
                         }}
                         onMouseLeave={(e) => {
                           if (!isActive) {
@@ -1010,6 +1136,11 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                           } else {
                             e.currentTarget.style.backgroundColor = 'rgba(59, 130, 246, 0.2)';
                             e.currentTarget.style.borderLeftColor = '#3B82F6';
+                          }
+                          // マウスがポップアップに移動した場合は保持
+                          const relatedTarget = e.relatedTarget as HTMLElement;
+                          if (!relatedTarget || !relatedTarget.closest('.concept-popup')) {
+                            setHoveredProjectServiceId(null);
                           }
                         }}
                       >
@@ -1038,6 +1169,195 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
               </div>
             </>
           )}
+        </div>
+      )}
+
+      {/* 構想一覧ポップアップ - 事業企画にホバーしたときに表示 */}
+      {isOpen && hoveredProjectServiceId && hoveredConcepts.length > 0 && (
+        <div
+          className="concept-popup"
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: '350px', // サイドメニューの右側
+            width: '320px',
+            height: '100vh',
+            background: 'linear-gradient(180deg, #ffffff 0%, #f8f9fa 100%)',
+            boxShadow: '-4px 0 20px rgba(0,0,0,0.08), -2px 0 8px rgba(0,0,0,0.04)',
+            zIndex: 998,
+            padding: 0,
+            overflowY: 'auto',
+            borderRight: `1px solid rgba(0, 0, 0, 0.1)`,
+            animation: 'conceptPopupSlideIn 0.25s cubic-bezier(0.4, 0, 0.2, 1)',
+          }}
+          onMouseEnter={() => {
+            // ポップアップ内にマウスがある場合は保持
+          }}
+          onMouseLeave={() => {
+            setHoveredProjectServiceId(null);
+          }}
+        >
+          {/* ヘッダー */}
+          <div style={{
+            padding: '20px 24px',
+            background: 'linear-gradient(180deg, #1F2933 0%, #18222D 100%)',
+            borderBottom: '1px solid rgba(255, 255, 255, 0.1)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '8px',
+                background: 'rgba(255, 255, 255, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: '18px',
+              }}>
+                💡
+              </div>
+              <div>
+                <h2 style={{
+                  fontSize: '16px',
+                  fontWeight: 400,
+                  color: '#ffffff',
+                  margin: 0,
+                  letterSpacing: '0.5px',
+                }}>
+                  構想一覧
+                </h2>
+                <p style={{
+                  fontSize: '12px',
+                  color: 'rgba(255, 255, 255, 0.7)',
+                  margin: '4px 0 0 0',
+                }}>
+                  {hoveredConcepts.length}件の構想
+                </p>
+              </div>
+            </div>
+          </div>
+
+          {/* コンテンツ */}
+          <div style={{
+            padding: '16px 12px',
+            maxHeight: 'calc(100vh - 100px)',
+            overflowY: 'auto',
+          }}>
+            {loadingConcepts ? (
+              <div style={{
+                padding: '40px 24px',
+                textAlign: 'center',
+                color: 'var(--color-text-light)',
+                fontSize: '14px',
+              }}>
+                <div style={{
+                  width: '24px',
+                  height: '24px',
+                  border: '3px solid rgba(139, 92, 246, 0.2)',
+                  borderTopColor: '#8B5CF6',
+                  borderRadius: '50%',
+                  animation: 'conceptPopupSpin 0.8s linear infinite',
+                  margin: '0 auto 12px',
+                }} />
+                読み込み中...
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                {hoveredConcepts.map((concept, index) => {
+                  const isActive = pathname.startsWith(concept.path);
+                  return (
+                    <button
+                      key={concept.id}
+                      onClick={() => handleNavigation(concept.path)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        padding: '12px 16px',
+                        width: '100%',
+                        color: isActive ? '#8B5CF6' : 'var(--color-text)',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
+                        backgroundColor: isActive 
+                          ? 'rgba(139, 92, 246, 0.1)' 
+                          : 'rgba(255, 255, 255, 0.8)',
+                        fontSize: '13px',
+                        fontWeight: isActive ? 600 : 500,
+                        border: 'none',
+                        cursor: 'pointer',
+                        textAlign: 'left',
+                        borderRadius: '8px',
+                        borderLeft: isActive ? '3px solid #8B5CF6' : '3px solid transparent',
+                        boxShadow: isActive 
+                          ? '0 2px 8px rgba(139, 92, 246, 0.15)' 
+                          : '0 1px 3px rgba(0, 0, 0, 0.05)',
+                        transform: isActive ? 'translateX(2px)' : 'translateX(0)',
+                      }}
+                      onMouseEnter={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.08)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.12)';
+                          e.currentTarget.style.transform = 'translateX(2px)';
+                          e.currentTarget.style.borderLeftColor = 'rgba(139, 92, 246, 0.3)';
+                        }
+                      }}
+                      onMouseLeave={(e) => {
+                        if (!isActive) {
+                          e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.8)';
+                          e.currentTarget.style.boxShadow = '0 1px 3px rgba(0, 0, 0, 0.05)';
+                          e.currentTarget.style.transform = 'translateX(0)';
+                          e.currentTarget.style.borderLeftColor = 'transparent';
+                        } else {
+                          e.currentTarget.style.backgroundColor = 'rgba(139, 92, 246, 0.1)';
+                          e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 92, 246, 0.15)';
+                          e.currentTarget.style.borderLeftColor = '#8B5CF6';
+                        }
+                      }}
+                    >
+                      <div style={{
+                        width: '32px',
+                        height: '32px',
+                        borderRadius: '6px',
+                        background: isActive 
+                          ? 'linear-gradient(135deg, #8B5CF6 0%, #7C3AED 100%)'
+                          : 'linear-gradient(135deg, rgba(139, 92, 246, 0.1) 0%, rgba(124, 58, 237, 0.1) 100%)',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        fontSize: '16px',
+                        marginRight: '12px',
+                        flexShrink: 0,
+                        transition: 'all 0.2s ease',
+                      }}>
+                        💡
+                      </div>
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        flex: 1,
+                        lineHeight: '1.4',
+                      }}>
+                        {concept.title}
+                      </span>
+                      {isActive && (
+                        <span style={{
+                          marginLeft: '8px',
+                          fontSize: '12px',
+                          color: '#8B5CF6',
+                          fontWeight: 600,
+                        }}>
+                          →
+                        </span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       )}
     </>

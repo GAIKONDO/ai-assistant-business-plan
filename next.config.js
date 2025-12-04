@@ -53,25 +53,6 @@ const nextConfig = {
       })
     );
     
-    // @tanstack/react-queryのvendor-chunks問題を解決
-    if (!isServer) {
-      config.optimization = {
-        ...config.optimization,
-        splitChunks: {
-          ...config.optimization.splitChunks,
-          cacheGroups: {
-            ...config.optimization.splitChunks?.cacheGroups,
-            '@tanstack': {
-              test: /[\\/]node_modules[\\/]@tanstack[\\/]/,
-              name: 'vendor-chunks/@tanstack',
-              chunks: 'all',
-              priority: 20,
-            },
-          },
-        },
-      };
-    }
-    
     return config;
   },
 }
