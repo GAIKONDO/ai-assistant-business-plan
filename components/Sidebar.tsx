@@ -651,6 +651,10 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         });
 
         // Firebaseから構想を取得
+        if (!db || !auth?.currentUser) {
+          setHoveredConcepts([]);
+          return;
+        }
         let conceptsSnapshot;
         try {
           const conceptsQuery = query(
@@ -662,6 +666,10 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           conceptsSnapshot = await getDocs(conceptsQuery);
         } catch (error: any) {
           if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+            if (!db || !auth?.currentUser) {
+              setHoveredConcepts([]);
+              return;
+            }
             const conceptsQueryWithoutOrder = query(
               collection(db, 'concepts'),
               where('userId', '==', auth.currentUser.uid),
