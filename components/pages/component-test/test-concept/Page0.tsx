@@ -26,6 +26,14 @@ try {
 }
 
 try {
+  // ConceptContextを直接インポート
+  const conceptHook = require('@/app/business-plan/services/[serviceId]/[conceptId]/hooks/useConcept');
+  ConceptContext = conceptHook.ConceptContext || ConceptContext;
+} catch {
+  // インポートに失敗した場合は既存のConceptContextを使用
+}
+
+try {
   // PlanContextを直接インポート
   const planHook = require('@/app/business-plan/company/[planId]/hooks/usePlan');
   PlanContext = planHook.PlanContext || DefaultPlanContext;
@@ -191,6 +199,33 @@ export default function Page0() {
       setShowSizeControl(false);
     } catch (error) {
       console.error('キービジュアルのスケール保存エラー:', error);
+    }
+  };
+
+  const handleSaveKeyVisualHeight = async (newHeight: number) => {
+    if (!concept?.id || !db) return;
+    
+    try {
+      // 事業企画の場合はconceptsコレクション、会社本体の事業計画の場合はcompanyBusinessPlanコレクション
+      if (serviceId && conceptId) {
+        const conceptRef = doc(db, 'concepts', concept.id);
+        await updateDoc(conceptRef, { 
+          keyVisualHeight: newHeight,
+          updatedAt: serverTimestamp() 
+        });
+      } else if (planId) {
+        const planRef = doc(db, 'companyBusinessPlan', planId);
+        await updateDoc(planRef, { 
+          keyVisualHeight: newHeight,
+          updatedAt: serverTimestamp() 
+        });
+      }
+      
+      if (reloadConcept) {
+        await reloadConcept();
+      }
+    } catch (error) {
+      console.error('キービジュアルの高さ保存エラー:', error);
     }
   };
 
@@ -434,146 +469,122 @@ export default function Page0() {
             キービジュアルが設定されていません
           </div>
         )}
-        {!showContainers && (
-          <div style={{ position: 'absolute', top: '10px', left: '10px', display: 'flex', gap: '8px', zIndex: 10 }}>
-            <button
-              onClick={() => setShowSizeControl(!showSizeControl)}
-              style={{
-                background: 'rgba(255,255,255,0.8)',
-                border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: '50%',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
-              title="サイズ調整"
-            >
-              ⚙️
-            </button>
-            <button
-              onClick={handleImageChange}
-              style={{
-                background: 'rgba(255,255,255,0.8)',
-                border: '1px solid rgba(0,0,0,0.1)',
-                borderRadius: '50%',
-                width: '30px',
-                height: '30px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                cursor: 'pointer',
-                boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
-              }}
-              title="画像変更"
-            >
-              +
-            </button>
-          </div>
-        )}
       </div>
-      {showSizeControl && !showContainers && (
-        <>
-          {/* モーダル外クリック用のオーバーレイ */}
-          <div
+      
+      {/* コントロールボタン（固定ページ形式と同じ仕様） */}
+      {keyVisualUrl && auth?.currentUser && (
+        <div style={{ marginTop: '12px', display: 'flex', gap: '8px', justifyContent: 'flex-end', flexWrap: 'wrap' }}>
+          <button
+            onClick={() => setShowSizeControl(!showSizeControl)}
             style={{
-              position: 'fixed',
-              top: 0,
-              left: 0,
-              right: 0,
-              bottom: 0,
-              zIndex: 998,
+              padding: '6px 12px',
+              backgroundColor: showSizeControl ? 'var(--color-primary)' : '#f3f4f6',
+              color: showSizeControl ? '#fff' : 'var(--color-text)',
+              border: '1px solid var(--color-border-color)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
             }}
-            onClick={saveScaleChange}
-          />
-          {/* サイズ調整コントロール */}
-          <div
-            style={{
-              position: 'absolute',
-              top: '-60px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              padding: '12px 16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.95)',
-              border: '1px solid rgba(0, 0, 0, 0.2)',
-              borderRadius: '8px',
-              boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '12px',
-              zIndex: 999,
-              minWidth: '300px',
-            }}
-            onClick={(e) => e.stopPropagation()}
           >
-            <label htmlFor="keyVisualScale" style={{ fontSize: '14px', color: 'var(--color-text)', fontWeight: 500 }}>サイズ:</label>
-            <input
-              type="range"
-              id="keyVisualScale"
-              min="50"
-              max="150"
-              step="5"
-              value={keyVisualScale}
-              onChange={(e) => handleScaleChange(Number(e.target.value))}
-              style={{ flexGrow: 1 }}
-            />
-            <span style={{ fontSize: '14px', color: 'var(--color-text)', fontWeight: 600, minWidth: '45px', textAlign: 'right' }}>{keyVisualScale}%</span>
+            サイズ調整
+          </button>
+          <button
+            onClick={() => setShowMetadataEditor(true)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#f3f4f6',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border-color)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            メタデータ編集
+          </button>
+          <button
+            onClick={handleImageChange}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#f3f4f6',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border-color)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            画像変更
+          </button>
+          <button
+            onClick={() => setShowLogoEditor(true)}
+            style={{
+              padding: '6px 12px',
+              backgroundColor: '#f3f4f6',
+              color: 'var(--color-text)',
+              border: '1px solid var(--color-border-color)',
+              borderRadius: '4px',
+              cursor: 'pointer',
+              fontSize: '12px',
+            }}
+          >
+            ロゴ設定
+          </button>
+        </div>
+      )}
+
+      {/* サイズ調整コントロール */}
+      {showSizeControl && keyVisualUrl && (
+        <div
+          style={{
+            position: 'absolute',
+            top: '8px',
+            left: '8px',
+            backgroundColor: 'rgba(0, 0, 0, 0.8)',
+            padding: '12px',
+            borderRadius: '8px',
+            zIndex: 10,
+            minWidth: '200px',
+          }}
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div style={{ marginBottom: '8px', color: '#fff', fontSize: '12px', fontWeight: 600 }}>
+            高さ調整（%）
+          </div>
+          <input
+            type="range"
+            min="20"
+            max="150"
+            step="5"
+            value={keyVisualHeight}
+            onChange={(e) => {
+              const newHeight = parseFloat(e.target.value);
+              setKeyVisualHeight(newHeight);
+              handleSaveKeyVisualHeight(newHeight);
+            }}
+            style={{
+              width: '100%',
+              marginBottom: '8px',
+            }}
+          />
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <span style={{ color: '#fff', fontSize: '12px' }}>{keyVisualHeight}%</span>
             <button
-              onClick={saveScaleChange}
+              onClick={() => setShowSizeControl(false)}
               style={{
-                padding: '6px 12px',
-                backgroundColor: 'var(--color-primary)',
+                padding: '4px 8px',
+                backgroundColor: 'rgba(255, 255, 255, 0.2)',
                 color: '#fff',
                 border: 'none',
                 borderRadius: '4px',
                 cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 500,
+                fontSize: '11px',
               }}
             >
-              適用
-            </button>
-            <button
-              onClick={() => {
-                setShowSizeControl(false);
-                setShowMetadataEditor(true);
-              }}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: '#6B7280',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 500,
-              }}
-            >
-              PDFメタデータ編集
-            </button>
-            <button
-              onClick={() => {
-                setShowSizeControl(false);
-                setShowLogoEditor(true);
-              }}
-              style={{
-                padding: '6px 12px',
-                backgroundColor: '#10B981',
-                color: '#fff',
-                border: 'none',
-                borderRadius: '4px',
-                cursor: 'pointer',
-                fontSize: '12px',
-                fontWeight: 500,
-              }}
-            >
-              ロゴ設定
+              閉じる
             </button>
           </div>
-        </>
+        </div>
       )}
       
       {/* PDFメタデータ編集モーダル */}

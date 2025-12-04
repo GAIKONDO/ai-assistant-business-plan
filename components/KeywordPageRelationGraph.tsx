@@ -494,8 +494,8 @@ export default function KeywordPageRelationGraph({
             if (d.type === 'keyword') return;
             if (!event.active) simulationRef.current.alphaTarget(0);
             // キーワードノード以外は固定を解除
-            d.fx = null;
-            d.fy = null;
+              d.fx = null;
+              d.fy = null;
           })
       );
 

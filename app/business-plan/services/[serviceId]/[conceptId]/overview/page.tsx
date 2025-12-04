@@ -57,6 +57,9 @@ export default function OverviewPage() {
   const businessModelRenderedRef = useRef(false);
   const aiReadableDiagramRef = useRef<HTMLDivElement>(null);
   const aiReadableRenderedRef = useRef(false);
+  const approachDiagramRef = useRef<HTMLDivElement>(null);
+  const approachRenderedRef = useRef(false);
+  const [approachDiagramSvg, setApproachDiagramSvg] = useState<string>(''); // アプローチ図のSVGを状態として管理
   
   // キービジュアルの高さとスケールを読み込む
   useEffect(() => {
@@ -111,7 +114,13 @@ export default function OverviewPage() {
               theme: 'default',
               securityLevel: 'loose',
               fontFamily: 'inherit',
-              htmlLabels: true
+              htmlLabels: true,
+              flowchart: {
+                useMaxWidth: false,
+                htmlLabels: true,
+                curve: 'basis',
+                padding: 20,
+              },
             });
           } catch (e) {
             // 既に初期化されている場合はエラーを無視
@@ -552,6 +561,147 @@ export default function OverviewPage() {
     return () => clearTimeout(timer);
   }, [conceptId, mermaidLoaded]);
 
+  // アプローチ図をレンダリング
+  useEffect(() => {
+    // conceptIdParamが'concept-1764796651610193'の場合のみ実行
+    if (conceptIdParam !== 'concept-1764796651610193') {
+      setApproachDiagramSvg(''); // 該当しない場合はSVGをクリア
+      approachRenderedRef.current = false;
+      return;
+    }
+
+    // 既にレンダリング済みの場合はスキップ
+    if (approachRenderedRef.current && approachDiagramSvg) {
+      return;
+    }
+
+    const renderApproachDiagram = async () => {
+      // Mermaidが利用可能になるまで待つ
+      let retries = 0;
+      const maxRetries = 100; // 10秒間
+      while (retries < maxRetries && (!(window as any).mermaid || typeof (window as any).mermaid.render !== 'function')) {
+        await new Promise(resolve => setTimeout(resolve, 100));
+        retries++;
+      }
+      
+      const mermaid = (window as any).mermaid;
+      if (!mermaid || typeof mermaid.render !== 'function') {
+        approachRenderedRef.current = false;
+        return;
+      }
+
+      // Mermaidが利用可能になったら、mermaidLoadedをtrueに設定
+      if (!mermaidLoaded) {
+        setMermaidLoaded(true);
+      }
+
+      try {
+        const id = `approach-diagram-${Date.now()}`;
+        const diagram = `graph LR
+    subgraph CURRENT["CURRENT STATE<br/>(Human-Readable, Unstructured)"]
+        direction TB
+        A1[PDF]
+        A2[手書きメモ]
+        A3[レガシー<br/>データベース]
+        A4[非標準化<br/>データ]
+        A5[紙の文書]
+    end
+    
+    GAP["AI Understanding Gap<br/>❌"]
+    A1 --> GAP
+    A2 --> GAP
+    A3 --> GAP
+    A4 --> GAP
+    A5 --> GAP
+    
+    subgraph APPROACH1["APPROACH 1<br/>CONVERT EXISTING DATA"]
+        direction TB
+        ENGINE["AI Conversion Engine<br/>⚙ OCR<br/>⚙ NLP<br/>⚙ Structuring"]
+        PROCESS["Metadata<br/>Semantic Data<br/>Vectorization"]
+        OUTPUT1["AI-Readable Data<br/>(Structured, Standardized)"]
+        ENGINE --> PROCESS
+        PROCESS --> OUTPUT1
+    end
+    
+    subgraph APPROACH2["APPROACH 2<br/>CREATE AI-READY DATA<br/>(パーソナルデータレイク作成)"]
+        direction TB
+        HUMAN_ACT["👤 人間の活動<br/>📝 資料作成<br/>📋 フォーム入力<br/>💼 業務プロセス"]
+        CREATION["AI-Ready Creation<br/>System 🤖"]
+        OUTPUT2["AI-Readable Data<br/>(Structured, Standardized)"]
+        LAKE["パーソナル<br/>データレイク<br/>🏞️"]
+        HUMAN_ACT --> CREATION
+        CREATION --> OUTPUT2
+        OUTPUT2 --> LAKE
+    end
+    
+    subgraph FUTURE["FUTURE STATE<br/>(AI-Readable Data Ecosystem)"]
+        direction TB
+        POOL["統合AI-Readable<br/>Data Pool 🌐"]
+        ML["機械学習 ML"]
+        AI["AI Understanding<br/>& Insights 🧠"]
+        HUMAN["人間 👤"]
+        VALUE["価値創造 ✨"]
+        
+        POOL --> ML
+        ML --> AI
+        AI --> VALUE
+        AI --> HUMAN
+        HUMAN -.->|フィードバック| POOL
+        VALUE -.->|フィードバック| POOL
+    end
+    
+    GAP -->|変換| APPROACH1
+    GAP -->|設計| APPROACH2
+    OUTPUT1 --> POOL
+    LAKE --> POOL
+    
+    style CURRENT fill:#fff3e0,stroke:#f57c00,stroke-width:2px
+    style GAP fill:#ffebee,stroke:#d32f2f,stroke-width:3px
+    style APPROACH1 fill:#e3f2fd,stroke:#1976d2,stroke-width:2px
+    style APPROACH2 fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
+    style FUTURE fill:#f3e5f5,stroke:#7b1fa2,stroke-width:3px
+    style ENGINE fill:#bbdefb,stroke:#1976d2,stroke-width:2px
+    style CREATION fill:#c8e6c9,stroke:#388e3c,stroke-width:2px
+    style LAKE fill:#81c784,stroke:#2e7d32,stroke-width:3px
+    style POOL fill:#e1bee7,stroke:#7b1fa2,stroke-width:3px
+    style AI fill:#f8bbd0,stroke:#c2185b,stroke-width:2px
+    style VALUE fill:#fff9c4,stroke:#f9a825,stroke-width:2px`;
+        
+        const result = await mermaid.render(id, diagram);
+        let svg = typeof result === 'string' ? result : result.svg;
+        
+        // SVGのサイズを大きくするために、widthとheight属性を調整
+        // SVGタグにwidth="100%"とheight="auto"を追加または更新
+        svg = svg.replace(/<svg([^>]*)>/, (match, attrs) => {
+          // 既存のwidthとheight属性を削除
+          attrs = attrs.replace(/\s*width\s*=\s*["'][^"']*["']/gi, '');
+          attrs = attrs.replace(/\s*height\s*=\s*["'][^"']*["']/gi, '');
+          // width="100%"とstyleを追加
+          return `<svg${attrs} width="100%" style="max-width: 100%; height: auto;">`;
+        });
+        
+        // 状態としてSVGを保存（innerHTMLを直接設定しない）
+        setApproachDiagramSvg(svg);
+        approachRenderedRef.current = true;
+      } catch (err) {
+        console.error('アプローチ図レンダリングエラー:', err);
+        approachRenderedRef.current = false;
+        setApproachDiagramSvg('');
+      }
+    };
+
+    // 少し待ってからレンダリングを開始
+    const timer = setTimeout(() => {
+      renderApproachDiagram();
+    }, 500);
+
+    return () => {
+      clearTimeout(timer);
+      // クリーンアップ時にレンダリングフラグをリセット
+      approachRenderedRef.current = false;
+    };
+  }, [mermaidLoaded, conceptIdParam]);
+
   
   // キービジュアルの高さを保存
   const handleSaveKeyVisualHeight = async (height: number) => {
@@ -721,17 +871,13 @@ export default function OverviewPage() {
 
   return (
     <>
-      <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
-        概要・コンセプト
-      </p>
-      
       {/* キービジュアル */}
       <div 
         data-page-container="0"
-        className="card" 
         style={{ 
           padding: 0, 
           overflow: 'hidden',
+          marginBottom: '24px',
           ...(showContainers ? {
             border: '2px dashed var(--color-primary)',
             borderRadius: '8px',
@@ -861,105 +1007,9 @@ export default function OverviewPage() {
                 )}
               </div>
             )}
-            {/* キービジュアル編集ボタン */}
-            <div style={{ position: 'absolute', bottom: '8px', right: '8px', display: 'flex', gap: '8px' }}>
-              <button
-                onClick={() => setShowSizeControl(!showSizeControl)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  padding: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontSize: '16px',
-                  fontWeight: 300,
-                  lineHeight: '1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: 0.8,
-                  transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                title="サイズ調整"
-              >
-                ⚙
-              </button>
-              <button
-                onClick={() => router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`)}
-                style={{
-                  width: '32px',
-                  height: '32px',
-                  padding: 0,
-                  backgroundColor: 'rgba(0, 0, 0, 0.5)',
-                  border: 'none',
-                  borderRadius: '50%',
-                  color: '#fff',
-                  cursor: 'pointer',
-                  fontSize: '20px',
-                  fontWeight: 300,
-                  lineHeight: '1',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: 0.8,
-                  transition: 'opacity 0.2s',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '0.8';
-                }}
-                title="画像変更"
-              >
-                +
-              </button>
-            </div>
           </div>
         ) : (
           <div style={{ position: 'relative', width: '100%', paddingTop: `${keyVisualHeight}%`, backgroundColor: '#f8f9fa', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            {/* キービジュアルアップロードボタン（中央に配置） */}
-            <button
-              onClick={() => router.push(`/business-plan/services/${serviceId}/${conceptId}/overview/upload-key-visual`)}
-              style={{
-                position: 'absolute',
-                bottom: '8px',
-                right: '8px',
-                width: '32px',
-                height: '32px',
-                padding: 0,
-                backgroundColor: 'transparent',
-                border: 'none',
-                borderRadius: '50%',
-                color: 'var(--color-text-light)',
-                cursor: 'pointer',
-                fontSize: '20px',
-                fontWeight: 300,
-                lineHeight: '1',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                opacity: 0.6,
-                transition: 'opacity 0.2s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.opacity = '1';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.opacity = '0.6';
-              }}
-            >
-              +
-            </button>
           </div>
         )}
         
@@ -1314,13 +1364,15 @@ export default function OverviewPage() {
         )}
       </div>
 
-      <div className="card">
         {loading ? (
         <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
             読み込み中...
           </p>
         ) : (
           <>
+          <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
+            概要・コンセプト
+          </p>
             <div 
               data-page-container="1"
               style={{ 
@@ -1340,6 +1392,263 @@ export default function OverviewPage() {
               >
                 はじめに
               </h4>
+              {/* キーメッセージとサブメッセージ */}
+              {conceptIdParam === 'concept-1764796651610193' && (
+                <>
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '40px'
+                  }}>
+                    <h2 className="key-message-title">
+                      AI readableの世界へ
+                    </h2>
+                    <p className="key-message-subtitle gradient-text-blue">
+                      — 人間とAIが協調し、<strong>新しい価値を創造する</strong>時代 —
+                    </p>
+                  </div>
+                  
+                  {/* 解説文 */}
+                  <div style={{ marginBottom: '40px', lineHeight: '1.8', fontSize: '14px', color: 'var(--color-text)' }}>
+                    <div style={{ 
+                      display: 'flex',
+                      gap: '40px',
+                      alignItems: 'flex-start',
+                      marginBottom: '32px' 
+                    }}>
+                      {/* 左側：アプローチ1と2 */}
+                      <div style={{ 
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '40px',
+                        flex: 1,
+                      }}>
+                        {/* アプローチ1 */}
+                        <div style={{
+                          display: 'flex',
+                          gap: '32px',
+                          alignItems: 'flex-start',
+                        }}>
+                          {/* 左側：アイコンとタイトル */}
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '12px',
+                            flexShrink: 0,
+                            width: '120px',
+                            justifyContent: 'flex-start',
+                            paddingTop: '8px',
+                          }}>
+                            <div style={{
+                              width: '120px',
+                              height: '120px',
+                              borderRadius: '50%',
+                              backgroundColor: '#e3f2fd',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '60px',
+                            }}>
+                              ⚙️
+                            </div>
+                            <h3 style={{ 
+                              fontSize: '16px', 
+                              fontWeight: 700, 
+                              margin: 0,
+                              color: 'var(--color-text)',
+                              textAlign: 'center',
+                            }}>
+                              アプローチ1
+                            </h3>
+                          </div>
+                          {/* 右側：説明 */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                          <h3 style={{ 
+                            fontSize: '20px', 
+                            fontWeight: 700, 
+                            margin: '0 0 16px 0',
+                            color: '#1976d2',
+                          }}>
+                            １．既存データをAI readableなデータに変換
+                          </h3>
+                          <div style={{
+                            marginBottom: '16px',
+                            fontSize: '14px',
+                            color: '#666',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px' }}>
+                              <span>📄</span>
+                              <span>非構造化データ</span>
+                              <span style={{ margin: '0 4px' }}>→</span>
+                              <span>📊</span>
+                              <span>構造化データ</span>
+                              <span style={{ margin: '0 4px' }}>→</span>
+                              <span>✅</span>
+                              <span>AI readableデータ</span>
+                            </div>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                              <span>🔍</span>
+                              <span style={{ fontSize: '14px', fontWeight: 500 }}>AI-OCR</span>
+                              <span style={{ margin: '0 4px' }}>|</span>
+                              <span>📋</span>
+                              <span style={{ fontSize: '14px', fontWeight: 500 }}>Json化</span>
+                              <span style={{ margin: '0 4px' }}>|</span>
+                              <span>🏷️</span>
+                              <span style={{ fontSize: '14px', fontWeight: 500 }}>メタデータ</span>
+                              <span style={{ margin: '0 4px' }}>|</span>
+                              <span>🧠</span>
+                              <span style={{ fontSize: '14px', fontWeight: 500 }}>セマンティックデータ</span>
+                              <span style={{ margin: '0 4px' }}>|</span>
+                              <span>📊</span>
+                              <span style={{ fontSize: '14px', fontWeight: 500 }}>ベクトル化</span>
+                            </div>
+                          </div>
+                          </div>
+                        </div>
+                        
+                        {/* アプローチ2 */}
+                        <div style={{
+                          display: 'flex',
+                          gap: '32px',
+                          alignItems: 'flex-start',
+                        }}>
+                          {/* 左側：アイコンとタイトル */}
+                          <div style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            gap: '12px',
+                            flexShrink: 0,
+                            width: '120px',
+                            justifyContent: 'flex-start',
+                            paddingTop: '8px',
+                          }}>
+                            <div style={{
+                              width: '120px',
+                              height: '120px',
+                              borderRadius: '50%',
+                              backgroundColor: '#e8f5e9',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              fontSize: '60px',
+                            }}>
+                              🤖
+                            </div>
+                            <h3 style={{ 
+                              fontSize: '16px', 
+                              fontWeight: 700, 
+                              margin: 0,
+                              color: 'var(--color-text)',
+                              textAlign: 'center',
+                            }}>
+                              アプローチ2
+                            </h3>
+                          </div>
+                          {/* 右側：説明 */}
+                          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-start' }}>
+                          <h3 style={{ 
+                            fontSize: '20px', 
+                            fontWeight: 700, 
+                            margin: '0 0 16px 0',
+                            color: '#388e3c',
+                          }}>
+                            ２．最初からAI readableなデータとして作成
+                          </h3>
+                          <div style={{
+                            marginBottom: '16px',
+                            fontSize: '14px',
+                            color: '#666',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', flexWrap: 'wrap' }}>
+                              <span>👤</span>
+                              <span>人間の活動</span>
+                              <span style={{ margin: '0 4px' }}>→</span>
+                              <span>🤖</span>
+                              <span>AI-readable Creation</span>
+                              <span style={{ margin: '0 4px' }}>→</span>
+                              <span>✅</span>
+                              <span>AI readableデータ</span>
+                            </div>
+                              <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginTop: '12px', flexWrap: 'wrap' }}>
+                                <span>🏞️</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>パーソナルデータレイク</span>
+                                <span style={{ margin: '0 4px' }}>|</span>
+                                <span>🏢</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>企業データレイク</span>
+                                <span style={{ margin: '0 4px' }}>|</span>
+                                <span>🌐</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>パブリックデータレイク</span>
+                                <span style={{ margin: '0 4px' }}>|</span>
+                                <span>🔌</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>API</span>
+                                <span style={{ margin: '0 4px' }}>|</span>
+                                <span>🔗</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>MCP</span>
+                                <span style={{ margin: '0 4px' }}>|</span>
+                                <span>⚡</span>
+                                <span style={{ fontSize: '14px', fontWeight: 500 }}>A2A</span>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                      
+                      {/* 右側：画像 */}
+                      <div style={{
+                        flexShrink: 0,
+                        width: '500px',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <img 
+                          src="/Gemini_Generated_Image_x4bprwx4bprwx4bp.png"
+                          alt="AI readableの世界観"
+                          style={{
+                            maxWidth: '100%',
+                            height: 'auto',
+                            objectFit: 'contain',
+                          }}
+                        />
+                      </div>
+                    </div>
+                  </div>
+                  
+                  {/* 図 */}
+                  <div style={{ 
+                    marginBottom: '40px',
+                  }}>
+                    <div 
+                      ref={approachDiagramRef}
+                      style={{ 
+                        textAlign: 'center',
+                        minHeight: '400px',
+                        width: '100%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        overflow: 'auto',
+                      }}
+                    >
+                      {!approachDiagramSvg && (
+                        <p style={{ color: 'var(--color-text-light)', fontSize: '14px' }}>
+                          図を読み込み中...
+                        </p>
+                      )}
+                      {approachDiagramSvg && (
+                        <div 
+                          dangerouslySetInnerHTML={{ __html: approachDiagramSvg }}
+                          style={{
+                            width: '100%',
+                            maxWidth: '100%',
+                            overflow: 'auto',
+                          }}
+                        />
+                      )}
+                    </div>
+                  </div>
+                </>
+              )}
               {conceptId === 'concept-1764781333440862' ? (
                 <div style={{ marginBottom: '48px', position: 'relative' }}>
                   {/* キーメッセージ - 最大化 */}
@@ -1401,28 +1710,14 @@ export default function OverviewPage() {
                 </div>
               ) : conceptId === 'maternity-support' ? (
                 <div style={{ marginBottom: '48px', position: 'relative' }}>
-                  {/* キーメッセージ - 最大化 */}
-                  <div style={{ 
-                    marginBottom: '40px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '40px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
+                    <h2 className="key-message-title">
                       なぜ出産・育児世代は<wbr />同じ課題や悩みを経験しなければならないのか？
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-primary)',
-                      letterSpacing: '0.3px'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       — ノウハウが共有化されず、<strong>出産・育児世代の負担</strong>になっている —
                     </p>
                   </div>
@@ -1791,35 +2086,20 @@ export default function OverviewPage() {
                   }}
                 >
                   <div style={{ marginBottom: '40px' }}>
-                    <h4 style={{ fontSize: '16px', fontWeight: 800, marginBottom: '32px', color: '#1f2937', borderLeft: '4px solid var(--color-primary)', paddingLeft: '12px', letterSpacing: '0.3px' }}>
+                    <h4 
+                      data-pdf-title-h3="true"
+                      style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                    >
                       1. 出産支援パーソナルアプリケーションとは
                     </h4>
-                    {/* キーメッセージ - 最大化 */}
-                    <div style={{ 
-                      marginBottom: '32px',
-                      textAlign: 'center'
+                    {/* キーメッセージとサブメッセージ */}
+                    <div className="key-message-container" style={{ 
+                      marginBottom: '32px'
                     }}>
-                      <h2 style={{ 
-                        margin: '0 0 12px 0', 
-                        fontSize: '32px', 
-                        fontWeight: 700, 
-                        background: 'linear-gradient(135deg, #0066CC 0%, #00BFFF 100%)',
-                        WebkitBackgroundClip: 'text',
-                        WebkitTextFillColor: 'transparent',
-                        backgroundClip: 'text',
-                        lineHeight: '1.3',
-                        letterSpacing: '-0.5px'
-                      }}>
+                      <h2 className="key-message-title">
                         必要な支援を見逃さない、<wbr />安心の出産・育児を。
                       </h2>
-                      <p style={{ 
-                        margin: 0, 
-                        fontSize: '18px', 
-                        fontWeight: 500,
-                        color: 'var(--color-text)',
-                        letterSpacing: '0.3px',
-                        lineHeight: '1.6'
-                      }}>
+                      <p className="key-message-subtitle gradient-text-blue">
                         妊娠・出産・育児を、もっとスマートに、もっと確実に。
                       </p>
                     </div>
@@ -1891,34 +2171,23 @@ export default function OverviewPage() {
                       } : {}),
                     }}
                   >
-                    <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                    <h4 
+                      data-pdf-title-h3="true"
+                      style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                    >
                       2. アプリケーションの目的
                     </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
-                  }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
+                    {/* キーメッセージとサブメッセージ */}
+                    <div className="key-message-container" style={{ 
+                      marginBottom: '32px'
                     }}>
-                      多くの人が困っていること
-                    </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
-                      情報の分散、手続きの複雑さ、費用の不明確さなど、出産・育児を迎える多くの人が直面する共通の課題
-                    </p>
-                  </div>
+                      <h2 className="key-message-title">
+                        多くの人が困っていること
+                      </h2>
+                      <p className="key-message-subtitle gradient-text-blue">
+                        情報の分散、手続きの複雑さ、費用の不明確さなど、出産・育児を迎える多くの人が直面する共通の課題
+                      </p>
+                    </div>
                       <div style={{ 
                         display: 'grid', 
                         gridTemplateColumns: 'repeat(4, 1fr)', 
@@ -2286,38 +2555,24 @@ export default function OverviewPage() {
                     }}
                   >
                     <div style={{ marginBottom: '24px' }}>
-                      <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid #000', paddingLeft: '8px' }}>
+                      <h4 
+                        data-pdf-title-h3="true"
+                        style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                      >
                         3. AIネイティブ設計
                       </h4>
                     </div>
-
-        
-                  
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
-                  }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
+                    {/* キーメッセージとサブメッセージ */}
+                    <div className="key-message-container" style={{ 
+                      marginBottom: '32px'
                     }}>
-                      なぜAIネイティブ設計だと可能なのか
-                    </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
-                      AIネイティブ設計により、自動化・パーソナライズ化・継続的改善を低コストで実現
-                    </p>
-                  </div>
+                      <h2 className="key-message-title">
+                        なぜAIネイティブ設計だと可能なのか
+                      </h2>
+                      <p className="key-message-subtitle gradient-text-blue">
+                        AIネイティブ設計により、自動化・パーソナライズ化・継続的改善を低コストで実現
+                      </p>
+                    </div>
                   <p style={{ marginBottom: '12px', paddingLeft: '11px' }}>
                     AIネイティブ設計により、以下のことが可能になります。
                   </p>
@@ -2550,31 +2805,20 @@ export default function OverviewPage() {
                   }}
                 >
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                  <h4 
+                    data-pdf-title-h3="true"
+                    style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                  >
                     4. 対象ユーザー
                   </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '32px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
+                    <h2 className="key-message-title">
                       個人・企業・自治体を対象とした包括的なサービス
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       妊娠・出産・育児を迎える個人から、従業員支援を行う企業、住民サービスを提供する自治体まで
                     </p>
                   </div>
@@ -2829,31 +3073,20 @@ export default function OverviewPage() {
                   }}
                 >
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                  <h4 
+                    data-pdf-title-h3="true"
+                    style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                  >
                     5. 主要な提供機能
                   </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '32px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
+                    <h2 className="key-message-title">
                       出産・育児を支える包括的な機能群
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供
                     </p>
                   </div>
@@ -2926,31 +3159,20 @@ export default function OverviewPage() {
                   }}
                 >
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                  <h4 
+                    data-pdf-title-h3="true"
+                    style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                  >
                     6. ビジネスモデル
                   </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '32px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
+                    <h2 className="key-message-title">
                       多様な収益源で持続可能な成長を実現
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       個人ユーザーへの直接提供、企業・自治体へのB2B提供、パートナー企業との連携により、多角的な収益構造を構築
                     </p>
                   </div>
@@ -2987,31 +3209,20 @@ export default function OverviewPage() {
                   }}
                 >
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                  <h4 
+                    data-pdf-title-h3="true"
+                    style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                  >
                     7. 法改正に対応
                   </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '32px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
-                      法改正に完全対応した<br />申請サポートを実現
+                    <h2 className="key-message-title">
+                      法改正に完全対応した申請サポートを実現
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       2025年4月施行の次世代育成支援対策推進法の改正に対応し、企業の法遵守と認定取得をサポート
                     </p>
                   </div>
@@ -3254,31 +3465,20 @@ export default function OverviewPage() {
                   }}
                 >
                 <div style={{ marginBottom: '24px' }}>
-                  <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                  <h4 
+                    data-pdf-title-h3="true"
+                    style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                  >
                     8. 提供価値
                   </h4>
-                  <div style={{ 
-                    marginBottom: '32px',
-                    textAlign: 'center'
+                  {/* キーメッセージとサブメッセージ */}
+                  <div className="key-message-container" style={{ 
+                    marginBottom: '32px'
                   }}>
-                    <h2 style={{ 
-                      margin: '0 0 12px 0', 
-                      fontSize: '32px', 
-                      fontWeight: 700, 
-                      color: 'var(--color-text)',
-                      lineHeight: '1.3',
-                      letterSpacing: '-0.5px'
-                    }}>
+                    <h2 className="key-message-title">
                       個人・企業・社会に価値を提供
                     </h2>
-                    <p style={{ 
-                      margin: 0, 
-                      fontSize: '18px', 
-                      fontWeight: 500,
-                      color: 'var(--color-text)',
-                      letterSpacing: '0.3px',
-                      lineHeight: '1.6'
-                    }}>
+                    <p className="key-message-subtitle gradient-text-blue">
                       一人ひとりの安心から、企業の成長、社会全体の持続可能性まで、多層的な価値を創造
                     </p>
                   </div>
@@ -6193,11 +6393,597 @@ export default function OverviewPage() {
                       </p>
                     </div>
                   </>
+                ) : conceptIdParam === 'concept-1764796651610193' ? (
+                  <>
+                    <div 
+                      data-page-container="1"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      {/* ヘッダー */}
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 
+                          data-pdf-title-h3="true"
+                          style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                        >
+                          Unstructured
+                        </h4>
+                        <div className="key-message-container" style={{ marginBottom: '16px' }}>
+                          <h2 className="key-message-title">
+                            Unstructured
+                          </h2>
+                        </div>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '16px'
+                        }}>
+                          <div style={{
+                            width: '60px',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            <img 
+                              src="/unstructured-color.png" 
+                              alt="Unstructured Logo"
+                              style={{
+                                width: '100%',
+                                height: 'auto',
+                                objectFit: 'contain',
+                              }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p 
+                              className="gradient-text-blue pdf-text-content"
+                              style={{
+                                fontSize: '28px',
+                                lineHeight: '1.4',
+                                background: 'linear-gradient(135deg, #0066CC 0%, #00D9A5 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                color: 'transparent',
+                                margin: 0,
+                                fontWeight: 700,
+                                letterSpacing: '-0.5px',
+                                whiteSpace: 'normal',
+                                wordBreak: 'normal',
+                                overflowWrap: 'break-word',
+                              }}
+                            >
+                              企業が保有している非構造化データの前処理を自動化。AIが活用しやすい状態のデータに変換し企業内における非構造化データ活用を促進
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2カラムレイアウト */}
+                      <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: '1.5fr 1fr',
+                        gap: '40px',
+                        alignItems: 'stretch',
+                      }}>
+                        {/* 左側：会社概要とサービス・ソリューション */}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          {/* 会社概要 */}
+                          <div style={{ 
+                            marginBottom: '32px',
+                            display: 'flex',
+                            gap: '20px',
+                            alignItems: 'stretch',
+                          }}>
+                            {/* 縦書きタイトル */}
+                            <div style={{
+                              writingMode: 'vertical-rl',
+                              textOrientation: 'upright',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              color: '#fff',
+                              backgroundColor: '#4a5568',
+                              padding: '12px 10px',
+                              borderRadius: '4px',
+                              flexShrink: 0,
+                              letterSpacing: '0.1em',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '50px',
+                            }}>
+                              会社概要
+                            </div>
+                            {/* コンテンツ */}
+                            <div style={{ flex: 1 }}>
+                              <div style={{ 
+                                fontSize: '14px', 
+                                lineHeight: '1.4', 
+                                color: 'var(--color-text)',
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '16px',
+                              }}>
+                                {/* 左側 */}
+                                <div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>設立:</strong> 2022
+                                  </div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>本拠:</strong> Loomis, CA
+                                  </div>
+                                  <div>
+                                    <strong>ラウンド:</strong> Series B
+                                  </div>
+                                </div>
+                                {/* 右側 */}
+                                <div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>URL:</strong>{' '}
+                                    <a 
+                                      href="https://unstructured.io/" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      style={{ color: '#1976d2', textDecoration: 'underline' }}
+                                    >
+                                      https://unstructured.io/
+                                    </a>
+                                  </div>
+                                  <div>
+                                    <strong>Investor:</strong> Menlo Ventures, Databricks, etc.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* サービス・ソリューション */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '20px',
+                            alignItems: 'stretch',
+                          }}>
+                            {/* 縦書きタイトル */}
+                            <div style={{
+                              writingMode: 'vertical-rl',
+                              textOrientation: 'upright',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              color: '#fff',
+                              backgroundColor: '#4a5568',
+                              padding: '12px 10px',
+                              borderRadius: '4px',
+                              flexShrink: 0,
+                              letterSpacing: '0.1em',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '50px',
+                            }}>
+                              サービス・ソリューション
+                            </div>
+                            {/* コンテンツ */}
+                            <div style={{ flex: 1 }}>
+                              {/* 概要 */}
+                              <div style={{ marginBottom: '24px' }}>
+                                <h6 style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: 600, 
+                                  marginBottom: '12px',
+                                  color: 'var(--color-text)',
+                                }}>
+                                  &lt;概要&gt;
+                                </h6>
+                                <ul style={{ 
+                                  fontSize: '16px', 
+                                  lineHeight: '1.4', 
+                                  color: 'var(--color-text)',
+                                  paddingLeft: '20px',
+                                  margin: 0,
+                                }}>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    AI活用に向けた前処理の標準化基盤。
+                                  </li>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    フォーマットのばらつきを統一し、段落・表・箇条書きなどを構造化し、RAG構成やAI検索の精度向上に寄与。
+                                  </li>
+                                  <li>
+                                    多様な非構造データソースに連携可能。PDF、Word、Excel、PowerPoint、HTML、Eメール、画像、スキャン文書、音声書き起こしテキストなど、30種類以上の非構造形式に対応。
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* 主な特徴 */}
+                              <div>
+                                <h6 style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: 600, 
+                                  marginBottom: '12px',
+                                  color: 'var(--color-text)',
+                                }}>
+                                  &lt;主な特徴&gt;
+                                </h6>
+                                <ul style={{ 
+                                  fontSize: '16px', 
+                                  lineHeight: '1.4', 
+                                  color: 'var(--color-text)',
+                                  paddingLeft: '20px',
+                                  margin: 0,
+                                }}>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    エンタープライズ対応の高可用アーキテクチャ
+                                  </li>
+                                  <li>
+                                    オンプレミス/クラウド双方に対応したスケーラブルなETL基盤として利用可能
+                                  </li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 右側：画像 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '100%',
+                          minHeight: 0,
+                          overflow: 'hidden',
+                        }}>
+                          <img 
+                            src="/Uunstructured-1.png" 
+                            alt="Unstructured ETL+ for GenAI data"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              maxWidth: '100%',
+                              objectFit: 'contain',
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div 
+                      data-page-container="2"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      {/* ヘッダー */}
+                      <div style={{ marginBottom: '24px' }}>
+                        <h4 
+                          data-pdf-title-h3="true"
+                          style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+                        >
+                          Skyflow
+                        </h4>
+                        <div className="key-message-container" style={{ marginBottom: '16px' }}>
+                          <h2 className="key-message-title">
+                            Skyflow
+                          </h2>
+                        </div>
+                        <div style={{ 
+                          display: 'flex', 
+                          alignItems: 'center', 
+                          gap: '16px'
+                        }}>
+                          <div style={{
+                            width: '60px',
+                            flexShrink: 0,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                          }}>
+                            <img 
+                              src="/Skyflow logo.png" 
+                              alt="Skyflow Logo"
+                              style={{
+                                width: '100%',
+                                height: 'auto',
+                                objectFit: 'contain',
+                              }}
+                            />
+                          </div>
+                          <div style={{ flex: 1 }}>
+                            <p 
+                              className="gradient-text-blue pdf-text-content"
+                              style={{
+                                fontSize: '28px',
+                                lineHeight: '1.4',
+                                background: 'linear-gradient(135deg, #0066CC 0%, #00D9A5 100%)',
+                                WebkitBackgroundClip: 'text',
+                                WebkitTextFillColor: 'transparent',
+                                backgroundClip: 'text',
+                                color: 'transparent',
+                                margin: 0,
+                                fontWeight: 700,
+                                letterSpacing: '-0.5px',
+                                whiteSpace: 'normal',
+                                wordBreak: 'normal',
+                                overflowWrap: 'break-word',
+                              }}
+                            >
+                              AIとAIユーザーへの閲覧制限・アクセス制御を実現。重要データの秘匿をユーザビリティを損なわずに可能。
+                            </p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* 2カラムレイアウト */}
+                      <div style={{ 
+                        display: 'grid',
+                        gridTemplateColumns: '1.5fr 1fr',
+                        gap: '40px',
+                        alignItems: 'stretch',
+                      }}>
+                        {/* 左側：会社概要とサービス・ソリューション */}
+                        <div style={{ display: 'flex', flexDirection: 'column', height: '100%' }}>
+                          {/* 会社概要 */}
+                          <div style={{ 
+                            marginBottom: '32px',
+                            display: 'flex',
+                            gap: '20px',
+                            alignItems: 'stretch',
+                          }}>
+                            {/* 縦書きタイトル */}
+                            <div style={{
+                              writingMode: 'vertical-rl',
+                              textOrientation: 'upright',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              color: '#fff',
+                              backgroundColor: '#4a5568',
+                              padding: '12px 10px',
+                              borderRadius: '4px',
+                              flexShrink: 0,
+                              letterSpacing: '0.1em',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '50px',
+                            }}>
+                              会社概要
+                            </div>
+                            {/* コンテンツ */}
+                            <div style={{ flex: 1 }}>
+                              <div style={{ 
+                                fontSize: '14px', 
+                                lineHeight: '1.4', 
+                                color: 'var(--color-text)',
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '16px',
+                              }}>
+                                {/* 左側 */}
+                                <div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>設立:</strong> 2019
+                                  </div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>本拠:</strong> Mountain View, CA
+                                  </div>
+                                  <div>
+                                    <strong>ラウンド:</strong> Series B
+                                  </div>
+                                </div>
+                                {/* 右側 */}
+                                <div>
+                                  <div style={{ marginBottom: '4px' }}>
+                                    <strong>URL:</strong>{' '}
+                                    <a 
+                                      href="https://www.skyflow.com/" 
+                                      target="_blank" 
+                                      rel="noopener noreferrer"
+                                      style={{ color: '#1976d2', textDecoration: 'underline' }}
+                                    >
+                                      https://www.skyflow.com/
+                                    </a>
+                                  </div>
+                                  <div>
+                                    <strong>Investor:</strong> Khosla Ventures, MS&AD Ventures, etc.
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+
+                          {/* サービス・ソリューション */}
+                          <div style={{
+                            display: 'flex',
+                            gap: '20px',
+                            alignItems: 'stretch',
+                          }}>
+                            {/* 縦書きタイトル */}
+                            <div style={{
+                              writingMode: 'vertical-rl',
+                              textOrientation: 'upright',
+                              fontSize: '16px',
+                              fontWeight: 700,
+                              color: '#fff',
+                              backgroundColor: '#4a5568',
+                              padding: '12px 10px',
+                              borderRadius: '4px',
+                              flexShrink: 0,
+                              letterSpacing: '0.1em',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              minWidth: '50px',
+                            }}>
+                              サービス・ソリューション
+                            </div>
+                            {/* コンテンツ */}
+                            <div style={{ flex: 1 }}>
+                              {/* 概要 */}
+                              <div style={{ marginBottom: '24px' }}>
+                                <h6 style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: 600, 
+                                  marginBottom: '12px',
+                                  color: 'var(--color-text)',
+                                }}>
+                                  &lt;概要&gt;
+                                </h6>
+                                <ul style={{ 
+                                  fontSize: '16px', 
+                                  lineHeight: '1.4', 
+                                  color: 'var(--color-text)',
+                                  paddingLeft: '20px',
+                                  margin: 0,
+                                }}>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    機密性の高い顧客データを分離・保護・管理するソリューションを提供。
+                                  </li>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    既存のデータベースやアプリケーションに接続可能。
+                                  </li>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    機密データはSkyflowが提供する環境に保存され、データはトークン化され、認可されたユーザーやアプリケーションのみがアクセス可能。
+                                  </li>
+                                </ul>
+                              </div>
+
+                              {/* 主な特徴 */}
+                              <div>
+                                <h6 style={{ 
+                                  fontSize: '14px', 
+                                  fontWeight: 600, 
+                                  marginBottom: '12px',
+                                  color: 'var(--color-text)',
+                                }}>
+                                  &lt;主な特徴&gt;
+                                </h6>
+                                <ul style={{ 
+                                  fontSize: '16px', 
+                                  lineHeight: '1.4', 
+                                  color: 'var(--color-text)',
+                                  paddingLeft: '20px',
+                                  margin: 0,
+                                }}>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    機密データがAIが参照するデータに混入することを防止。
+                                  </li>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    重要データの保護、組織・役割ごとの異なる参照権限、法規制への対応をサポートし、AI活用を促進。
+                                  </li>
+                                  <li style={{ marginBottom: '4px' }}>
+                                    PII（個人識別情報）を保護。
+                                  </li>
+                                  <li>
+                                    クラウド環境（SaaSまたは専用VPC）でサービスを提供。
+                                  </li>
+                                </ul>
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+
+                        {/* 右側：画像 */}
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          height: '100%',
+                          minHeight: 0,
+                          overflow: 'hidden',
+                        }}>
+                          <img 
+                            src="/Skyflow-1.png" 
+                            alt="Skyflow Securing the Modern AI Data Stack"
+                            style={{
+                              width: '100%',
+                              height: '100%',
+                              maxWidth: '100%',
+                              objectFit: 'contain',
+                              display: 'block',
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div 
+                      data-page-container="3"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                        タイトル３
+                      </h4>
+                      <p style={{ fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                        コンテンツをここに入力してください。
+                      </p>
+                    </div>
+                    <div 
+                      data-page-container="4"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                        タイトル４
+                      </h4>
+                      <p style={{ fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                        コンテンツをここに入力してください。
+                      </p>
+                    </div>
+                    <div 
+                      data-page-container="5"
+                      style={{ 
+                        marginBottom: '40px',
+                        ...(showContainers ? {
+                          border: '2px dashed var(--color-primary)',
+                          borderRadius: '8px',
+                          padding: '16px',
+                          pageBreakInside: 'avoid',
+                          breakInside: 'avoid',
+                        } : {}),
+                      }}
+                    >
+                      <h4 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+                        タイトル５
+                      </h4>
+                      <p style={{ fontSize: '14px', lineHeight: '1.8', color: 'var(--color-text-light)' }}>
+                        コンテンツをここに入力してください。
+                      </p>
+                    </div>
+                  </>
                 ) : null}
               </div>
           </>
         )}
-      </div>
     </>
   );
 }

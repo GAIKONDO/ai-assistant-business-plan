@@ -228,9 +228,10 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           }
 
           const menuItems: ContentItem[] = [];
+          const addedPaths = new Set<string>(); // 重複チェック用
 
           // 事業企画を追加
-          const projects: Array<{ id: string; title: string; createdAt: Date | null }> = [];
+          const projects: Array<{ id: string; serviceId?: string; title: string; createdAt: Date | null }> = [];
           projectsSnapshot.forEach((doc) => {
             const data = doc.data();
             // isFixed: trueのプロジェクトは除外（固定サービスはSPECIAL_SERVICESとして表示されるため）
@@ -239,8 +240,10 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
               return;
             }
             const projectTitle = data.name || data.title || '事業企画';
+            const serviceId = data.serviceId || doc.id; // serviceIdフィールドがあればそれを使用、なければドキュメントIDを使用
             projects.push({
               id: doc.id,
+              serviceId: serviceId,
               title: projectTitle,
               createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
             });
@@ -255,21 +258,35 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
           // メニュー用アイテムに変換（事業企画）
           projects.forEach((project) => {
+            const path = `/business-plan/services/${project.serviceId || project.id}`;
+            // 重複チェック：同じpathが既に追加されている場合はスキップ
+            if (addedPaths.has(path)) {
+              console.log('⚠️ 重複プロジェクトをスキップ:', { id: project.id, serviceId: project.serviceId, path });
+              return;
+            }
+            addedPaths.add(path);
             menuItems.push({
               id: project.id,
               title: project.title,
               type: 'project',
-              path: `/business-plan/project/${project.id}`,
+              path: path,
             });
           });
 
           // 特別なサービス（静的データ）も追加
           SPECIAL_SERVICES.forEach((service) => {
+            const path = `/business-plan/services/${service.id}`;
+            // 重複チェック：同じpathが既に追加されている場合はスキップ
+            if (addedPaths.has(path)) {
+              console.log('⚠️ 重複サービスをスキップ:', { id: service.id, path });
+              return;
+            }
+            addedPaths.add(path);
             menuItems.push({
               id: service.id,
               title: service.name,
               type: 'project',
-              path: `/business-plan/services/${service.id}`,
+              path: path,
             });
           });
 
@@ -283,73 +300,73 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
           const contentItems: ContentItem[] = [];
           
           if (serviceId) {
-            let conceptsSnapshot;
-            try {
-              const conceptsQuery = query(
+          let conceptsSnapshot;
+          try {
+            const conceptsQuery = query(
+              collection(db, 'concepts'),
+              where('userId', '==', auth.currentUser.uid),
+              where('serviceId', '==', serviceId),
+              orderBy('createdAt', 'desc')
+            );
+            conceptsSnapshot = await getDocs(conceptsQuery);
+          } catch (error: any) {
+            if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
+              const conceptsQueryWithoutOrder = query(
                 collection(db, 'concepts'),
                 where('userId', '==', auth.currentUser.uid),
-                where('serviceId', '==', serviceId),
-                orderBy('createdAt', 'desc')
+                where('serviceId', '==', serviceId)
               );
-              conceptsSnapshot = await getDocs(conceptsQuery);
-            } catch (error: any) {
-              if (error?.code === 'failed-precondition' && error?.message?.includes('index')) {
-                const conceptsQueryWithoutOrder = query(
-                  collection(db, 'concepts'),
-                  where('userId', '==', auth.currentUser.uid),
-                  where('serviceId', '==', serviceId)
-                );
-                conceptsSnapshot = await getDocs(conceptsQueryWithoutOrder);
-              } else {
-                throw error;
-              }
+              conceptsSnapshot = await getDocs(conceptsQueryWithoutOrder);
+            } else {
+              throw error;
             }
-            
-            // 固定構想を追加
-            const fixedConcepts = FIXED_CONCEPTS[serviceId] || [];
-            fixedConcepts.forEach((concept) => {
+          }
+          
+          // 固定構想を追加
+          const fixedConcepts = FIXED_CONCEPTS[serviceId] || [];
+          fixedConcepts.forEach((concept) => {
               contentItems.push({
-                id: concept.id,
-                title: concept.name,
-                type: 'concept',
-                path: `/business-plan/services/${serviceId}/${concept.id}/overview`,
+              id: concept.id,
+              title: concept.name,
+              type: 'concept',
+              path: `/business-plan/services/${serviceId}/${concept.id}/overview`,
+            });
+          });
+
+          // Firebaseから取得した構想を追加（固定構想と同じconceptIdを持つ構想を除外）
+          const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
+          const concepts: Array<{ id: string; title: string; conceptId: string; createdAt: Date | null }> = [];
+          
+          conceptsSnapshot.forEach((doc) => {
+            const data = doc.data();
+            const conceptId = data.conceptId || '';
+            // 固定構想と同じconceptIdを持つ構想を除外
+            if (!fixedConceptIds.has(conceptId)) {
+              concepts.push({
+                id: doc.id,
+                title: data.name || conceptId,
+                conceptId: conceptId,
+                createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
               });
-            });
+            }
+          });
 
-            // Firebaseから取得した構想を追加（固定構想と同じconceptIdを持つ構想を除外）
-            const fixedConceptIds = new Set(fixedConcepts.map(c => c.id));
-            const concepts: Array<{ id: string; title: string; conceptId: string; createdAt: Date | null }> = [];
-            
-            conceptsSnapshot.forEach((doc) => {
-              const data = doc.data();
-              const conceptId = data.conceptId || '';
-              // 固定構想と同じconceptIdを持つ構想を除外
-              if (!fixedConceptIds.has(conceptId)) {
-                concepts.push({
-                  id: doc.id,
-                  title: data.name || conceptId,
-                  conceptId: conceptId,
-                  createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
-                });
-              }
-            });
+          // 作成日時でソート（降順）
+          concepts.sort((a, b) => {
+            const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
+            const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
+            return bTime - aTime;
+          });
 
-            // 作成日時でソート（降順）
-            concepts.sort((a, b) => {
-              const aTime = (a.createdAt instanceof Date) ? a.createdAt.getTime() : 0;
-              const bTime = (b.createdAt instanceof Date) ? b.createdAt.getTime() : 0;
-              return bTime - aTime;
-            });
-
-            // アイテムに変換
-            concepts.forEach((concept) => {
+          // アイテムに変換
+          concepts.forEach((concept) => {
               contentItems.push({
-                id: concept.id,
-                title: concept.title,
-                type: 'concept',
-                path: `/business-plan/services/${serviceId}/${concept.conceptId}/overview`,
-              });
+              id: concept.id,
+              title: concept.title,
+              type: 'concept',
+              path: `/business-plan/services/${serviceId}/${concept.conceptId}/overview`,
             });
+          });
           }
 
           console.log('✅ 事業企画ページアイテム:', {
@@ -506,7 +523,7 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
         const contentItems: ContentItem[] = [];
 
         // 事業企画を追加
-        const projects: Array<{ id: string; title: string; createdAt: Date | null }> = [];
+        const projects: Array<{ id: string; serviceId?: string; title: string; createdAt: Date | null }> = [];
         console.log('📋 事業企画取得結果:', {
           snapshotSize: projectsSnapshot.size,
           docs: projectsSnapshot.docs.map(doc => ({
@@ -525,13 +542,16 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
             id: doc.id,
             name: data.name,
             title: data.title,
+            serviceId: data.serviceId,
             allFields: Object.keys(data),
             rawData: data,
           });
           // nameまたはtitleフィールドを使用（BusinessProjectFormではname、BusinessPlanFormではtitle）
           const projectTitle = data.name || data.title || '事業企画';
+          const serviceId = data.serviceId; // serviceIdフィールドを取得
           projects.push({
             id: doc.id,
+            serviceId: serviceId,
             title: projectTitle,
             createdAt: data.createdAt && typeof data.createdAt.toDate === 'function' ? data.createdAt.toDate() : (data.createdAt instanceof Date ? data.createdAt : null),
           });
@@ -546,11 +566,15 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
 
         // アイテムに変換（事業企画）
         projects.forEach((project) => {
+          // serviceIdがある場合は /business-plan/services/${serviceId} に、ない場合は /business-plan/project/${project.id} にリンク
+          const path = project.serviceId 
+            ? `/business-plan/services/${project.serviceId}` 
+            : `/business-plan/project/${project.id}`;
           contentItems.push({
             id: project.id,
             title: project.title,
             type: 'project',
-            path: `/business-plan/project/${project.id}`,
+            path: path,
           });
         });
 
@@ -782,19 +806,19 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                         isActive = pathname.startsWith(`/business-plan/company/${planId}/`);
                       }
                     } else if (item.type === 'project') {
-                      // 事業企画の場合: /business-plan/project/[projectId] または /business-plan/services/[serviceId] で始まるかチェック
-                      if (item.path.startsWith('/business-plan/project/')) {
-                        const projectIdMatch = item.path.match(/\/business-plan\/project\/([^\/]+)/);
-                        if (projectIdMatch) {
-                          const projectId = projectIdMatch[1];
-                          isActive = pathname.startsWith(`/business-plan/project/${projectId}`);
-                        }
-                      } else if (item.path.startsWith('/business-plan/services/')) {
+                      // 事業企画の場合: /business-plan/services/[serviceId] で始まるかチェック
+                      if (item.path.startsWith('/business-plan/services/')) {
                         const serviceIdMatch = item.path.match(/\/business-plan\/services\/([^\/]+)$/);
                         if (serviceIdMatch) {
                           const serviceId = serviceIdMatch[1];
-                          isActive = pathname.startsWith(`/business-plan/services/${serviceId}/`) && 
-                                     !pathname.match(/\/business-plan\/services\/[^\/]+\/[^\/]+/); // 構想ページではない
+                          // プロジェクト詳細ページ自体の場合もアクティブ
+                          if (pathname === `/business-plan/services/${serviceId}`) {
+                            isActive = true;
+                          } else {
+                            // 構想ページではない場合もアクティブ
+                            isActive = pathname.startsWith(`/business-plan/services/${serviceId}/`) && 
+                                       !pathname.match(/\/business-plan\/services\/[^\/]+\/[^\/]+/); // 構想ページではない
+                          }
                         }
                       }
                     }
@@ -846,56 +870,56 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
             </>
           ) : (
             <>
-              <div style={{ padding: '0 24px', marginBottom: '18px' }}>
-                <h2 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text-light)', marginBottom: '0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                  メニュー
-                </h2>
-              </div>
-              <nav>
-                {menuItems.map((item) => {
-                  const IconComponent = item.icon;
-                  const isActive = activePage === item.id;
-                  return (
-                    <button
-                      key={item.id}
-                      onClick={() => handleNavigation(item.path)}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        padding: '10px 24px',
-                        width: '100%',
-                        color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
-                        textDecoration: 'none',
-                        transition: 'all 0.2s ease',
-                        borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
-                        backgroundColor: isActive ? 'var(--color-background)' : 'transparent',
-                        fontSize: '14px',
-                        fontWeight: isActive ? 500 : 400,
-                        border: 'none',
-                        cursor: 'pointer',
-                        textAlign: 'left',
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'var(--color-background)';
-                          e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
-                        }
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!isActive) {
-                          e.currentTarget.style.backgroundColor = 'transparent';
-                          e.currentTarget.style.borderLeftColor = 'transparent';
-                        }
-                      }}
-                    >
-                      <span style={{ marginRight: '12px', opacity: isActive ? 1 : 0.6 }}>
-                        <IconComponent size={18} color={isActive ? 'var(--color-text)' : 'var(--color-text-light)'} />
-                      </span>
-                      <span>{item.label}</span>
-                    </button>
-                  );
-                })}
-              </nav>
+          <div style={{ padding: '0 24px', marginBottom: '18px' }}>
+            <h2 style={{ fontSize: '14px', fontWeight: 500, color: 'var(--color-text-light)', marginBottom: '0', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+              メニュー
+            </h2>
+          </div>
+          <nav>
+            {menuItems.map((item) => {
+              const IconComponent = item.icon;
+              const isActive = activePage === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleNavigation(item.path)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '10px 24px',
+                    width: '100%',
+                    color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                    borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
+                    backgroundColor: isActive ? 'var(--color-background)' : 'transparent',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 500 : 400,
+                    border: 'none',
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'var(--color-background)';
+                      e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.borderLeftColor = 'transparent';
+                    }
+                  }}
+                >
+                  <span style={{ marginRight: '12px', opacity: isActive ? 1 : 0.6 }}>
+                    <IconComponent size={18} color={isActive ? 'var(--color-text)' : 'var(--color-text-light)'} />
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
             </>
           )}
 
@@ -936,19 +960,19 @@ export default function Sidebar({ isOpen, onToggle, currentPage }: SidebarProps)
                         isActive = pathname.startsWith(`/business-plan/services/${serviceId}/${conceptId}/`);
                       }
                     } else if (item.type === 'project') {
-                      // 事業企画の場合: /business-plan/project/[projectId] または /business-plan/services/[serviceId] で始まるかチェック
-                      if (item.path.startsWith('/business-plan/project/')) {
-                        const projectIdMatch = item.path.match(/\/business-plan\/project\/([^\/]+)/);
-                        if (projectIdMatch) {
-                          const projectId = projectIdMatch[1];
-                          isActive = pathname.startsWith(`/business-plan/project/${projectId}`);
-                        }
-                      } else if (item.path.startsWith('/business-plan/services/')) {
+                      // 事業企画の場合: /business-plan/services/[serviceId] で始まるかチェック
+                      if (item.path.startsWith('/business-plan/services/')) {
                         const serviceIdMatch = item.path.match(/\/business-plan\/services\/([^\/]+)$/);
                         if (serviceIdMatch) {
                           const serviceId = serviceIdMatch[1];
+                          // プロジェクト詳細ページ自体の場合もアクティブ
+                          if (pathname === `/business-plan/services/${serviceId}`) {
+                            isActive = true;
+                          } else {
+                            // 構想ページではない場合もアクティブ
                           isActive = pathname.startsWith(`/business-plan/services/${serviceId}/`) && 
                                      !pathname.match(/\/business-plan\/services\/[^\/]+\/[^\/]+/); // 構想ページではない
+                          }
                         }
                       }
                     }

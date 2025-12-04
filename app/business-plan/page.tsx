@@ -2199,7 +2199,7 @@ export default function BusinessPlanPage() {
                   if (serviceId) {
                     router.push(`/business-plan/services/${serviceId}`);
                   } else {
-                    router.push(`/business-plan/project/${project.id}`);
+                  router.push(`/business-plan/project/${project.id}`);
                   }
                 }}
                 style={{

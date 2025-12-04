@@ -3,6 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useContainerVisibility } from '../hooks/useContainerVisibility';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
 const ComponentizedOverview = dynamic(
@@ -15,6 +16,7 @@ export default function PlanPage() {
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
   const [viewMode, setViewMode] = useState<'separate' | 'combined'>('separate');
+  const { showContainers } = useContainerVisibility();
 
   // コンポーネント化されたページを使用するかチェック
   if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
@@ -45,23 +47,36 @@ export default function PlanPage() {
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         事業計画
       </p>
-      <div className="card">
-        <div style={{ 
-          display: 'flex', 
-          justifyContent: 'space-between', 
-          alignItems: 'center',
-          marginBottom: '24px'
-        }}>
-          <h3 style={{ 
-            fontSize: '16px', 
-            fontWeight: 600, 
-            marginBottom: 0, 
-            color: 'var(--color-text)', 
-            borderLeft: '3px solid var(--color-primary)', 
-            paddingLeft: '8px' 
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px' }}>
+        <div 
+          data-page-container="1"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <div style={{ 
+            display: 'flex', 
+            justifyContent: 'space-between', 
+            alignItems: 'center',
+            marginBottom: '24px'
           }}>
-            7年計画
-          </h3>
+            <h3 style={{ 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              marginBottom: 0, 
+              color: 'var(--color-text)', 
+              borderLeft: '3px solid var(--color-primary)', 
+              paddingLeft: '8px' 
+            }}>
+              7年計画
+            </h3>
           
           {/* 表示切り替えボタン */}
           <div style={{ 
@@ -917,6 +932,7 @@ export default function PlanPage() {
               </tr>
             </tbody>
           </table>
+        </div>
         </div>
       </div>
     </>

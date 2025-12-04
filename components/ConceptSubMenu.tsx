@@ -30,6 +30,7 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
   const router = useRouter();
   const [isPending, startTransition] = useTransition();
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [subMenuOpen, setSubMenuOpen] = useState(true); // サブメニューの表示状態
 
   // localStorageからサイドバーの開閉状態を読み込む
   useEffect(() => {
@@ -37,10 +38,21 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
       const saved = localStorage.getItem('sidebarOpen');
       setSidebarOpen(saved === 'true');
       
+      // サブメニューの表示状態を読み込む
+      const savedSubMenuOpen = localStorage.getItem('subMenuOpen');
+      if (savedSubMenuOpen !== null) {
+        setSubMenuOpen(savedSubMenuOpen === 'true');
+      }
+      
       // localStorageの変更を監視（異なるタブ間の同期用）
       const handleStorageChange = () => {
         const saved = localStorage.getItem('sidebarOpen');
         setSidebarOpen(saved === 'true');
+        
+        const savedSubMenuOpen = localStorage.getItem('subMenuOpen');
+        if (savedSubMenuOpen !== null) {
+          setSubMenuOpen(savedSubMenuOpen === 'true');
+        }
       };
       
       window.addEventListener('storage', handleStorageChange);
@@ -53,9 +65,20 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
       
       window.addEventListener('sidebarToggle', handleSidebarToggle);
       
+      // サブメニューの表示状態変更イベントを監視
+      const handleSubMenuToggle = () => {
+        const savedSubMenuOpen = localStorage.getItem('subMenuOpen');
+        if (savedSubMenuOpen !== null) {
+          setSubMenuOpen(savedSubMenuOpen === 'true');
+        }
+      };
+      
+      window.addEventListener('subMenuToggle', handleSubMenuToggle);
+      
       return () => {
         window.removeEventListener('storage', handleStorageChange);
         window.removeEventListener('sidebarToggle', handleSidebarToggle);
+        window.removeEventListener('subMenuToggle', handleSubMenuToggle);
       };
     }
   }, []);
@@ -66,75 +89,127 @@ export default function ConceptSubMenu({ serviceId, conceptId, currentSubMenuId 
     });
   };
 
+  const handleToggleSubMenu = () => {
+    const newState = !subMenuOpen;
+    setSubMenuOpen(newState);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('subMenuOpen', String(newState));
+      // カスタムイベントを発火してメインコンテンツに通知
+      window.dispatchEvent(new Event('subMenuToggle'));
+    }
+  };
+
   // サイドバーの開閉状態に応じてleft位置を計算
   const sidebarWidth = sidebarOpen ? 350 : 70;
   const containerPadding = 48;
   const leftPosition = sidebarWidth + containerPadding;
 
   return (
-    <div style={{ width: '240px', flexShrink: 0 }}>
+    <>
+      {/* サブメニューのトグルボタン */}
+      <button
+        onClick={handleToggleSubMenu}
+        style={{
+          position: 'fixed',
+          top: '80px',
+          left: `${leftPosition}px`,
+          width: '32px',
+          height: '32px',
+          background: 'var(--color-background)',
+          border: '1px solid var(--color-border-color)',
+          borderRadius: '6px',
+          cursor: 'pointer',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 101,
+          transition: 'left 0.3s ease',
+          boxShadow: '0 2px 4px rgba(0,0,0,0.1)',
+        }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.05)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.backgroundColor = 'var(--color-background)';
+        }}
+        aria-label={subMenuOpen ? 'サブメニューを非表示' : 'サブメニューを表示'}
+      >
+        <span style={{ fontSize: '16px', color: 'var(--color-text)' }}>
+          {subMenuOpen ? '◀' : '▶'}
+        </span>
+      </button>
+
+      {/* サブメニュー */}
       <div style={{ 
-        background: 'var(--color-background)',
-        border: '1px solid var(--color-border-color)',
-        borderRadius: '6px',
-        padding: '16px 0',
-        position: 'fixed',
-        top: '80px',
-        left: `${leftPosition}px`,
-        width: '240px',
-        maxHeight: 'calc(100vh - 100px)',
-        overflowY: 'auto',
-        zIndex: 100,
-        transition: 'left 0.3s ease',
+        width: '240px', 
+        flexShrink: 0,
+        display: subMenuOpen ? 'block' : 'none', // CSSで表示/非表示を制御
       }}>
-        <nav>
-          {SUB_MENU_ITEMS.map((item, index) => {
-            const isActive = currentSubMenuId === item.id;
-            return (
-              <button
-                key={item.id}
-                onClick={() => handleSubMenuClick(item)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  padding: '10px 24px',
-                  width: '100%',
-                  color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
-                  textDecoration: 'none',
-                  transition: 'all 0.2s ease',
-                  borderTop: 'none',
-                  borderRight: 'none',
-                  borderBottom: 'none',
-                  borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
-                  backgroundColor: isActive ? 'rgba(31, 41, 51, 0.05)' : 'transparent',
-                  fontSize: '14px',
-                  fontWeight: isActive ? 500 : 400,
-                  cursor: 'pointer',
-                  textAlign: 'left',
-                }}
-                onMouseEnter={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.03)';
-                    e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isActive) {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                    e.currentTarget.style.borderLeftColor = 'transparent';
-                  }
-                }}
-              >
-                <span style={{ marginRight: '12px', fontSize: '12px', color: 'var(--color-text-light)', minWidth: '24px' }}>
-                  {index + 1}.
-                </span>
-                <span>{item.label}</span>
-              </button>
-            );
-          })}
-        </nav>
+        <div style={{ 
+          background: 'var(--color-background)',
+          border: '1px solid var(--color-border-color)',
+          borderRadius: '6px',
+          padding: '16px 0',
+          position: 'fixed',
+          top: '80px',
+          left: `${leftPosition + 40}px`,
+          width: '240px',
+          maxHeight: 'calc(100vh - 100px)',
+          overflowY: 'auto',
+          zIndex: 100,
+          transition: 'left 0.3s ease, opacity 0.3s ease',
+          opacity: subMenuOpen ? 1 : 0, // フェードアウト効果
+          pointerEvents: subMenuOpen ? 'auto' : 'none', // 非表示時はクリックイベントを無効化
+        }}>
+          <nav>
+            {SUB_MENU_ITEMS.map((item, index) => {
+              const isActive = currentSubMenuId === item.id;
+              return (
+                <button
+                  key={item.id}
+                  onClick={() => handleSubMenuClick(item)}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '10px 24px',
+                    width: '100%',
+                    color: isActive ? 'var(--color-text)' : 'var(--color-text-light)',
+                    textDecoration: 'none',
+                    transition: 'all 0.2s ease',
+                    borderTop: 'none',
+                    borderRight: 'none',
+                    borderBottom: 'none',
+                    borderLeft: isActive ? '2px solid var(--color-primary)' : '2px solid transparent',
+                    backgroundColor: isActive ? 'rgba(31, 41, 51, 0.05)' : 'transparent',
+                    fontSize: '14px',
+                    fontWeight: isActive ? 500 : 400,
+                    cursor: 'pointer',
+                    textAlign: 'left',
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'rgba(31, 41, 51, 0.03)';
+                      e.currentTarget.style.borderLeftColor = 'rgba(31, 41, 51, 0.2)';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isActive) {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.borderLeftColor = 'transparent';
+                    }
+                  }}
+                >
+                  <span style={{ marginRight: '12px', fontSize: '12px', color: 'var(--color-text-light)', minWidth: '24px' }}>
+                    {index + 1}.
+                  </span>
+                  <span>{item.label}</span>
+                </button>
+              );
+            })}
+          </nav>
+        </div>
       </div>
-    </div>
+    </>
   );
 }
 

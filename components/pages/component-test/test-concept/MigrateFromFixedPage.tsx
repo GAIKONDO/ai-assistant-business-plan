@@ -1118,32 +1118,43 @@ export default function MigrateFromFixedPage({
       let title = '';
       let titleElement: HTMLElement | null = null;
       
-      // まずdata-pdf-title-h3属性を持つ要素を探す
+      // まずdata-pdf-title-h3属性を持つ要素を探す（h4要素も含む）
       titleElement = containerEl.querySelector('[data-pdf-title-h3="true"]') as HTMLElement;
       if (titleElement) {
         title = titleElement.textContent?.trim() || '';
+        console.log(`[extractPagesFromDOM] ページ ${pageId} - タイトル抽出（data-pdf-title-h3）:`, title, '要素:', titleElement.tagName);
       } else {
-        // 次にh2, h3, h1, .page-titleを探す
-        titleElement = containerEl.querySelector('h2, h3, h1, .page-title') as HTMLElement;
-        if (titleElement) {
-          title = titleElement.textContent?.trim() || '';
-        } else {
-          // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素を探す
-          const h4Elements = containerEl.querySelectorAll('h4');
-          for (const h4 of Array.from(h4Elements)) {
-            const computedStyle = window.getComputedStyle(h4);
-            if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
-              titleElement = h4 as HTMLElement;
-              title = titleElement.textContent?.trim() || '';
-              break;
-            }
+        // 構想の固定ページ形式用：h4要素でborderLeftがあるタイトル要素を探す（data-pdf-title-h3属性がない場合のフォールバック）
+        const h4Elements = containerEl.querySelectorAll('h4');
+        for (const h4 of Array.from(h4Elements)) {
+          const computedStyle = window.getComputedStyle(h4);
+          if (computedStyle.borderLeft && computedStyle.borderLeft !== 'none' && computedStyle.borderLeft !== '0px') {
+            titleElement = h4 as HTMLElement;
+            title = titleElement.textContent?.trim() || '';
+            console.log(`[extractPagesFromDOM] ページ ${pageId} - タイトル抽出（h4 borderLeft）:`, title);
+            break;
           }
-          if (!title) {
+        }
+        
+        // h4要素でタイトルが見つからない場合、h2, h3, h1, .page-titleを探す（ただし.key-message-titleクラスを持つ要素は除外）
+        if (!title) {
+          const candidateElements = containerEl.querySelectorAll('h2:not(.key-message-title), h3, h1, .page-title');
+          if (candidateElements.length > 0) {
+            titleElement = candidateElements[0] as HTMLElement;
+            title = titleElement.textContent?.trim() || '';
+            console.log(`[extractPagesFromDOM] ページ ${pageId} - タイトル抽出（h2/h3/h1/.page-title）:`, title);
+          } else {
             // タイトルが見つからない場合は、最初のテキストノードから抽出
             const firstText = containerEl.textContent?.trim().split('\n')[0] || '';
             title = firstText.substring(0, 50) || `ページ ${index + 1}`;
+            console.log(`[extractPagesFromDOM] ページ ${pageId} - タイトル抽出（フォールバック）:`, title);
           }
         }
+      }
+      
+      // タイトルが空の場合の警告
+      if (!title || title.trim() === '') {
+        console.warn(`[extractPagesFromDOM] ページ ${pageId} - タイトルが空です`);
       }
       
       // キーメッセージとサブメッセージを抽出（構想の固定ページ形式用）
@@ -1180,6 +1191,22 @@ export default function MigrateFromFixedPage({
       if (!subMessage && keyMessageSubtitleElement) {
         subMessage = keyMessageSubtitleElement.textContent?.trim() || '';
         console.log(`[extractPagesFromDOM] ページ ${pageId} - サブメッセージ抽出（直接）:`, subMessage);
+      }
+      
+      // タイトルがキーメッセージと同一の場合の警告
+      if (title && keyMessage && title.trim() === keyMessage.trim()) {
+        console.warn(`[extractPagesFromDOM] ページ ${pageId} - タイトルとキーメッセージが同一です。タイトル: "${title}", キーメッセージ: "${keyMessage}"`);
+        // タイトルがキーメッセージと同一の場合、タイトル抽出を再試行
+        // h4要素でdata-pdf-title-h3属性を持つ要素を再度探す
+        const h4WithAttribute = containerEl.querySelector('h4[data-pdf-title-h3="true"]') as HTMLElement;
+        if (h4WithAttribute) {
+          const newTitle = h4WithAttribute.textContent?.trim() || '';
+          if (newTitle && newTitle !== title) {
+            console.log(`[extractPagesFromDOM] ページ ${pageId} - タイトルを再抽出: "${newTitle}"`);
+            title = newTitle;
+            titleElement = h4WithAttribute;
+          }
+        }
       }
       
       // タイトル要素とページ番号要素をコンテンツから除外するためにクローンを作成
@@ -2158,6 +2185,16 @@ export default function MigrateFromFixedPage({
           const conceptDoc = conceptsSnapshot.docs[0];
           conceptDocId = conceptDoc.id;
           conceptData = conceptDoc.data();
+          
+          // 既存の構想にキービジュアル設定がない場合、元の固定ページ形式から引き継ぐ
+          if (Object.keys(keyVisualSettings).length > 0 && !conceptData.keyVisualUrl) {
+            await updateDoc(doc(db, 'concepts', conceptDocId), {
+              ...keyVisualSettings,
+              updatedAt: serverTimestamp(),
+            });
+            // conceptDataも更新
+            Object.assign(conceptData, keyVisualSettings);
+          }
         } else {
           // 既存の構想がない場合はエラー
           alert('既存のコンポーネント化された構想が見つかりませんでした。');
@@ -2403,12 +2440,10 @@ export default function MigrateFromFixedPage({
       };
 
       // 上書きモードで既存の構想が存在する場合、キービジュアル設定が引き継がれていない場合は追加
-      if (mode === 'overwrite' && conceptsSnapshot && !conceptsSnapshot.empty && Object.keys(keyVisualSettings).length > 0) {
-        // 既存の構想にキービジュアル設定がない場合のみ追加
-        const existingKeyVisual = conceptData.keyVisualUrl;
-        if (!existingKeyVisual) {
-          Object.assign(updateData, keyVisualSettings);
-        }
+      // 固定ページ形式から固定ページ形式に移行する場合、キービジュアルを元の固定ページ形式から引き継ぐ
+      if (mode === 'overwrite' && Object.keys(keyVisualSettings).length > 0) {
+        // 元の固定ページ形式のキービジュアル設定を引き継ぐ
+        Object.assign(updateData, keyVisualSettings);
       }
 
       // overviewの場合は後方互換性のために古い形式も更新
@@ -3806,4 +3841,5 @@ export default function MigrateFromFixedPage({
     </div>
   );
 }
+
 

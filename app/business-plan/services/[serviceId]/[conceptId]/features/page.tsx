@@ -2,6 +2,7 @@
 
 import { useParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
+import { useContainerVisibility } from '../hooks/useContainerVisibility';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
 const ComponentizedOverview = dynamic(
@@ -13,6 +14,7 @@ export default function FeaturesPage() {
   const params = useParams();
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
+  const { showContainers } = useContainerVisibility();
 
   // コンポーネント化されたページを使用するかチェック
   if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
@@ -43,35 +45,36 @@ export default function FeaturesPage() {
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         提供機能
       </p>
-      <div className="card">
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px' }}>
+        <div 
+          data-page-container="1"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             機能一覧
-          </h3>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          </h4>
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               {conceptId === 'care-support' 
                 ? '介護を支える包括的な機能群'
                 : '出産・育児を支える包括的な機能群'}
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               {conceptId === 'care-support'
                 ? '支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供'
                 : '支援制度の検索から申請手続き、家族との情報共有まで、必要な機能をワンストップで提供'}
@@ -132,32 +135,33 @@ export default function FeaturesPage() {
         </div>
 
         {/* 提供先別セクション */}
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+        <div 
+          data-page-container="2"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             一般利用者（無料プラン/プレミアムプラン）
-          </h3>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          </h4>
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               個人ユーザー向けサービスプラン
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               基本機能を無料で利用できる無料プランと、より高度な機能を提供するプレミアムプランをご用意
             </p>
           </div>
@@ -216,32 +220,33 @@ export default function FeaturesPage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+        <div 
+          data-page-container="3"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             企業向け提供
-          </h3>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          </h4>
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               企業の従業員向け福利厚生サービス
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               従業員の満足度向上と離職率低下に貢献する、企業向けの包括的なサービスプラン
             </p>
           </div>
@@ -307,32 +312,33 @@ export default function FeaturesPage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+        <div 
+          data-page-container="4"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             自治体向け提供
-          </h3>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          </h4>
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               自治体の住民向けサービス提供
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               住民の子育て支援を強化し、自治体独自の支援制度を効率的に周知できるサービスプラン
             </p>
           </div>
@@ -369,32 +375,33 @@ export default function FeaturesPage() {
           </div>
         </div>
 
-        <div style={{ marginBottom: '24px' }}>
-          <h3 style={{ fontSize: '16px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+        <div 
+          data-page-container="5"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             パートナー連携
-          </h3>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          </h4>
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               多様なパートナーとの連携サービス
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               教育、保険、医療・ヘルスケア、EC、マッチングなど、様々なパートナーと連携し、ワンストップで必要なサービスを提供
             </p>
           </div>

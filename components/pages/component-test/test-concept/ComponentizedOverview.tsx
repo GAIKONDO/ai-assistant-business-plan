@@ -13,7 +13,10 @@ import { usePresentationMode } from '@/components/PresentationModeContext';
 import { useConcept } from '@/app/business-plan/services/[serviceId]/[conceptId]/hooks/useConcept';
 import AddPageForm from './AddPageForm';
 import { pageAutoUpdateConfigs, PageAutoUpdateConfig } from './pageAutoUpdateConfig';
+import dynamic from 'next/dynamic';
 import './pageStyles.css';
+
+const Page0 = dynamic(() => import('./Page0'), { ssr: false });
 
 export default function ComponentizedOverview() {
   const params = useParams();
@@ -409,68 +412,89 @@ export default function ComponentizedOverview() {
       )}
 
       {/* ページコンポーネントの表示 */}
-      {isPresentationMode ? (
-        // プレゼンテーションモードの場合は、現在のページのみを表示
-        (() => {
-          const currentConfig = orderedConfigs[currentPageIndex];
-          if (!currentConfig) return null;
-          const PageComponent = currentConfig.component;
-          return (
-            <div 
-              key={`${currentConfig.id}-${currentPageIndex}`}
-              style={{
-                position: 'relative',
-              }}
-            >
-              {/* ページ番号表示 */}
-              <div
+      {orderedConfigs.length > 0 ? (
+        isPresentationMode ? (
+          // プレゼンテーションモードの場合は、現在のページのみを表示
+          (() => {
+            const currentConfig = orderedConfigs[currentPageIndex];
+            if (!currentConfig) return null;
+            const PageComponent = currentConfig.component;
+            return (
+              <div 
+                key={`${currentConfig.id}-${currentPageIndex}`}
                 style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: 'var(--color-text-light)',
-                  zIndex: 10,
-                  pointerEvents: 'none',
+                  position: 'relative',
                 }}
               >
-                p.{String(currentPageIndex + 1).padStart(2, '0')}
+                {/* ページ番号表示 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: 'var(--color-text-light)',
+                    zIndex: 10,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  p.{String(currentPageIndex + 1).padStart(2, '0')}
+                </div>
+                <PageComponent />
               </div>
-              <PageComponent />
-            </div>
-          );
-        })()
+            );
+          })()
+        ) : (
+          // 通常モードの場合は、すべてのページを表示（ページ番号付き）
+          orderedConfigs.map((config, index) => {
+            const PageComponent = config.component;
+            return (
+              <div 
+                key={`${config.id}-${index}`}
+                style={{
+                  position: 'relative',
+                }}
+              >
+                {/* ページ番号表示 */}
+                <div
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    fontSize: '14px',
+                    fontWeight: 600,
+                    color: 'var(--color-text-light)',
+                    zIndex: 10,
+                    pointerEvents: 'none',
+                  }}
+                >
+                  p.{String(index + 1).padStart(2, '0')}
+                </div>
+                <PageComponent />
+              </div>
+            );
+          })
+        )
       ) : (
-        // 通常モードの場合は、すべてのページを表示（ページ番号付き）
-        orderedConfigs.map((config, index) => {
-          const PageComponent = config.component;
-          return (
-            <div 
-              key={`${config.id}-${index}`}
-              style={{
-                position: 'relative',
-              }}
-            >
-              {/* ページ番号表示 */}
-              <div
-                style={{
-                  position: 'absolute',
-                  top: '16px',
-                  right: '16px',
-                  fontSize: '14px',
-                  fontWeight: 600,
-                  color: 'var(--color-text-light)',
-                  zIndex: 10,
-                  pointerEvents: 'none',
-                }}
-              >
-                p.{String(index + 1).padStart(2, '0')}
-              </div>
-              <PageComponent />
-            </div>
-          );
-        })
+        // orderedConfigsが空の場合は、Page0を表示（フォールバック）
+        <div style={{ position: 'relative' }}>
+          <div
+            style={{
+              position: 'absolute',
+              top: '16px',
+              right: '16px',
+              fontSize: '14px',
+              fontWeight: 600,
+              color: 'var(--color-text-light)',
+              zIndex: 10,
+              pointerEvents: 'none',
+            }}
+          >
+            p.01
+          </div>
+          <Page0 />
+        </div>
       )}
     </div>
   );

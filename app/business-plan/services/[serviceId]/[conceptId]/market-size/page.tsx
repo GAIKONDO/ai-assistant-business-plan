@@ -5,6 +5,8 @@ import { ResponsiveBar } from '@nivo/bar';
 import { ResponsiveLine } from '@nivo/line';
 import { ResponsivePie } from '@nivo/pie';
 import dynamic from 'next/dynamic';
+import { useContext } from 'react';
+import { ContainerVisibilityContext } from '../hooks/useContainerVisibility';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
 const ComponentizedOverview = dynamic(
@@ -16,6 +18,10 @@ export default function MarketSizePage() {
   const params = useParams();
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
+  
+  // ContainerVisibilityContextが利用可能かチェック（条件付きで使用）
+  const containerVisibilityContext = useContext(ContainerVisibilityContext);
+  const showContainers = containerVisibilityContext?.showContainers ?? false;
 
   // コンポーネント化されたページを使用するかチェック
   if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
@@ -184,39 +190,43 @@ export default function MarketSizePage() {
 
   return (
     <>
-      <div className="card">
-        <div style={{ marginBottom: '24px' }}>
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px' }}>
+        <div 
+          data-page-container="1"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
           {/* 出生数及び合計特殊出生率の年次推移とターゲット人口 */}
-          <h4 style={{ 
-            fontSize: '15px', 
-            fontWeight: 600, 
-            marginBottom: '12px', 
-            color: 'var(--color-text)', 
-            borderLeft: '3px solid var(--color-primary)', 
-            paddingLeft: '8px' 
-          }}>
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ 
+              fontSize: '16px', 
+              fontWeight: 600, 
+              marginBottom: '16px', 
+              color: 'var(--color-text)', 
+              borderLeft: '3px solid var(--color-primary)', 
+              paddingLeft: '8px' 
+            }}
+          >
             出生数及び合計特殊出生率の年次推移
           </h4>
           
-          {/* タイトルとサブタイトル */}
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            marginBottom: '8px',
-            color: 'var(--color-text)',
-            textAlign: 'center'
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            出生動向の分析とターゲット人口の明確化
-          </h2>
-          <p style={{
-            fontSize: '14px',
-            color: 'var(--color-text-light)',
-            marginBottom: '32px',
-            lineHeight: '1.6',
-            textAlign: 'center'
-          }}>
-            出生数の推移、年齢別出生率、初婚年齢の変化などを分析し、ターゲット人口の構成を明確化
-          </p>
+            <h2 className="key-message-title">
+              出生数の推移、年齢別出生率、初婚年齢の変化などを分析し、ターゲット人口の構成を明確化
+            </h2>
+          </div>
           
           <div style={{
             display: 'flex',
@@ -590,35 +600,46 @@ export default function MarketSizePage() {
 
           {/* 母の年齢（５歳階級）別にみた合計特殊出生率と初婚の妻の年齢（各歳）の構成割合 */}
           {/* ターゲットユーザー年齢 */}
-          <h4 style={{ 
-            fontSize: '15px', 
-            fontWeight: 600, 
-            marginBottom: '12px', 
-            color: 'var(--color-text)', 
-            borderLeft: '3px solid var(--color-primary)', 
-            paddingLeft: '8px' 
-          }}>
-            ターゲットユーザー年齢
-          </h4>
+        </div>
+        
+        <div 
+          data-page-container="2"
+          style={{ 
+              marginBottom: '24px',
+              ...(showContainers ? {
+                border: '2px dashed var(--color-primary)',
+                borderRadius: '8px',
+                padding: '16px',
+                pageBreakInside: 'avoid',
+                breakInside: 'avoid',
+              } : {}),
+            }}
+          >
+            <h4 
+              data-pdf-title-h3="true"
+              style={{ 
+                fontSize: '16px', 
+                fontWeight: 600, 
+                marginBottom: '16px', 
+                color: 'var(--color-text)', 
+                borderLeft: '3px solid var(--color-primary)', 
+                paddingLeft: '8px' 
+              }}
+            >
+              ターゲットユーザー年齢
+            </h4>
           
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            marginBottom: '8px',
-            color: 'var(--color-text)',
-            textAlign: 'center'
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            ターゲットユーザー年齢の分析
-          </h2>
-          <p style={{
-            fontSize: '14px',
-            color: 'var(--color-text-light)',
-            marginBottom: '32px',
-            lineHeight: '1.6',
-            textAlign: 'center'
-          }}>
-            母の年齢別出生率と初婚年齢の推移から、ターゲットユーザーの年齢層を明確化
-          </p>
+            <h2 className="key-message-title">
+              ターゲットユーザー年齢の分析
+            </h2>
+            <p className="key-message-subtitle gradient-text-blue">
+              母の年齢別出生率と初婚年齢の推移から、ターゲットユーザーの年齢層を明確化
+            </p>
+          </div>
           
           {/* 第1子出生時の母の平均年齢の年次推移表 */}
           <div style={{
@@ -1184,38 +1205,48 @@ export default function MarketSizePage() {
               </div>
             </div>
           </div>
+        </div>
           
           {/* 育休取得率 */}
-          <h4 style={{ 
-            fontSize: '15px', 
-            fontWeight: 600, 
-            marginTop: '48px',
-            marginBottom: '12px', 
-            color: 'var(--color-text)', 
-            borderLeft: '3px solid var(--color-primary)', 
-            paddingLeft: '8px' 
-          }}>
-            育休取得率
-          </h4>
+          <div 
+            data-page-container="3"
+            style={{ 
+              marginBottom: '24px',
+              ...(showContainers ? {
+                border: '2px dashed var(--color-primary)',
+                borderRadius: '8px',
+                padding: '16px',
+                pageBreakInside: 'avoid',
+                breakInside: 'avoid',
+              } : {}),
+            }}
+          >
+            <h4 
+              data-pdf-title-h3="true"
+              style={{ 
+                fontSize: '16px', 
+                fontWeight: 600, 
+                marginTop: '48px',
+                marginBottom: '16px', 
+                color: 'var(--color-text)', 
+                borderLeft: '3px solid var(--color-primary)', 
+                paddingLeft: '8px' 
+              }}
+            >
+              育休取得率
+            </h4>
           
-          <h2 style={{
-            fontSize: '24px',
-            fontWeight: 700,
-            marginBottom: '8px',
-            color: 'var(--color-text)',
-            textAlign: 'center'
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            育休取得率の分析と次世代育成支援の改正ポイント
-          </h2>
-          <p style={{
-            fontSize: '14px',
-            color: 'var(--color-text-light)',
-            marginBottom: '32px',
-            lineHeight: '1.6',
-            textAlign: 'center'
-          }}>
-            男女別の育休取得率の現状を分析し、2025年4月から施行される次世代育成支援対策推進法の改正ポイントを解説
-          </p>
+            <h2 className="key-message-title">
+              育休取得率の分析と次世代育成支援の改正ポイント
+            </h2>
+            <p className="key-message-subtitle gradient-text-blue">
+              男女別の育休取得率の現状を分析し、2025年4月から施行される次世代育成支援対策推進法の改正ポイントを解説
+            </p>
+          </div>
           
           {/* 全産業トータルでの育児休業取得率カード */}
           <div style={{
@@ -1653,7 +1684,6 @@ export default function MarketSizePage() {
               </div>
             </div>
           </div>
-          
         </div>
       </div>
     </>

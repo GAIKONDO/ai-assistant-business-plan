@@ -1,8 +1,9 @@
 'use client';
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams } from 'next/navigation';
 import { useConcept } from '../hooks/useConcept';
+import { ContainerVisibilityContext } from '../hooks/useContainerVisibility';
 import Script from 'next/script';
 import dynamic from 'next/dynamic';
 
@@ -17,6 +18,10 @@ export default function BusinessModelPage() {
   const serviceId = params.serviceId as string;
   const conceptId = params.conceptId as string;
   const { concept, loading } = useConcept();
+  
+  // ContainerVisibilityContextが利用可能かチェック（条件付きで使用）
+  const containerVisibilityContext = useContext(ContainerVisibilityContext);
+  const showContainers = containerVisibilityContext?.showContainers ?? false;
 
   // すべてのHooksを早期リターンの前に呼び出す（React Hooksのルール）
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
@@ -61,6 +66,14 @@ export default function BusinessModelPage() {
       // 既に読み込まれている場合
       if (checkMermaid()) {
         return;
+      }
+      
+      // Scriptタグの読み込み完了を監視
+      const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
+      if (scriptElement) {
+        scriptElement.addEventListener('load', () => {
+          window.dispatchEvent(new Event('mermaidloaded'));
+        });
       }
       
       // イベントリスナーを追加
@@ -299,42 +312,38 @@ export default function BusinessModelPage() {
       <Script
         src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
         strategy="lazyOnload"
-        onLoad={() => {
-          if (typeof window !== 'undefined') {
-            window.dispatchEvent(new Event('mermaidloaded'));
-          }
-        }}
       />
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         ビジネスモデル
       </p>
-      <div className="card">
-        <div style={{ marginBottom: '24px' }}>
-          <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
+      <div style={{ backgroundColor: '#fff', padding: '24px', borderRadius: '8px' }}>
+        <div 
+          data-page-container="1"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '16px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
             ビジネスモデル
           </h4>
-          <div style={{ 
-            marginBottom: '32px',
-            textAlign: 'center'
+          {/* キーメッセージとサブメッセージ */}
+          <div className="key-message-container" style={{ 
+            marginBottom: '32px'
           }}>
-            <h2 style={{ 
-              margin: '0 0 12px 0', 
-              fontSize: '32px', 
-              fontWeight: 700, 
-              color: 'var(--color-text)',
-              lineHeight: '1.3',
-              letterSpacing: '-0.5px'
-            }}>
+            <h2 className="key-message-title">
               多様な収益源で持続可能な成長を実現
             </h2>
-            <p style={{ 
-              margin: 0, 
-              fontSize: '18px', 
-              fontWeight: 500,
-              color: 'var(--color-text)',
-              letterSpacing: '0.3px',
-              lineHeight: '1.6'
-            }}>
+            <p className="key-message-subtitle gradient-text-blue">
               個人ユーザーへの直接提供、企業・自治体へのB2B提供、パートナー企業との連携により、多角的な収益構造を構築
             </p>
           </div>
@@ -356,12 +365,28 @@ export default function BusinessModelPage() {
               }}
             />
           </div>
+        </div>
 
-          {/* 収益モデルセクション */}
-          <div style={{ marginBottom: '32px', marginTop: '32px' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-              収益モデル
-            </h4>
+        {/* 収益モデルセクション */}
+        <div 
+          data-page-container="2"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
+            収益モデル
+          </h4>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', paddingLeft: '11px' }}>
               <div style={{ 
                 backgroundColor: '#fff', 
@@ -426,69 +451,84 @@ export default function BusinessModelPage() {
               </div>
             </div>
           </div>
+        </div>
 
-          {/* サービス提供先セクション */}
-          <div style={{ marginBottom: '24px' }}>
-            <h4 style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}>
-              サービス提供先
-            </h4>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', paddingLeft: '11px' }}>
-              <div style={{ 
-                backgroundColor: '#fff', 
-                borderRadius: '8px', 
-                padding: '16px', 
-                border: '1px solid var(--color-border-color)',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                  個人ユーザー
-                </h5>
-                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                  無料版とプレミアムプラン
-                </p>
-              </div>
-              <div style={{ 
-                backgroundColor: '#fff', 
-                borderRadius: '8px', 
-                padding: '16px', 
-                border: '1px solid var(--color-border-color)',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                  企業
-                </h5>
-                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                  従業員向け福利厚生として提供
-                </p>
-              </div>
-              <div style={{ 
-                backgroundColor: '#fff', 
-                borderRadius: '8px', 
-                padding: '16px', 
-                border: '1px solid var(--color-border-color)',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                  自治体
-                </h5>
-                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                  住民向けサービスとして提供
-                </p>
-              </div>
-              <div style={{ 
-                backgroundColor: '#fff', 
-                borderRadius: '8px', 
-                padding: '16px', 
-                border: '1px solid var(--color-border-color)',
-                boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
-              }}>
-                <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
-                  パートナー企業
-                </h5>
-                <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
-                  連携サービス提供・マッチング
-                </p>
-              </div>
+        {/* サービス提供先セクション */}
+        <div 
+          data-page-container="3"
+          style={{ 
+            marginBottom: '24px',
+            ...(showContainers ? {
+              border: '2px dashed var(--color-primary)',
+              borderRadius: '8px',
+              padding: '16px',
+              pageBreakInside: 'avoid',
+              breakInside: 'avoid',
+            } : {}),
+          }}
+        >
+          <h4 
+            data-pdf-title-h3="true"
+            style={{ fontSize: '15px', fontWeight: 600, marginBottom: '16px', color: 'var(--color-text)', borderLeft: '3px solid var(--color-primary)', paddingLeft: '8px' }}
+          >
+            サービス提供先
+          </h4>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(250px, 1fr))', gap: '16px', paddingLeft: '11px' }}>
+            <div style={{ 
+              backgroundColor: '#fff', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              border: '1px solid var(--color-border-color)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+                個人ユーザー
+              </h5>
+              <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
+                無料版とプレミアムプラン
+              </p>
+            </div>
+            <div style={{ 
+              backgroundColor: '#fff', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              border: '1px solid var(--color-border-color)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+                企業
+              </h5>
+              <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
+                従業員向け福利厚生として提供
+              </p>
+            </div>
+            <div style={{ 
+              backgroundColor: '#fff', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              border: '1px solid var(--color-border-color)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+                自治体
+              </h5>
+              <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
+                住民向けサービスとして提供
+              </p>
+            </div>
+            <div style={{ 
+              backgroundColor: '#fff', 
+              borderRadius: '8px', 
+              padding: '16px', 
+              border: '1px solid var(--color-border-color)',
+              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+            }}>
+              <h5 style={{ fontSize: '14px', fontWeight: 600, marginBottom: '12px', color: 'var(--color-text)' }}>
+                パートナー企業
+              </h5>
+              <p style={{ margin: 0, fontSize: '13px', lineHeight: '1.8', color: 'var(--color-text)' }}>
+                連携サービス提供・マッチング
+              </p>
             </div>
           </div>
         </div>

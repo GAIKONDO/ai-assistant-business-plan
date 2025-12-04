@@ -13,6 +13,9 @@ import { ComponentizedPageProvider, useComponentizedPageOptional } from '@/compo
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
 import { ConceptContext, useConcept, ConceptData } from './hooks/useConcept';
+
+// ConceptContextをエクスポート（Page0コンポーネントで使用するため）
+export { ConceptContext };
 import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
 import { resolveConceptId, getUrlConceptId } from '@/lib/conceptIdMapping';
 
@@ -276,6 +279,7 @@ function ConceptLayoutContent({
   const [selectedSubMenusForPDF, setSelectedSubMenusForPDF] = useState<Set<string>>(new Set()); // 選択されたサブメニュー
   const [subMenuPagesStatus, setSubMenuPagesStatus] = useState<Array<{ id: string; label: string; hasPages: boolean }>>([]); // サブメニューのページ有無状態
   const [isCheckingPages, setIsCheckingPages] = useState(false); // ページ確認中かどうか
+  const [subMenuOpen, setSubMenuOpen] = useState(true); // サブメニューの表示状態
   const [showMigrateModal, setShowMigrateModal] = useState(false);
   const [keyVisualMetadata, setKeyVisualMetadata] = useState<{
     title: string;
@@ -350,7 +354,23 @@ function ConceptLayoutContent({
         child.style.visibility = 'visible';
       });
       
-      // 高さベースの自動ページネーション
+      // 固定ページ形式の場合：data-page-container属性を持つ要素を個別のページとして扱う
+      // カード構造を考慮して、すべてのdata-page-container属性を持つ要素を検索
+      const pageContainers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+      if (pageContainers.length > 0) {
+        // data-page-container属性を持つ要素の数をページ数として設定
+        // キービジュアル（data-page-container="0"）も含める
+        // カード構造に関係なく、すべてのdata-page-container属性を持つ要素をカウント
+        const sortedContainers = pageContainers.sort((a, b) => {
+          const aIndex = parseInt(a.getAttribute('data-page-container') || '0');
+          const bIndex = parseInt(b.getAttribute('data-page-container') || '0');
+          return aIndex - bIndex;
+        });
+        setTotalPages(sortedContainers.length);
+        return;
+      }
+      
+      // コンポーネント化されたページまたはdata-page-containerがない場合：高さベースの自動ページネーション
       const viewportHeight = window.innerHeight;
       const headerHeight = 80;
       const footerHeight = 60;
@@ -460,7 +480,72 @@ function ConceptLayoutContent({
       child.style.visibility = 'visible';
     });
     
-    // 高さベースの自動ページネーション
+    // 固定ページ形式の場合：data-page-container属性を持つ要素を個別のページとして扱う
+    const pageContainers = Array.from(container.querySelectorAll('[data-page-container]')) as HTMLElement[];
+    if (pageContainers.length > 0) {
+      // data-page-container属性を持つ要素をソート
+      const sortedContainers = pageContainers.sort((a, b) => {
+        const aIndex = parseInt(a.getAttribute('data-page-container') || '0');
+        const bIndex = parseInt(b.getAttribute('data-page-container') || '0');
+        return aIndex - bIndex;
+      });
+      
+      if (totalPages > 1 && currentPage < sortedContainers.length) {
+        // コンテナをスクロール可能にする
+        container.style.overflowY = 'auto';
+        container.style.height = '100%';
+        
+        // 現在のページに対応するコンテナの位置にスクロール
+        const targetContainer = sortedContainers[currentPage];
+        if (targetContainer) {
+          // レイアウトが安定するまで待ってからスクロール
+          setTimeout(() => {
+            requestAnimationFrame(() => {
+              // キービジュアル（data-page-container="0"）の場合は、コンテナの一番上から表示
+              const pageIndex = parseInt(targetContainer.getAttribute('data-page-container') || '0');
+              if (pageIndex === 0) {
+                // キービジュアルの場合は、コンテナの一番上から表示
+                container.scrollTo({
+                  top: 0,
+                  behavior: 'smooth',
+                });
+                return;
+              }
+              
+              // カード構造を考慮してスクロール位置を計算
+              // 親要素（カード）の位置も考慮する
+              let scrollTarget = targetContainer;
+              
+              // 親要素がカードクラスを持つ場合は、その親要素の位置を使用
+              const cardParent = targetContainer.closest('.card');
+              if (cardParent) {
+                scrollTarget = cardParent as HTMLElement;
+              }
+              
+              const containerRect = container.getBoundingClientRect();
+              const targetRect = scrollTarget.getBoundingClientRect();
+              const scrollOffset = targetRect.top - containerRect.top + container.scrollTop - 20; // 20pxのマージン
+              
+              container.scrollTo({
+                top: Math.max(0, scrollOffset),
+                behavior: 'smooth',
+              });
+            });
+          }, 100);
+        }
+      } else {
+        // 1ページの場合は先頭にスクロール
+        container.style.overflowY = 'auto';
+        container.style.height = '100%';
+        container.scrollTo({
+          top: 0,
+          behavior: 'smooth',
+        });
+      }
+      return;
+    }
+    
+    // コンポーネント化されたページまたはdata-page-containerがない場合：高さベースの自動ページネーション
     const viewportHeight = window.innerHeight;
     const headerHeight = 80;
     const footerHeight = 60;
@@ -501,6 +586,31 @@ function ConceptLayoutContent({
       localStorage.setItem('presentationGuideShown', 'true');
     }
   }, [isPresentationMode]);
+
+  // サブメニューの表示状態を監視
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    
+    // 初期状態を読み込む
+    const savedSubMenuOpen = localStorage.getItem('subMenuOpen');
+    if (savedSubMenuOpen !== null) {
+      setSubMenuOpen(savedSubMenuOpen === 'true');
+    }
+    
+    // カスタムイベントでサブメニューの表示状態変更を監視
+    const handleSubMenuToggle = () => {
+      const savedSubMenuOpen = localStorage.getItem('subMenuOpen');
+      if (savedSubMenuOpen !== null) {
+        setSubMenuOpen(savedSubMenuOpen === 'true');
+      }
+    };
+    
+    window.addEventListener('subMenuToggle', handleSubMenuToggle);
+    
+    return () => {
+      window.removeEventListener('subMenuToggle', handleSubMenuToggle);
+    };
+  }, []);
 
   // 前のスライドに移動
   const goToPreviousSlide = useCallback(() => {
@@ -1653,8 +1763,25 @@ function ConceptLayoutContent({
                 }
               }
               
-              // グラデーションテキストをSVGに変換
-              const gradientTextElements = clonedDoc.querySelectorAll('.key-message-title, .gradient-text-blue');
+              // PDF出力時にテキストとして認識されるように、.pdf-text-contentクラスの要素を通常のテキストに変換
+              const pdfTextContentElements = clonedDoc.querySelectorAll('.pdf-text-content');
+              pdfTextContentElements.forEach((element) => {
+                try {
+                  const htmlElement = element as HTMLElement;
+                  // グラデーションスタイルを削除して、通常のテキストに変換
+                  htmlElement.style.background = 'none';
+                  htmlElement.style.WebkitBackgroundClip = 'initial';
+                  htmlElement.style.WebkitTextFillColor = 'initial';
+                  htmlElement.style.backgroundClip = 'initial';
+                  htmlElement.style.color = '#0066CC'; // グラデーションの開始色を使用
+                  htmlElement.classList.remove('gradient-text-blue');
+                } catch (error) {
+                  console.warn('PDFテキストコンテンツの変換エラー:', error);
+                }
+              });
+              
+              // グラデーションテキストをSVGに変換（.pdf-text-content以外）
+              const gradientTextElements = clonedDoc.querySelectorAll('.key-message-title, .gradient-text-blue:not(.pdf-text-content)');
               gradientTextElements.forEach((element) => {
                 try {
                   const htmlElement = element as HTMLElement;
@@ -3408,17 +3535,25 @@ function ConceptLayoutContent({
             style={{
               width: showTableOfContents 
                 ? 'calc(100% - 400px)'
-                : 'calc(100% - 200px)',
+                : subMenuOpen
+                  ? 'calc(100% - 200px)' // サブメニューが表示されている時
+                  : 'calc(100% - 100px)', // サブメニューが非表示の時は横幅を最大に
               maxWidth: showTableOfContents 
                 ? 'calc(100% - 400px)' 
-                : '1800px',
+                : subMenuOpen
+                  ? '1800px' // サブメニューが表示されている時は通常の最大幅
+                  : 'calc(100% - 100px)', // サブメニューが非表示の時は横幅を最大に
               backgroundColor: '#fff',
               borderRadius: '8px',
               padding: '40px',
               color: 'var(--color-text)',
               marginTop: '80px',
-              marginLeft: showTableOfContents ? '400px' : '100px',
-              marginRight: showTableOfContents ? '100px' : '100px',
+              marginLeft: showTableOfContents 
+                ? '400px' 
+                : subMenuOpen
+                  ? '100px' // サブメニューが表示されている時は100px
+                  : '100px', // サブメニューが非表示の時も左矢印ボタン用に100pxのマージンを確保
+              marginRight: showTableOfContents ? '100px' : '100px', // 右矢印ボタン用に100pxのマージン
               marginBottom: '80px',
               animation: slideDirection === 'left' 
                 ? 'slideInFromRight 0.5s ease-out'
@@ -3445,7 +3580,9 @@ function ConceptLayoutContent({
                 const calculatedWidth = containerHeight * targetAspectRatio;
                 const maxAvailableWidth = showTableOfContents 
                   ? window.innerWidth - 400 
-                  : window.innerWidth - 200;
+                  : subMenuOpen
+                    ? window.innerWidth - 200 // サブメニューが表示されている時
+                    : window.innerWidth - 100; // サブメニューが非表示の時は横幅を最大に
                 
                 return {
                   width: `${Math.min(calculatedWidth, maxAvailableWidth)}px`,

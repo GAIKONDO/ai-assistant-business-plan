@@ -241,16 +241,32 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
               (config) => !savedPageOrder!.includes(config.id)
             );
             
-            setOrderedConfigs([...ordered, ...missingPages]);
+            // Page0（page-0）を常に最初に配置
+            const page0Config = allConfigs.find((config) => config.id === 'page-0');
+            const otherConfigs = [...ordered, ...missingPages].filter((config) => config.id !== 'page-0');
+            
+            if (page0Config) {
+              setOrderedConfigs([page0Config, ...otherConfigs]);
+            } else {
+              setOrderedConfigs([...ordered, ...missingPages]);
+            }
           } else {
-            // ページ番号でソート
-            const sorted = [...allConfigs].sort((a, b) => a.pageNumber - b.pageNumber);
-            setOrderedConfigs(sorted);
+            // ページ番号でソート（Page0を最初に）
+            const page0Config = allConfigs.find((config) => config.id === 'page-0');
+            const otherConfigs = allConfigs.filter((config) => config.id !== 'page-0').sort((a, b) => a.pageNumber - b.pageNumber);
+            
+            if (page0Config) {
+              setOrderedConfigs([page0Config, ...otherConfigs]);
+            } else {
+              const sorted = [...allConfigs].sort((a, b) => a.pageNumber - b.pageNumber);
+              setOrderedConfigs(sorted);
+            }
           }
         } else {
           // データが存在しない場合は、overviewの場合は固定ページを、それ以外は空配列を設定
           if (subMenuId === 'overview') {
-          setOrderedConfigs(pageConfigs);
+            // Page0を常に最初に配置
+            setOrderedConfigs(pageConfigs);
           } else {
             setOrderedConfigs([]);
           }
