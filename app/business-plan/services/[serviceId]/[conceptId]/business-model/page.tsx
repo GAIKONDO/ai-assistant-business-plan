@@ -127,7 +127,7 @@ export default function BusinessModelPage() {
       window.removeEventListener('mermaidloaded', handleMermaidLoaded);
       clearInterval(interval);
     };
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mermaidLoaded]);
 
   // ビジネスモデル図を生成
@@ -480,7 +480,6 @@ export default function BusinessModelPage() {
                 </ul>
               </div>
             </div>
-          </div>
         </div>
 
         {/* サービス提供先セクション */}

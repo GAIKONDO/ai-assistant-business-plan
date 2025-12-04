@@ -672,7 +672,7 @@ export default function OverviewPage() {
         
         // SVGのサイズを大きくするために、widthとheight属性を調整
         // SVGタグにwidth="100%"とheight="auto"を追加または更新
-        svg = svg.replace(/<svg([^>]*)>/, (match, attrs) => {
+        svg = svg.replace(/<svg([^>]*)>/, (match: string, attrs: string) => {
           // 既存のwidthとheight属性を削除
           attrs = attrs.replace(/\s*width\s*=\s*["'][^"']*["']/gi, '');
           attrs = attrs.replace(/\s*height\s*=\s*["'][^"']*["']/gi, '');

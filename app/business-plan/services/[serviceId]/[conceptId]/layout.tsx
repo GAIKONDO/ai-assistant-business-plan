@@ -1770,8 +1770,8 @@ function ConceptLayoutContent({
                   const htmlElement = element as HTMLElement;
                   // グラデーションスタイルを削除して、通常のテキストに変換
                   htmlElement.style.background = 'none';
-                  htmlElement.style.WebkitBackgroundClip = 'initial';
-                  htmlElement.style.WebkitTextFillColor = 'initial';
+                  htmlElement.style.webkitBackgroundClip = 'initial';
+                  htmlElement.style.webkitTextFillColor = 'initial';
                   htmlElement.style.backgroundClip = 'initial';
                   htmlElement.style.color = '#0066CC'; // グラデーションの開始色を使用
                   htmlElement.classList.remove('gradient-text-blue');

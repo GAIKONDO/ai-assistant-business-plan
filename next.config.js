@@ -61,8 +61,6 @@ const nextConfig = {
           ...config.optimization.splitChunks,
           cacheGroups: {
             ...config.optimization.splitChunks?.cacheGroups,
-            default: false,
-            vendors: false,
             '@tanstack': {
               test: /[\\/]node_modules[\\/]@tanstack[\\/]/,
               name: 'vendor-chunks/@tanstack',
