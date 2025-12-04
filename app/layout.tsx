@@ -15,6 +15,8 @@ const notoSansJP = Noto_Sans_JP({
   subsets: ['latin'],
   display: 'swap',
   variable: '--font-noto',
+  preload: true,
+  adjustFontFallback: true,
 });
 
 export const metadata: Metadata = {

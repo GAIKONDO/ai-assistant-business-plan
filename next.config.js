@@ -4,6 +4,12 @@ const webpack = require('webpack');
 const nextConfig = {
   reactStrictMode: true,
   pageExtensions: ['ts', 'tsx', 'js', 'jsx'],
+  // 開発サーバーの設定
+  devIndicators: {
+    buildActivity: true,
+  },
+  // 静的ファイルの最適化
+  optimizeFonts: true,
   webpack: (config, { isServer }) => {
     // scriptsディレクトリを除外
     config.plugins.push(
