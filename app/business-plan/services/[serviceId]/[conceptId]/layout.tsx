@@ -12,6 +12,7 @@ import { PresentationModeProvider, usePresentationMode } from '@/components/Pres
 import { ComponentizedPageProvider, useComponentizedPageOptional } from '@/components/pages/component-test/test-concept/ComponentizedPageContext';
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
+import MermaidLoader from '@/components/MermaidLoader';
 import { ConceptContext, useConcept, ConceptData } from './hooks/useConcept';
 
 // ConceptContextをエクスポート（Page0コンポーネントで使用するため）
@@ -2446,35 +2447,15 @@ function ConceptLayoutContent({
           }
         }}
       />
-      <Script
-        src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
+      <MermaidLoader
+        config={{
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+          fontFamily: 'inherit',
+          htmlLabels: true,
+        }}
         strategy="afterInteractive"
-        onLoad={() => {
-          if (typeof window !== 'undefined' && window.mermaid) {
-            // 初期化を確実に実行
-            window.mermaid.initialize({ 
-              startOnLoad: false,
-              theme: 'default',
-              securityLevel: 'loose',
-              fontFamily: 'inherit',
-              htmlLabels: true
-            });
-            window.dispatchEvent(new Event('mermaidloaded'));
-          }
-        }}
-        onReady={() => {
-          // 既に読み込まれている場合も初期化とイベントを発火
-          if (typeof window !== 'undefined' && window.mermaid) {
-            window.mermaid.initialize({ 
-              startOnLoad: false,
-              theme: 'default',
-              securityLevel: 'loose',
-              fontFamily: 'inherit',
-              htmlLabels: true
-            });
-            window.dispatchEvent(new Event('mermaidloaded'));
-          }
-        }}
       />
       {!isPresentationMode && (
         <div style={{ display: 'flex', gap: '32px' }}>

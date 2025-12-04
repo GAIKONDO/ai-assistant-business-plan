@@ -5,11 +5,24 @@ import { useParams } from 'next/navigation';
 import { useConcept } from '../hooks/useConcept';
 import { ContainerVisibilityContext } from '../hooks/useContainerVisibility';
 import dynamic from 'next/dynamic';
+import ErrorBoundary from '@/components/ErrorBoundary';
+import { waitForMermaid, renderMermaidDiagram } from '@/lib/mermaidLoader';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
 const ComponentizedOverview = dynamic(
   () => import('@/components/pages/component-test/test-concept/ComponentizedOverview'),
-  { ssr: false }
+  { 
+    ssr: false,
+    loading: () => (
+      <div style={{ 
+        padding: '40px', 
+        textAlign: 'center', 
+        color: 'var(--color-text-light)',
+      }}>
+        読み込み中...
+      </div>
+    ),
+  }
 );
 
 export default function BusinessModelPage() {
@@ -27,108 +40,18 @@ export default function BusinessModelPage() {
   const businessModelDiagramRef = useRef<HTMLDivElement>(null);
   const businessModelRenderedRef = useRef(false);
 
-  // Mermaidスクリプトを読み込む
+  // Mermaidが読み込まれるまで待つ（統一管理されたユーティリティを使用）
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
-    // 既にスクリプトが読み込まれているかチェック
-    const existingScript = document.querySelector('script[src*="mermaid.min.js"]');
-    if (existingScript) {
-      // 既に読み込まれている場合、mermaidloadedイベントを発火
-      if ((window as any).mermaid) {
-        window.dispatchEvent(new Event('mermaidloaded'));
-      }
-      return;
-    }
-
-    // スクリプトタグを作成して追加
-    const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
-    script.async = true;
-    script.onload = () => {
-      window.dispatchEvent(new Event('mermaidloaded'));
-    };
-    document.head.appendChild(script);
-
-    return () => {
-      // クリーンアップ時にスクリプトタグを削除（必要に応じて）
-      const scriptToRemove = document.querySelector('script[src*="mermaid.min.js"]');
-      if (scriptToRemove && scriptToRemove === script) {
-        scriptToRemove.remove();
-      }
-    };
-  }, []);
-
-  // Mermaidが読み込まれたときの処理
-  useEffect(() => {
-    const checkMermaid = () => {
-      if (typeof window !== 'undefined' && (window as any).mermaid) {
-        const mermaid = (window as any).mermaid;
-        // 初期化がまだ実行されていない場合は実行
-        if (typeof mermaid.initialize === 'function') {
-          try {
-            mermaid.initialize({ 
-              startOnLoad: false,
-              theme: 'default',
-              securityLevel: 'loose',
-              fontFamily: 'inherit',
-              htmlLabels: true
-            });
-          } catch (e) {
-            // 既に初期化されている場合はエラーを無視
-          }
-        }
-        if (!mermaidLoaded) {
-          setMermaidLoaded(true);
-        }
-        return true;
-      }
-      return false;
-    };
-
-    const handleMermaidLoaded = () => {
-      // 少し遅延させてからチェック（初期化が完了するのを待つ）
-      setTimeout(() => {
-        checkMermaid();
-      }, 50);
-    };
-
-    if (typeof window === 'undefined') {
-      return;
-    }
-
-    // 既に読み込まれている場合
-    if (checkMermaid()) {
-      return;
-    }
-    
-    // Scriptタグの読み込み完了を監視
-    const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
-    if (scriptElement) {
-      scriptElement.addEventListener('load', () => {
-        window.dispatchEvent(new Event('mermaidloaded'));
+    waitForMermaid()
+      .then(() => {
+        setMermaidLoaded(true);
+      })
+      .catch((error) => {
+        console.error('Mermaid読み込みエラー:', error);
       });
-    }
-    
-    // イベントリスナーを追加
-    window.addEventListener('mermaidloaded', handleMermaidLoaded);
-    
-    // 定期的にチェック（フォールバック）
-    let retries = 0;
-    const maxRetries = 100; // 10秒間
-    const interval = setInterval(() => {
-      retries++;
-      if (checkMermaid() || retries >= maxRetries) {
-        clearInterval(interval);
-      }
-    }, 100);
-
-    return () => {
-      window.removeEventListener('mermaidloaded', handleMermaidLoaded);
-      clearInterval(interval);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [mermaidLoaded]);
+  }, []);
 
   // ビジネスモデル図を生成
   const generateBusinessModelDiagram = () => {
@@ -247,7 +170,7 @@ export default function BusinessModelPage() {
     }
   }, [conceptId]);
 
-  // ビジネスモデル図をレンダリング
+  // ビジネスモデル図をレンダリング（統一管理されたユーティリティを使用）
   useEffect(() => {
     if (conceptId !== 'maternity-support' && conceptId !== 'care-support') {
       return;
@@ -270,42 +193,34 @@ export default function BusinessModelPage() {
         return;
       }
       
-      // Mermaidが利用可能になるまで待つ
-      let retries = 0;
-      const maxRetries = 100; // 10秒間
-      while (retries < maxRetries && (!(window as any).mermaid || typeof (window as any).mermaid.render !== 'function')) {
-        await new Promise(resolve => setTimeout(resolve, 100));
-        retries++;
-      }
-      
-      const mermaid = (window as any).mermaid;
-      if (!mermaid || typeof mermaid.render !== 'function') {
-        businessModelRenderedRef.current = false;
-        return;
-      }
-
-      // Mermaidが利用可能になったら、mermaidLoadedをtrueに設定
-      if (!mermaidLoaded) {
-        setMermaidLoaded(true);
-      }
-
-      if (!businessModelDiagramRef.current || businessModelRenderedRef.current) {
-        return;
-      }
-
+      // Mermaidが利用可能になるまで待つ（統一管理されたユーティリティを使用）
       try {
-        const diagram = generateBusinessModelDiagram();
-        const id = 'business-model-diagram-' + Date.now();
+        await waitForMermaid();
         
-        const result = await mermaid.render(id, diagram);
-        const svg = typeof result === 'string' ? result : result.svg;
+        if (!businessModelDiagramRef.current || businessModelRenderedRef.current) {
+          return;
+        }
+
+        const diagram = generateBusinessModelDiagram();
+        const svg = await renderMermaidDiagram(diagram);
+        
         if (businessModelDiagramRef.current) {
           businessModelDiagramRef.current.innerHTML = svg;
         }
         businessModelRenderedRef.current = true;
+        setMermaidLoaded(true);
       } catch (err: any) {
         console.error('Mermaidレンダリングエラー:', err);
         businessModelRenderedRef.current = false;
+        if (businessModelDiagramRef.current) {
+          businessModelDiagramRef.current.innerHTML = `
+            <div style="padding: 20px; color: #dc3545; border: 1px solid #dc3545; border-radius: 6px; background: rgba(220, 53, 69, 0.1);">
+              <strong>グラフのレンダリングエラー:</strong><br/>
+              ${err?.message || '不明なエラーが発生しました'}<br/>
+              <small style="font-size: 11px; margin-top: 8px; display: block;">詳細はブラウザのコンソール（F12）を確認してください。</small>
+            </div>
+          `;
+        }
       }
     };
 
@@ -320,7 +235,11 @@ export default function BusinessModelPage() {
   // コンポーネント化されたページを使用するかチェック
   if ((serviceId === 'component-test' && conceptId === 'test-concept') ||
       conceptId.includes('-componentized')) {
-    return <ComponentizedOverview />;
+    return (
+      <ErrorBoundary>
+        <ComponentizedOverview />
+      </ErrorBoundary>
+    );
   }
 
   // 出産支援パーソナルAppと介護支援パーソナルApp以外の構想の場合は、未実装メッセージを表示

@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Inter, Noto_Sans_JP } from 'next/font/google';
 import './globals.css';
 import QueryProvider from '@/components/QueryProvider';
+import ErrorBoundary from '@/components/ErrorBoundary';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -29,7 +30,9 @@ export default function RootLayout({
   return (
     <html lang="ja" suppressHydrationWarning>
       <body className={`${inter.variable} ${notoSansJP.variable} ${notoSansJP.className}`} suppressHydrationWarning>
-        <QueryProvider>{children}</QueryProvider>
+        <ErrorBoundary>
+          <QueryProvider>{children}</QueryProvider>
+        </ErrorBoundary>
       </body>
     </html>
   );

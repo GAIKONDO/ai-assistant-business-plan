@@ -14,6 +14,7 @@ import { PresentationModeProvider, usePresentationMode } from '@/components/Pres
 import PageBreakEditor from '@/components/PageBreakEditor';
 import MigrateFromFixedPage from '@/components/pages/component-test/test-concept/MigrateFromFixedPage';
 import { ComponentizedCompanyPlanPageProvider, useComponentizedCompanyPlanPageOptional } from '@/components/pages/component-test/test-concept/ComponentizedCompanyPlanPageContext';
+import MermaidLoader from '@/components/MermaidLoader';
 import { PlanContext, usePlan } from './hooks/usePlan';
 import { ContainerVisibilityContext, useContainerVisibility } from './hooks/useContainerVisibility';
 
@@ -2624,14 +2625,15 @@ function CompanyPlanLayoutContent({
           }
         }}
       />
-      <Script
-        src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
-        strategy="lazyOnload"
-        onLoad={() => {
-          if (typeof window !== 'undefined' && window.mermaid) {
-            window.dispatchEvent(new Event('mermaidloaded'));
-          }
+      <MermaidLoader
+        config={{
+          startOnLoad: false,
+          theme: 'default',
+          securityLevel: 'loose',
+          fontFamily: 'inherit',
+          htmlLabels: true,
         }}
+        strategy="lazyOnload"
       />
       {!isPresentationMode && (
         <div style={{ display: 'flex', gap: '32px' }}>

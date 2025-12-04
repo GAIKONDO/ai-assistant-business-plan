@@ -8,6 +8,7 @@ import { usePathname } from 'next/navigation';
 import Login from './Login';
 import Header from './Header';
 import Sidebar from './Sidebar';
+import ErrorBoundary from './ErrorBoundary';
 
 const ADMIN_UID = 'PktGlRBWVZc9E0Y3OLSQ4TeRg0P2';
 
@@ -274,7 +275,9 @@ export default function Layout({ children }: LayoutProps) {
       {!isPresentationMode && user && <Sidebar isOpen={sidebarOpen} onToggle={handleToggleSidebar} currentPage={currentPage} />}
       {!isPresentationMode && <Header user={user} sidebarOpen={sidebarOpen} />}
       <div className="container" style={isPresentationMode ? { margin: 0, width: '100%', maxWidth: '100%' } : containerStyle}>
-        {user ? children : <Login />}
+        <ErrorBoundary resetKeys={[pathname]}>
+          {user ? children : <Login />}
+        </ErrorBoundary>
       </div>
     </main>
   );

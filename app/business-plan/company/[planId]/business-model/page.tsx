@@ -8,6 +8,7 @@ import { useContainerVisibility } from '../hooks/useContainerVisibility';
 import { doc, getDoc, updateDoc, serverTimestamp } from 'firebase/firestore';
 import { db, auth } from '@/lib/firebase';
 import dynamic from 'next/dynamic';
+import { waitForMermaid, renderMermaidDiagram } from '@/lib/mermaidLoader';
 
 // ComponentizedCompanyPlanOverviewを動的インポート
 const ComponentizedCompanyPlanOverview = dynamic(
@@ -32,12 +33,6 @@ interface FixedPageContainer {
 }
 
 const FIRESTORE_COLLECTION_NAME = 'companyBusinessPlan';
-
-declare global {
-  interface Window {
-    mermaid?: any;
-  }
-}
 
 const SERVICE_NAMES: { [key: string]: string } = {
   'own-service': '自社開発・自社サービス事業',
@@ -220,9 +215,15 @@ export default function BusinessModelPage() {
     setIsRendering(false);
     renderedRef.current = {};
     
-    // Mermaidが既に読み込まれているかチェック
-    if (typeof window !== 'undefined' && window.mermaid) {
-      setMermaidLoaded(true);
+    // Mermaidが読み込まれるまで待つ（統一管理されたユーティリティを使用）
+    if (typeof window !== 'undefined') {
+      waitForMermaid()
+        .then(() => {
+          setMermaidLoaded(true);
+        })
+        .catch((error) => {
+          console.error('Mermaid読み込みエラー:', error);
+        });
     }
   }, []);
 
@@ -779,7 +780,7 @@ export default function BusinessModelPage() {
   };
 
   useEffect(() => {
-    if (!mermaidLoaded || typeof window === 'undefined' || !window.mermaid || !diagramRef.current) {
+    if (!mermaidLoaded || !diagramRef.current) {
       return;
     }
 
@@ -792,83 +793,17 @@ export default function BusinessModelPage() {
     const renderDiagram = async () => {
       setIsRendering(true);
       try {
-        const mermaid = window.mermaid;
+        // Mermaidが利用可能になるまで待つ（統一管理されたユーティリティを使用）
+        await waitForMermaid();
+        
         const diagram = generateMermaidDiagram(selectedService, isDetailed, companyName);
+        const svg = await renderMermaidDiagram(diagram);
         
-        // 初期化（一度だけ実行）
-        if (!initializedRef.current) {
-          mermaid.initialize({ 
-            startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose',
-            flowchart: {
-              useMaxWidth: true,
-              htmlLabels: true,
-              nodeSpacing: 80,
-              rankSpacing: 100,
-              curve: 'basis',
-              padding: 15,
-              defaultRenderer: 'dagre-wrapper',
-              paddingX: 15,
-              paddingY: 10,
-            },
-            fontFamily: 'var(--font-inter), var(--font-noto), sans-serif',
-            themeVariables: {
-              fontSize: '14px',
-              fontFamily: 'var(--font-inter), var(--font-noto), sans-serif',
-              primaryTextColor: '#111827',
-              primaryBorderColor: '#E5E7EB',
-              lineColor: '#6B7280',
-              secondaryTextColor: '#6B7280',
-              tertiaryColor: '#F9FAFB',
-              nodeBkg: '#FFFFFF',
-              nodeBorder: '#E5E7EB',
-              clusterBkg: '#F9FAFB',
-              clusterBorder: '#D1D5DB',
-              defaultLinkColor: '#3B82F6',
-              titleColor: '#111827',
-              edgeLabelBackground: '#FFFFFF',
-            },
-          });
-          initializedRef.current = true;
+        setSvgContent(svg);
+        if (!renderedRef.current[selectedService]) {
+          renderedRef.current[selectedService] = {};
         }
-
-        const id = 'business-model-diagram-' + selectedService + '-' + Date.now();
-        
-        if (typeof mermaid.render === 'function') {
-          // 最新のAPI: render()を使用
-          const result = await mermaid.render(id, diagram);
-          const svg = typeof result === 'string' ? result : result.svg;
-          setSvgContent(svg);
-          if (!renderedRef.current[selectedService]) {
-            renderedRef.current[selectedService] = {};
-          }
-          renderedRef.current[selectedService][renderKey] = true;
-        } else {
-          // フォールバック: 一時的なDOM要素を使用
-          const tempContainer = document.createElement('div');
-          tempContainer.style.position = 'absolute';
-          tempContainer.style.left = '-9999px';
-          tempContainer.style.visibility = 'hidden';
-          document.body.appendChild(tempContainer);
-          
-          const diagramDiv = document.createElement('div');
-          diagramDiv.className = 'mermaid';
-          diagramDiv.textContent = diagram;
-          tempContainer.appendChild(diagramDiv);
-          
-          await mermaid.run({
-            nodes: [diagramDiv],
-          });
-          
-          const svg = tempContainer.innerHTML;
-          document.body.removeChild(tempContainer);
-          setSvgContent(svg);
-          if (!renderedRef.current[selectedService]) {
-            renderedRef.current[selectedService] = {};
-          }
-          renderedRef.current[selectedService][renderKey] = true;
-        }
+        renderedRef.current[selectedService][renderKey] = true;
       } catch (err: any) {
         console.error('Mermaidレンダリングエラー:', err);
         setError('Mermaidのレンダリングに失敗しました: ' + (err.message || '不明なエラー'));
@@ -884,11 +819,16 @@ export default function BusinessModelPage() {
     renderDiagram();
   }, [selectedService, isDetailed, mermaidLoaded]);
 
-  // Mermaidの読み込み状態をチェック
+  // Mermaidの読み込み状態をチェック（統一管理されたユーティリティを使用）
   useEffect(() => {
-    const checkMermaidLoaded = () => {
-      if (typeof window !== 'undefined' && window.mermaid) {
-        setMermaidLoaded(true);
+    const checkMermaidLoaded = async () => {
+      if (typeof window !== 'undefined') {
+        try {
+          await waitForMermaid();
+          setMermaidLoaded(true);
+        } catch (error) {
+          console.error('Mermaid読み込みエラー:', error);
+        }
       }
     };
 
