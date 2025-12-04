@@ -93,38 +93,40 @@ export default function BusinessModelPage() {
       }, 50);
     };
 
-    if (typeof window !== 'undefined') {
-      // 既に読み込まれている場合
-      if (checkMermaid()) {
-        return;
-      }
-      
-      // Scriptタグの読み込み完了を監視
-      const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
-      if (scriptElement) {
-        scriptElement.addEventListener('load', () => {
-          window.dispatchEvent(new Event('mermaidloaded'));
-        });
-      }
-      
-      // イベントリスナーを追加
-      window.addEventListener('mermaidloaded', handleMermaidLoaded);
-      
-      // 定期的にチェック（フォールバック）
-      let retries = 0;
-      const maxRetries = 100; // 10秒間
-      const interval = setInterval(() => {
-        retries++;
-        if (checkMermaid() || retries >= maxRetries) {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => {
-        window.removeEventListener('mermaidloaded', handleMermaidLoaded);
-        clearInterval(interval);
-      };
+    if (typeof window === 'undefined') {
+      return;
     }
+
+    // 既に読み込まれている場合
+    if (checkMermaid()) {
+      return;
+    }
+    
+    // Scriptタグの読み込み完了を監視
+    const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
+    if (scriptElement) {
+      scriptElement.addEventListener('load', () => {
+        window.dispatchEvent(new Event('mermaidloaded'));
+      });
+    }
+    
+    // イベントリスナーを追加
+    window.addEventListener('mermaidloaded', handleMermaidLoaded);
+    
+    // 定期的にチェック（フォールバック）
+    let retries = 0;
+    const maxRetries = 100; // 10秒間
+    const interval = setInterval(() => {
+      retries++;
+      if (checkMermaid() || retries >= maxRetries) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => {
+      window.removeEventListener('mermaidloaded', handleMermaidLoaded);
+      clearInterval(interval);
+    };
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mermaidLoaded]);
 
