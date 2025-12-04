@@ -125,7 +125,7 @@ export default function BusinessModelPage() {
         clearInterval(interval);
       };
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mermaidLoaded]);
 
   // ビジネスモデル図を生成
