@@ -10,6 +10,7 @@ import { ref, uploadBytes, getDownloadURL } from 'firebase/storage';
 import dynamic from 'next/dynamic';
 import KeyVisualPDFMetadataEditor from '@/components/KeyVisualPDFMetadataEditor';
 import '@/components/pages/component-test/test-concept/pageStyles.css';
+import { waitForMermaid, renderMermaidDiagram } from '@/lib/mermaidLoader';
 
 declare global {
   interface Window {
@@ -31,7 +32,6 @@ const FIRESTORE_COLLECTION_NAME = 'companyBusinessPlan';
 const MermaidContent = ({ content }: { content: string }) => {
   const [svgContent, setSvgContent] = useState<string>('');
   const [isRendering, setIsRendering] = useState(false);
-  const initializedRef = useRef(false);
   const contentKeyRef = useRef<string>('');
 
   useEffect(() => {
@@ -59,65 +59,15 @@ const MermaidContent = ({ content }: { content: string }) => {
     contentKeyRef.current = content;
 
     const renderMermaid = async () => {
-      if (typeof window === 'undefined' || !window.mermaid) {
-        // Mermaidがまだ読み込まれていない場合、イベントを待つ
-        const handleMermaidLoad = async () => {
-          await renderMermaid();
-          window.removeEventListener('mermaidloaded', handleMermaidLoad);
-        };
-        window.addEventListener('mermaidloaded', handleMermaidLoad);
-      return;
-    }
-    
       setIsRendering(true);
       try {
-        const mermaid = window.mermaid;
+        // Mermaidが利用可能になるまで待つ（統一管理されたユーティリティを使用）
+        await waitForMermaid();
         
-        // Mermaidの初期化（グローバルに一度だけ）
-        if (!initializedRef.current) {
-          mermaid.initialize({ 
-            startOnLoad: false,
-            theme: 'default',
-            securityLevel: 'loose',
-            flowchart: {
-              useMaxWidth: true,
-              htmlLabels: true,
-              nodeSpacing: 80,
-              rankSpacing: 100,
-            },
-          });
-          initializedRef.current = true;
-        }
-
-        const id = 'mermaid-diagram-' + Date.now();
-        
-        if (typeof mermaid.render === 'function') {
-          // 最新のAPI: render()を使用
-          const result = await mermaid.render(id, mermaidCode);
-          const svg = typeof result === 'string' ? result : result.svg;
-          setSvgContent(svg);
-        } else {
-          // フォールバック: 一時的なDOM要素を使用
-          const tempContainer = document.createElement('div');
-          tempContainer.style.position = 'absolute';
-          tempContainer.style.left = '-9999px';
-          tempContainer.style.visibility = 'hidden';
-          document.body.appendChild(tempContainer);
-          
-          const diagramDiv = document.createElement('div');
-          diagramDiv.className = 'mermaid';
-          diagramDiv.textContent = mermaidCode;
-          tempContainer.appendChild(diagramDiv);
-          
-          await mermaid.run({
-            nodes: [diagramDiv],
-          });
-          
-          const svg = tempContainer.innerHTML;
-          document.body.removeChild(tempContainer);
-          setSvgContent(svg);
-        }
-    } catch (error) {
+        // 統一管理されたユーティリティを使用してレンダリング
+        const svg = await renderMermaidDiagram(mermaidCode);
+        setSvgContent(svg);
+      } catch (error) {
         console.error('Mermaidレンダリングエラー:', error);
         setSvgContent('');
       } finally {
