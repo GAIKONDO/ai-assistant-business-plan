@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useContext } from 'react';
 import { useParams } from 'next/navigation';
 import { useConcept } from '../hooks/useConcept';
 import { ContainerVisibilityContext } from '../hooks/useContainerVisibility';
-import Script from 'next/script';
 import dynamic from 'next/dynamic';
 
 // コンポーネント化されたページのコンポーネント（条件付きインポート）
@@ -27,6 +26,38 @@ export default function BusinessModelPage() {
   const [mermaidLoaded, setMermaidLoaded] = useState(false);
   const businessModelDiagramRef = useRef<HTMLDivElement>(null);
   const businessModelRenderedRef = useRef(false);
+
+  // Mermaidスクリプトを読み込む
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    // 既にスクリプトが読み込まれているかチェック
+    const existingScript = document.querySelector('script[src*="mermaid.min.js"]');
+    if (existingScript) {
+      // 既に読み込まれている場合、mermaidloadedイベントを発火
+      if ((window as any).mermaid) {
+        window.dispatchEvent(new Event('mermaidloaded'));
+      }
+      return;
+    }
+
+    // スクリプトタグを作成して追加
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js';
+    script.async = true;
+    script.onload = () => {
+      window.dispatchEvent(new Event('mermaidloaded'));
+    };
+    document.head.appendChild(script);
+
+    return () => {
+      // クリーンアップ時にスクリプトタグを削除（必要に応じて）
+      const scriptToRemove = document.querySelector('script[src*="mermaid.min.js"]');
+      if (scriptToRemove && scriptToRemove === script) {
+        scriptToRemove.remove();
+      }
+    };
+  }, []);
 
   // Mermaidが読み込まれたときの処理
   useEffect(() => {
@@ -62,38 +93,41 @@ export default function BusinessModelPage() {
       }, 50);
     };
 
-    if (typeof window !== 'undefined') {
-      // 既に読み込まれている場合
-      if (checkMermaid()) {
-        return;
-      }
-      
-      // Scriptタグの読み込み完了を監視
-      const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
-      if (scriptElement) {
-        scriptElement.addEventListener('load', () => {
-          window.dispatchEvent(new Event('mermaidloaded'));
-        });
-      }
-      
-      // イベントリスナーを追加
-      window.addEventListener('mermaidloaded', handleMermaidLoaded);
-      
-      // 定期的にチェック（フォールバック）
-      let retries = 0;
-      const maxRetries = 100; // 10秒間
-      const interval = setInterval(() => {
-        retries++;
-        if (checkMermaid() || retries >= maxRetries) {
-          clearInterval(interval);
-        }
-      }, 100);
-
-      return () => {
-        window.removeEventListener('mermaidloaded', handleMermaidLoaded);
-        clearInterval(interval);
-      };
+    if (typeof window === 'undefined') {
+      return;
     }
+
+    // 既に読み込まれている場合
+    if (checkMermaid()) {
+      return;
+    }
+    
+    // Scriptタグの読み込み完了を監視
+    const scriptElement = document.querySelector('script[src*="mermaid.min.js"]');
+    if (scriptElement) {
+      scriptElement.addEventListener('load', () => {
+        window.dispatchEvent(new Event('mermaidloaded'));
+      });
+    }
+    
+    // イベントリスナーを追加
+    window.addEventListener('mermaidloaded', handleMermaidLoaded);
+    
+    // 定期的にチェック（フォールバック）
+    let retries = 0;
+    const maxRetries = 100; // 10秒間
+    const interval = setInterval(() => {
+      retries++;
+      if (checkMermaid() || retries >= maxRetries) {
+        clearInterval(interval);
+      }
+    }, 100);
+
+    return () => {
+      window.removeEventListener('mermaidloaded', handleMermaidLoaded);
+      clearInterval(interval);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [mermaidLoaded]);
 
   // ビジネスモデル図を生成
@@ -309,10 +343,6 @@ export default function BusinessModelPage() {
 
   return (
     <>
-      <Script
-        src="https://cdn.jsdelivr.net/npm/mermaid@10/dist/mermaid.min.js"
-        strategy="lazyOnload"
-      />
       <p style={{ margin: 0, marginBottom: '24px', fontSize: '14px', color: 'var(--color-text-light)' }}>
         ビジネスモデル
       </p>
