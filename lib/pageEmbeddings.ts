@@ -15,8 +15,14 @@ import {
   Timestamp 
 } from 'firebase/firestore';
 import { db } from './firebase';
-import { generateCombinedEmbedding, cosineSimilarity } from './embeddings';
-import { PageEmbedding } from '@/types/pageMetadata';
+import { 
+  generateCombinedEmbedding, 
+  generateSeparatedEmbeddings,
+  generateEnhancedEmbedding,
+  generateMetadataEmbedding,
+  cosineSimilarity 
+} from './embeddings';
+import { PageEmbedding, PageMetadata } from '@/types/pageMetadata';
 
 /**
  * ページ埋め込みを保存
@@ -26,42 +32,110 @@ import { PageEmbedding } from '@/types/pageMetadata';
  * @param content ページコンテンツ
  * @param planId 事業計画ID（オプション）
  * @param conceptId 構想ID（オプション）
+ * @param metadata ページメタデータ（オプション、精度向上のため推奨）
  */
 export async function savePageEmbedding(
   pageId: string,
   title: string,
   content: string,
   planId?: string,
-  conceptId?: string
+  conceptId?: string,
+  metadata?: Partial<Pick<PageMetadata, 'keywords' | 'semanticCategory' | 'tags' | 'summary'>>
 ): Promise<void> {
   if (!db) {
     throw new Error('Firestoreが初期化されていません');
   }
 
   try {
+    const now = new Date().toISOString();
+    const embeddingVersion = metadata ? '2.0' : '1.0'; // メタデータがある場合はバージョン2.0
+    
     // 埋め込みを生成
-    const combinedEmbedding = await generateCombinedEmbedding(title, content);
+    let combinedEmbedding: number[] | undefined;
+    let titleEmbedding: number[] | undefined;
+    let contentEmbedding: number[] | undefined;
+    let metadataEmbedding: number[] | undefined;
+
+    if (metadata && (metadata.keywords || metadata.semanticCategory || metadata.tags)) {
+      // メタデータがある場合: 分離埋め込み + メタデータ埋め込みを生成
+      try {
+        const separated = await generateSeparatedEmbeddings(title, content);
+        titleEmbedding = separated.titleEmbedding;
+        contentEmbedding = separated.contentEmbedding;
+        
+        // メタデータの埋め込みを生成
+        try {
+          metadataEmbedding = await generateMetadataEmbedding({
+            keywords: metadata.keywords,
+            semanticCategory: metadata.semanticCategory,
+            tags: metadata.tags,
+            summary: metadata.summary,
+          });
+        } catch (error) {
+          console.warn('メタデータ埋め込みの生成に失敗しました（続行します）:', error);
+        }
+        
+        // 後方互換性のため、combinedEmbeddingも生成
+        combinedEmbedding = await generateEnhancedEmbedding(
+          title,
+          content,
+          {
+            keywords: metadata.keywords,
+            semanticCategory: metadata.semanticCategory,
+            tags: metadata.tags,
+            summary: metadata.summary,
+          }
+        );
+      } catch (error) {
+        console.warn('分離埋め込みの生成に失敗しました。従来の方法を使用します:', error);
+        // フォールバック: 従来の方法
+        combinedEmbedding = await generateCombinedEmbedding(title, content);
+      }
+    } else {
+      // メタデータがない場合: 従来の方法
+      combinedEmbedding = await generateCombinedEmbedding(title, content);
+    }
     
     // Firestoreに保存
     const embeddingData: PageEmbedding = {
       pageId,
       combinedEmbedding,
       embeddingModel: 'text-embedding-3-small',
-      embeddingVersion: '1.0',
-      createdAt: new Date().toISOString(),
+      embeddingVersion,
+      createdAt: now,
+      updatedAt: now,
     };
+
+    // 分離埋め込みがあれば追加
+    if (titleEmbedding) {
+      embeddingData.titleEmbedding = titleEmbedding;
+    }
+    if (contentEmbedding) {
+      embeddingData.contentEmbedding = contentEmbedding;
+    }
+    if (metadataEmbedding) {
+      embeddingData.metadataEmbedding = metadataEmbedding;
+    }
 
     // 追加情報があれば保存
     if (planId) {
-      (embeddingData as any).planId = planId;
+      embeddingData.planId = planId;
     }
     if (conceptId) {
-      (embeddingData as any).conceptId = conceptId;
+      embeddingData.conceptId = conceptId;
+    }
+    
+    // メタデータフィールドを保存（検索高速化のため）
+    if (metadata?.semanticCategory) {
+      embeddingData.semanticCategory = metadata.semanticCategory;
+    }
+    if (metadata?.keywords && metadata.keywords.length > 0) {
+      embeddingData.keywords = metadata.keywords;
     }
 
     await setDoc(doc(db, 'pageEmbeddings', pageId), embeddingData);
     
-    console.log('✅ ページ埋め込みを保存しました:', pageId);
+    console.log(`✅ ページ埋め込みを保存しました: ${pageId} (version: ${embeddingVersion})`);
   } catch (error) {
     console.error('ページ埋め込みの保存エラー:', error);
     // エラーが発生しても処理を続行（埋め込みはオプショナル）
@@ -78,16 +152,18 @@ export async function savePageEmbedding(
  * @param content ページコンテンツ
  * @param planId 事業計画ID（オプション）
  * @param conceptId 構想ID（オプション）
+ * @param metadata ページメタデータ（オプション）
  */
 export async function savePageEmbeddingAsync(
   pageId: string,
   title: string,
   content: string,
   planId?: string,
-  conceptId?: string
+  conceptId?: string,
+  metadata?: Partial<Pick<PageMetadata, 'keywords' | 'semanticCategory' | 'tags' | 'summary'>>
 ): Promise<void> {
   // 非同期で実行（エラーは無視）
-  savePageEmbedding(pageId, title, content, planId, conceptId).catch((error) => {
+  savePageEmbedding(pageId, title, content, planId, conceptId, metadata).catch((error) => {
     console.warn('ページ埋め込みの非同期保存でエラーが発生しました（無視されます）:', error);
   });
 }
@@ -183,6 +259,113 @@ export async function findSimilarPages(
   } catch (error) {
     console.error('類似ページ検索エラー:', error);
     throw error;
+  }
+}
+
+/**
+ * ハイブリッド検索: ベクトル検索 + メタデータフィルタリング・ブースト
+ * 精度向上のため、メタデータを活用して検索結果を改善
+ * 
+ * @param queryText 検索クエリテキスト
+ * @param limit 返す結果の最大数（デフォルト: 20）
+ * @param filters フィルタリング条件（オプション）
+ * @returns 類似ページの配列（pageId, similarity, scoreを含む）
+ */
+export async function findSimilarPagesHybrid(
+  queryText: string,
+  limit: number = 20,
+  filters?: {
+    planId?: string;
+    conceptId?: string;
+    semanticCategory?: string;
+    keywords?: string[];
+  }
+): Promise<Array<{ pageId: string; similarity: number; score: number; title?: string }>> {
+  if (!db) {
+    throw new Error('Firestoreが初期化されていません');
+  }
+
+  try {
+    // 1. ベクトル検索で候補を取得（多めに取得）
+    const vectorResults = await findSimilarPages(
+      queryText,
+      limit * 2, // 多めに取得してからフィルタリング
+      filters?.planId,
+      filters?.conceptId
+    );
+
+    if (vectorResults.length === 0) {
+      return [];
+    }
+
+    // 2. メタデータでフィルタリング・ブースト
+    const enhancedResults: Array<{ pageId: string; similarity: number; score: number; title?: string }> = [];
+    
+    for (const result of vectorResults) {
+      // ページ埋め込みデータを取得
+      const embeddingData = await getPageEmbedding(result.pageId);
+      if (!embeddingData) {
+        continue;
+      }
+
+      let score = result.similarity;
+
+      // セマンティックカテゴリが一致する場合はブースト
+      if (filters?.semanticCategory && 
+          embeddingData.semanticCategory === filters.semanticCategory) {
+        score += 0.1;
+      }
+
+      // キーワードが一致する場合はブースト
+      if (filters?.keywords && embeddingData.keywords && embeddingData.keywords.length > 0) {
+        const queryKeywords = filters.keywords.map(k => k.toLowerCase());
+        const matchingKeywords = embeddingData.keywords.filter(k => 
+          queryKeywords.some(qk => k.toLowerCase().includes(qk) || qk.includes(k.toLowerCase()))
+        );
+        score += matchingKeywords.length * 0.05;
+      }
+
+      // メタデータ埋め込みがある場合は追加の類似度計算
+      if (embeddingData.metadataEmbedding && embeddingData.metadataEmbedding.length > 0) {
+        try {
+          const { generateEmbedding } = await import('./embeddings');
+          const queryMetadataEmbedding = await generateEmbedding(queryText);
+          const metadataSimilarity = cosineSimilarity(
+            queryMetadataEmbedding,
+            embeddingData.metadataEmbedding
+          );
+          // メタデータの類似度を10%の重みで追加
+          score = score * 0.9 + metadataSimilarity * 0.1;
+        } catch (error) {
+          console.warn(`ページ ${result.pageId} のメタデータ類似度計算でエラー:`, error);
+        }
+      }
+
+      // スコアは1.0を超えないように
+      score = Math.min(score, 1.0);
+
+      enhancedResults.push({
+        pageId: result.pageId,
+        similarity: result.similarity,
+        score,
+        title: result.title,
+      });
+    }
+
+    // 3. スコアでソートして上位を返す
+    return enhancedResults
+      .sort((a, b) => b.score - a.score)
+      .slice(0, limit);
+  } catch (error) {
+    console.error('ハイブリッド検索エラー:', error);
+    // エラーが発生した場合は従来の検索にフォールバック
+    const fallbackResults = await findSimilarPages(
+      queryText,
+      limit,
+      filters?.planId,
+      filters?.conceptId
+    );
+    return fallbackResults.map(r => ({ ...r, score: r.similarity }));
   }
 }
 

@@ -375,8 +375,20 @@ export default function EditPageForm({
               }
             });
             
-            // ベクトル埋め込みを非同期で再生成・保存
-            savePageEmbeddingAsync(cleanedPage.id, cleanedPage.title, cleanedPage.content, planId);
+            // ベクトル埋め込みを非同期で再生成・保存（メタデータを含む）
+            savePageEmbeddingAsync(
+              cleanedPage.id, 
+              cleanedPage.title, 
+              cleanedPage.content, 
+              planId,
+              undefined,
+              {
+                keywords: cleanedPage.keywords,
+                semanticCategory: cleanedPage.semanticCategory,
+                tags: cleanedPage.tags,
+                summary: cleanedPage.summary,
+              }
+            );
             
             // 構造データを非同期で再生成・保存
             const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
@@ -558,8 +570,20 @@ export default function EditPageForm({
         }
       });
       
-      // ベクトル埋め込みを非同期で再生成・保存
-      savePageEmbeddingAsync(cleanedPage.id, cleanedPage.title, cleanedPage.content, undefined, conceptId);
+      // ベクトル埋め込みを非同期で再生成・保存（メタデータを含む）
+      savePageEmbeddingAsync(
+        cleanedPage.id, 
+        cleanedPage.title, 
+        cleanedPage.content, 
+        undefined, 
+        conceptId,
+        {
+          keywords: cleanedPage.keywords,
+          semanticCategory: cleanedPage.semanticCategory,
+          tags: cleanedPage.tags,
+          summary: cleanedPage.summary,
+        }
+      );
       
       // 構造データを非同期で再生成・保存
       const allPages = Object.values(pagesBySubMenu).flat().map(p => ({

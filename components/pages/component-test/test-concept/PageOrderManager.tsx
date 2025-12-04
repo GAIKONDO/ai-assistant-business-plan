@@ -1810,7 +1810,20 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
         const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
         const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
         
-        savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, planId);
+        // ベクトル埋め込みを非同期で生成・保存（メタデータを含む）
+        savePageEmbeddingAsync(
+          newPage.id, 
+          newPage.title, 
+          newPage.content, 
+          planId,
+          undefined,
+          {
+            keywords: newPage.keywords,
+            semanticCategory: newPage.semanticCategory,
+            tags: newPage.tags,
+            summary: newPage.summary,
+          }
+        );
         
         const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
           id: p.id,
@@ -1900,7 +1913,20 @@ export default function PageOrderManager({ serviceId, conceptId, planId, subMenu
       const totalPages = Object.values(pagesBySubMenu).reduce((sum, pages) => sum + pages.length, 0) + 1;
       const newPage = generatePageMetadata(basePage, subMenuId, totalPages);
       
-      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, undefined, conceptId);
+      // ベクトル埋め込みを非同期で生成・保存（メタデータを含む）
+      savePageEmbeddingAsync(
+        newPage.id, 
+        newPage.title, 
+        newPage.content, 
+        undefined, 
+        conceptId,
+        {
+          keywords: newPage.keywords,
+          semanticCategory: newPage.semanticCategory,
+          tags: newPage.tags,
+          summary: newPage.summary,
+        }
+      );
       
       const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
         id: p.id,

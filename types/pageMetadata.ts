@@ -60,12 +60,24 @@ export interface PageMetadata {
  */
 export interface PageEmbedding {
   pageId: string;
-  titleEmbedding?: number[];          // タイトルのベクトル
-  contentEmbedding?: number[];        // コンテンツのベクトル
-  combinedEmbedding?: number[];       // タイトル+コンテンツの統合ベクトル
+  
+  // 埋め込みベクトル
+  titleEmbedding?: number[];          // タイトルのベクトル（分離埋め込み用）
+  contentEmbedding?: number[];        // コンテンツのベクトル（分離埋め込み用）
+  combinedEmbedding?: number[];       // タイトル+コンテンツの統合ベクトル（後方互換性のため保持）
+  metadataEmbedding?: number[];       // メタデータ（keywords, semanticCategory等）のベクトル
+  
+  // メタデータ（検索高速化・フィルタリング用）
+  planId?: string;                    // 事業計画ID
+  conceptId?: string;                  // 構想ID
+  semanticCategory?: string;           // セマンティックカテゴリ（インデックス用）
+  keywords?: string[];                 // キーワード配列（array-contains-any用）
+  
+  // メタ情報
   embeddingModel?: string;            // 使用したモデル
-  embeddingVersion?: string;          // 埋め込みのバージョン
+  embeddingVersion?: string;          // 埋め込みのバージョン（'2.0'に更新）
   createdAt?: string;                 // 埋め込み生成日時
+  updatedAt?: string;                 // 更新日時
 }
 
 /**

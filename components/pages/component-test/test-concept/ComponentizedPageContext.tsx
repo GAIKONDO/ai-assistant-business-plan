@@ -191,9 +191,21 @@ export function ComponentizedPageProvider({ children }: ComponentizedPageProvide
                 await updateDoc(conceptDoc.ref, updateData);
                 console.log('✅ 既存ページにメタデータを自動付与しました:', updatedPages.length, 'ページ');
                 
-                // ベクトル埋め込みも非同期で生成
+                // ベクトル埋め込みも非同期で生成（メタデータを含む）
                 for (const page of updatedPages) {
-                  savePageEmbeddingAsync(page.id, page.title, page.content, undefined, conceptId);
+                  savePageEmbeddingAsync(
+                    page.id, 
+                    page.title, 
+                    page.content, 
+                    undefined, 
+                    conceptId,
+                    {
+                      keywords: page.keywords,
+                      semanticCategory: page.semanticCategory,
+                      tags: page.tags,
+                      summary: page.summary,
+                    }
+                  );
                 }
                 
                 // 更新後のデータを使用

@@ -99,8 +99,20 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
         }
       });
       
-      // ベクトル埋め込みを非同期で生成・保存
-      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, planId);
+      // ベクトル埋め込みを非同期で生成・保存（メタデータを含む）
+      savePageEmbeddingAsync(
+        newPage.id, 
+        newPage.title, 
+        newPage.content, 
+        planId,
+        undefined,
+        {
+          keywords: newPage.keywords,
+          semanticCategory: newPage.semanticCategory,
+          tags: newPage.tags,
+          summary: newPage.summary,
+        }
+      );
       
       // 構造データを非同期で生成・保存
       const allPages = Object.values(pagesBySubMenu).flat().map(p => ({
@@ -288,8 +300,20 @@ export default function AddPageForm({ serviceId, conceptId, planId, subMenuId, o
         }
       });
       
-      // ベクトル埋め込みを非同期で生成・保存
-      savePageEmbeddingAsync(newPage.id, newPage.title, newPage.content, undefined, conceptId);
+      // ベクトル埋め込みを非同期で生成・保存（メタデータを含む）
+      savePageEmbeddingAsync(
+        newPage.id, 
+        newPage.title, 
+        newPage.content, 
+        undefined, 
+        conceptId,
+        {
+          keywords: newPage.keywords,
+          semanticCategory: newPage.semanticCategory,
+          tags: newPage.tags,
+          summary: newPage.summary,
+        }
+      );
       
       // 構造データを非同期で生成・保存
       const allPages = Object.values(pagesBySubMenu).flat().map(p => ({

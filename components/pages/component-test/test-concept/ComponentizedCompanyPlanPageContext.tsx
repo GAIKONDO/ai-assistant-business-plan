@@ -158,9 +158,21 @@ export function ComponentizedCompanyPlanPageProvider({ children }: Componentized
                   });
                   console.log('✅ 既存ページにメタデータを自動付与しました（会社計画）:', updatedPages.length, 'ページ');
                   
-                  // ベクトル埋め込みも非同期で生成
+                  // ベクトル埋め込みも非同期で生成（メタデータを含む）
                   for (const page of updatedPages) {
-                    savePageEmbeddingAsync(page.id, page.title, page.content, planId);
+                    savePageEmbeddingAsync(
+                      page.id, 
+                      page.title, 
+                      page.content, 
+                      planId,
+                      undefined,
+                      {
+                        keywords: page.keywords,
+                        semanticCategory: page.semanticCategory,
+                        tags: page.tags,
+                        summary: page.summary,
+                      }
+                    );
                   }
                   
                   // 更新後のデータを使用

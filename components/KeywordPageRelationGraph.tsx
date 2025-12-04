@@ -10,7 +10,7 @@ import { scaleOrdinal } from 'd3-scale';
 import { collection, query, where, getDocs, doc, getDoc } from 'firebase/firestore';
 import { onAuthStateChanged } from 'firebase/auth';
 import { db, auth } from '@/lib/firebase';
-import { findSimilarPages } from '@/lib/pageEmbeddings';
+import { findSimilarPagesHybrid } from '@/lib/pageEmbeddings';
 import { PageMetadata } from '@/types/pageMetadata';
 import { useRouter } from 'next/navigation';
 import dynamic from 'next/dynamic';
@@ -78,6 +78,7 @@ export default function KeywordPageRelationGraph({
     isCompanyPlan?: boolean;
     similarity: number;
   }> | null>(null);
+  const [isSinglePageModal, setIsSinglePageModal] = useState(false); // 単一ページモーダルかどうか
   const simulationRef = useRef<any>(null);
   const currentKeywordRef = useRef<string>('');
   const currentPagesRef = useRef<Array<{
@@ -94,6 +95,8 @@ export default function KeywordPageRelationGraph({
   }>>([]);
   const lastClickTimeRef = useRef<number>(0);
   const clickTimerRef = useRef<NodeJS.Timeout | null>(null);
+  const lastPageClickTimeRef = useRef<number>(0);
+  const pageClickTimerRef = useRef<NodeJS.Timeout | null>(null);
 
   // ノードの色設定
   const colorScale = useMemo(() => {
@@ -208,8 +211,8 @@ export default function KeywordPageRelationGraph({
     pageInfoCache.current.clear();
 
     try {
-      // 類似ページを検索
-      const similarPages = await findSimilarPages(keyword, 20);
+      // ハイブリッド検索を使用（精度向上）
+      const similarPages = await findSimilarPagesHybrid(keyword, 20);
 
       if (similarPages.length === 0) {
         setError('関連するページが見つかりませんでした');
@@ -224,6 +227,8 @@ export default function KeywordPageRelationGraph({
           return {
             ...sp,
             ...pageInfo,
+            // scoreがある場合はscoreを、ない場合はsimilarityを使用（後方互換性）
+            similarity: sp.score !== undefined ? sp.score : sp.similarity,
           };
         })
       );
@@ -434,11 +439,12 @@ export default function KeywordPageRelationGraph({
             console.log('ダブルクリック検出！');
             lastClickTimeRef.current = 0; // リセット
             
-            // モーダルを表示
+            // モーダルを表示（全検索結果）
             const pagesToShow = [...currentPagesRef.current];
             console.log('モーダルに表示するページ:', pagesToShow.length, '件');
             if (pagesToShow.length > 0) {
               setModalPages(pagesToShow);
+              setIsSinglePageModal(false); // 複数ページモーダル
               console.log('setModalPages呼び出し完了');
             } else {
               console.warn('ページデータがありません');
@@ -458,20 +464,92 @@ export default function KeywordPageRelationGraph({
           return;
         }
         
-        // ページノードのクリック処理
-        const nodeData = d.data;
-        if (nodeData.isCompanyPlan && nodeData.planId && nodeData.subMenuId) {
-          router.push(
-            `/business-plan/company/${nodeData.planId}/${nodeData.subMenuId}`
-          );
-        } else if (
-          nodeData.serviceId &&
-          nodeData.conceptId &&
-          nodeData.subMenuId
-        ) {
-          router.push(
-            `/business-plan/services/${nodeData.serviceId}/${nodeData.conceptId}/${nodeData.subMenuId}`
-          );
+        // ページノードのダブルクリック検出（タイマーベース）
+        if (d.type === 'page') {
+          event.preventDefault();
+          event.stopPropagation();
+          
+          const now = Date.now();
+          const timeSinceLastClick = now - lastPageClickTimeRef.current;
+          
+          console.log('ページノードクリック:', {
+            pageId: d.data.pageId,
+            timeSinceLastClick
+          });
+          
+          // 既存のタイマーをクリア
+          if (pageClickTimerRef.current) {
+            clearTimeout(pageClickTimerRef.current);
+            pageClickTimerRef.current = null;
+          }
+          
+          // 300ms以内の2回目のクリックはダブルクリックとして扱う
+          if (timeSinceLastClick < 300 && timeSinceLastClick > 0) {
+            console.log('ページノードダブルクリック検出！');
+            lastPageClickTimeRef.current = 0; // リセット
+            
+            // クリックされたページの情報を取得
+            const clickedPage = currentPagesRef.current.find(
+              p => p.pageId === d.data.pageId
+            );
+            
+            if (clickedPage) {
+              // そのページ1件だけをモーダルで表示
+              console.log('モーダルに表示するページ:', clickedPage.title);
+              setModalPages([clickedPage]);
+              setIsSinglePageModal(true); // 単一ページモーダル
+            } else {
+              // ページ情報が見つからない場合は、ノードデータから作成
+              const nodeData = d.data;
+              const fallbackPage = {
+                pageId: nodeData.pageId || '',
+                pageNumber: 1,
+                title: nodeData.pageTitle || d.label,
+                content: '',
+                planId: nodeData.planId,
+                conceptId: nodeData.conceptId,
+                serviceId: nodeData.serviceId,
+                subMenuId: nodeData.subMenuId,
+                isCompanyPlan: nodeData.isCompanyPlan,
+                similarity: nodeData.similarity || 0.5,
+              };
+              
+              // ページ情報を非同期で取得
+              getPageInfo(nodeData.pageId || '').then(pageInfo => {
+                if (pageInfo.page) {
+                  const fullPage = {
+                    pageId: pageInfo.page.id,
+                    pageNumber: pageInfo.page.pageNumber,
+                    title: pageInfo.page.title,
+                    content: pageInfo.page.content,
+                    planId: pageInfo.planId,
+                    conceptId: pageInfo.conceptId,
+                    serviceId: pageInfo.serviceId,
+                    subMenuId: pageInfo.subMenuId,
+                    isCompanyPlan: pageInfo.isCompanyPlan,
+                    similarity: nodeData.similarity || 0.5,
+                  };
+                  setModalPages([fullPage]);
+                  setIsSinglePageModal(true); // 単一ページモーダル
+                } else {
+                  setModalPages([fallbackPage]);
+                  setIsSinglePageModal(true); // 単一ページモーダル
+                }
+              });
+            }
+            return;
+          }
+          
+          // シングルクリックの場合はタイマーを設定
+          lastPageClickTimeRef.current = now;
+          pageClickTimerRef.current = setTimeout(() => {
+            // シングルクリックの場合は何もしない
+            console.log('ページノードシングルクリック（タイムアウト）');
+            pageClickTimerRef.current = null;
+            lastPageClickTimeRef.current = 0;
+          }, 300);
+          
+          return;
         }
       })
       .call(
@@ -684,6 +762,7 @@ export default function KeywordPageRelationGraph({
           onClick={(e) => {
             if (e.target === e.currentTarget) {
               setModalPages(null);
+              setIsSinglePageModal(false);
             }
           }}
         >
@@ -703,10 +782,17 @@ export default function KeywordPageRelationGraph({
           >
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}>
               <h3 style={{ fontSize: '20px', fontWeight: 600, color: '#1a1a1a', margin: 0 }}>
-                「{currentKeywordRef.current}」の検索結果 ({modalPages.length}件)
+                {isSinglePageModal ? (
+                  modalPages[0]?.title || 'ページ詳細'
+                ) : (
+                  <>「{currentKeywordRef.current}」の検索結果 ({modalPages.length}件)</>
+                )}
               </h3>
               <button
-                onClick={() => setModalPages(null)}
+                onClick={() => {
+                  setModalPages(null);
+                  setIsSinglePageModal(false);
+                }}
                 style={{
                   background: 'transparent',
                   border: 'none',
